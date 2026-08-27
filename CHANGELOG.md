@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Docs overhaul, no code changes: new *Getting started* and *How it works*
+  pages (with a pipeline diagram and glossary), a docs index, and rewritten
+  *Configuration*, *Privacy, cost & limitations* and *Architecture* pages as
+  tables. Corrected claims to match the code: one JSON repair retry exists,
+  only automatic analyses are capped, the style-rule distillation call is not
+  session-tagged, the steering budget is 1400 chars (~300 tokens), distillation
+  yields 1–4 directives, the provider route is the session's own. README links
+  are absolute so they work on npm.
+
 ## 0.2.1 — 2026-08-27
 
 - npm package page now shows the English README (the Chinese one moved to
