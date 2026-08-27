@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: Asia/Beirut
+    open-pull-requests-limit: 5
+    groups:
+      runtime-dependencies:
+        dependency-type: production
+        patterns: ["*"]
+      development-dependencies:
+        dependency-type: development
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:15"
+      timezone: Asia/Beirut
+    open-pull-requests-limit: 5

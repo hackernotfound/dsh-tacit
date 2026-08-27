@@ -1,30 +1,127 @@
-# Publishes to npm with provenance when a GitHub release is published.
+# Publishes an immutable tag to npm, verifies it, then creates its GitHub release.
 # Uses npm Trusted Publishing (OIDC) — no npm token is stored in this repo.
 # One-time setup on npmjs.com: package → Settings → Trusted publisher →
 # GitHub Actions, repository hackernotfound/dsh-tacit, workflow publish.yml.
 name: publish
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          version: 10
-      - uses: actions/setup-node@v4
+          ref: ${{ github.ref }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.23.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-          cache: pnpm
+          package-manager-cache: false
+      - run: npm install --global npm@11.19.0
       - run: pnpm install --frozen-lockfile
+      - name: Validate tag, version and changelog
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs'
+
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+          const tag = process.env.GITHUB_REF_NAME
+          if (!/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(tag)) {
+            throw new Error(`Release tag must be stable semver (vX.Y.Z), got ${tag}`)
+          }
+          if (tag !== `v${pkg.version}`) {
+            throw new Error(`Tag ${tag} does not match package version ${pkg.version}`)
+          }
+          const changelog = readFileSync('CHANGELOG.md', 'utf8')
+          if (!changelog.includes(`## ${pkg.version} — `)) {
+            throw new Error(`CHANGELOG.md has no dated ${pkg.version} section`)
+          }
+          NODE
       - run: pnpm test
-      - run: npm publish --provenance --access public
+      - run: pnpm check:docs
+      - run: pnpm check:package
+      - name: Check whether npm already has this version
+        id: registry
+        run: |
+          release_name=$(node -p "require('./package.json').name")
+          release_version=$(node -p "require('./package.json').version")
+          if npm view "${release_name}@${release_version}" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish to npm with provenance
+        if: steps.registry.outputs.published != 'true'
+        run: npm publish --provenance --access public
+      - name: Verify npm publication
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process'
+          import { readFileSync } from 'node:fs'
+          import { setTimeout as wait } from 'node:timers/promises'
+
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+          const view = (field) => execFileSync(
+            'npm', ['view', `${pkg.name}@${pkg.version}`, field, '--json'],
+            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+          ).trim()
+          const compare = (left, right) => {
+            const a = left.split('.').map(Number)
+            const b = right.split('.').map(Number)
+            for (let i = 0; i < 3; i += 1) {
+              if (a[i] !== b[i]) return a[i] - b[i]
+            }
+            return 0
+          }
+
+          let lastError
+          for (let attempt = 1; attempt <= 6; attempt += 1) {
+            try {
+              const published = JSON.parse(view('version'))
+              const latest = JSON.parse(execFileSync(
+                'npm', ['view', pkg.name, 'dist-tags.latest', '--json'],
+                { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+              ))
+              const attestations = view('dist.attestations')
+              const publisher = view('_npmUser')
+              const maintainers = view('maintainers')
+              if (published !== pkg.version) throw new Error(`npm returned ${published}`)
+              if (compare(latest, pkg.version) < 0) throw new Error(`latest is still ${latest}`)
+              if (!attestations || attestations === 'null') throw new Error('provenance is not visible yet')
+              if (`${publisher}\n${maintainers}`.includes('@gmail.com')) {
+                throw new Error('published metadata still exposes a Gmail address')
+              }
+              console.log(`Verified ${pkg.name}@${pkg.version}; latest=${latest}; provenance present`)
+              process.exit(0)
+            } catch (error) {
+              lastError = error
+              if (attempt < 6) await wait(5000)
+            }
+          }
+          throw lastError
+          NODE
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "GitHub release $GITHUB_REF_NAME already exists"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes --latest
+          fi

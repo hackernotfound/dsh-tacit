@@ -6,7 +6,8 @@ plain ES modules, no bundler, no TypeScript step.
 
 ## Prerequisites
 
-- Node ≥ 22 and pnpm
+- Node ≥ 22 and pnpm 11.23.0 (`corepack enable` will honor the pinned
+  `packageManager` version)
 - a working `dsh` install (`npx @deepseek-ai/dsh web`) with a DeepSeek API key
   configured in Settings → Models — only needed for the live smoke test
 
@@ -29,14 +30,18 @@ refresh is enough. Reinstall only when `package.json` dependencies change.
 
 ```bash
 pnpm test                 # node --test: fold, calls, analysis, trust, schema, store, host integration, client SSR
+pnpm check:docs           # local Markdown links and anchors
+pnpm check:package        # npm tarball contents and English root README
+pnpm check                # all three checks above
 pnpm smoke                # HTTP end-to-end against a running dsh web (no model calls, free)
 TACIT_SMOKE_SESSION=<id> pnpm smoke           # also exercises ✨ Improve: one real model call, ≈ $0.001
 TACIT_BASE=http://127.0.0.1:4000 pnpm smoke   # if your dsh web is not on :3080
 ```
 
-CI runs `pnpm test` on Node 22 and 24 for every push and PR. Publishing to npm
-happens from a GitHub release with npm provenance (OIDC trusted publishing — no
-token in the repo). Please keep CI green.
+CI runs `pnpm test` on Node 22 and 24 plus the docs and package checks for every
+push and PR. Publishing to npm happens when a `v*` tag is pushed, with npm
+provenance through OIDC trusted publishing and no npm token. Please keep CI
+green.
 
 ## Ground rules
 
@@ -72,3 +77,21 @@ Open an issue with the dsh version (`npx @deepseek-ai/dsh --version`), what you
 typed, what the Tacit tab / console showed, and — if it is about a directive —
 the directive text from Settings → Tacit. Please strip anything private from
 prompts before pasting them.
+
+## Release policy
+
+Not every merged change needs an npm release:
+
+- Use a **patch** release for fixes, runtime dependency or configuration
+  changes, packaged host/client changes, and root `README.md` updates that must
+  appear on npmjs.com.
+- While Tacit is pre-1.0, use a **minor** release for new features and breaking
+  changes.
+- Do not release for GitHub-only `docs/` changes, tests, CI, contributor files,
+  security files or repository settings.
+
+Add release-worthy notes under `## Unreleased` in `CHANGELOG.md`. To release,
+turn that section into a dated version section, then run `npm version patch` or
+`npm version minor` and push the commit and tag with `git push --follow-tags`.
+Never move an existing release tag; corrections after publication get a new
+patch version.
