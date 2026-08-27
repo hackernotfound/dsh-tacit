@@ -29,11 +29,14 @@ refresh is enough. Reinstall only when `package.json` dependencies change.
 
 ```bash
 pnpm test                 # node --test: fold, calls, analysis, trust, schema, store, host integration, client SSR
-pnpm smoke                # live end-to-end against a running dsh web; real model calls, ≈ $0.005
+pnpm smoke                # HTTP end-to-end against a running dsh web (no model calls, free)
+TACIT_SMOKE_SESSION=<id> pnpm smoke           # also exercises ✨ Improve: one real model call, ≈ $0.001
 TACIT_BASE=http://127.0.0.1:4000 pnpm smoke   # if your dsh web is not on :3080
 ```
 
-CI runs `pnpm test` on Node 22 and 24. Please keep it green.
+CI runs `pnpm test` on Node 22 and 24 for every push and PR. Publishing to npm
+happens from a GitHub release with npm provenance (OIDC trusted publishing — no
+token in the repo). Please keep CI green.
 
 ## Ground rules
 
@@ -47,14 +50,17 @@ CI runs `pnpm test` on Node 22 and 24. Please keep it green.
 - **Never add a way for Tacit to read an API key or call a custom endpoint.**
   All model calls go through `ctx.llm.stream`; the model is allowlisted in
   `lib/schema.js`.
-- **Cost is a feature.** New automatic calls must be capped (see
-  `autoDailyBudget`) and use `reasoningEffort: 'low'` with a tool schema.
+- **Cost is a feature.** Every call must use `reasoningEffort: 'low'` with a
+  tool schema and pass the `sessionId` so cost meters can attribute it; new
+  *automatic* calls should be capped (see `autoDailyBudget`). Add any new call to
+  the cost table in [docs/privacy-and-cost.md](docs/privacy-and-cost.md#cost).
 - **Don't delete user data.** The only deletion path is "Clear all analysis
   reports" in Settings.
 
 ## Where things live
 
-See [docs/architecture.md](docs/architecture.md). Short version:
+Behaviour: [docs/how-it-works.md](docs/how-it-works.md). Code map, hooks,
+routes and storage: [docs/architecture.md](docs/architecture.md). Short version:
 `lib/fold.js` turns session events into turn digests, `lib/analyze.js` holds
 the prompts, heuristics and model calls, `lib/service.js` is the host service
 (auto triggers, trials, bootstrap, steering), `lib/routes.js` the JSON API,
