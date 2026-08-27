@@ -21,9 +21,19 @@ async function collectMarkdown(directory) {
 
 await collectMarkdown('docs')
 
+function stripTags(text) {
+  let result = ''
+  let insideTag = false
+  for (const character of text) {
+    if (character === '<') insideTag = true
+    else if (character === '>') insideTag = false
+    else if (!insideTag) result += character
+  }
+  return result
+}
+
 function githubSlug(text) {
-  return text
-    .replace(/<[^>]*>/g, '')
+  return stripTags(text)
     .replace(/[`*_~]/g, '')
     .trim()
     .toLowerCase()
