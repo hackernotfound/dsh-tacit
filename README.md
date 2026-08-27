@@ -7,7 +7,7 @@ A plugin for <a href="https://www.npmjs.com/package/@deepseek-ai/dsh">DeepSeek H
   <a href="https://www.npmjs.com/package/dsh-tacit"><img alt="npm" src="https://img.shields.io/npm/v/dsh-tacit"></a>
   <a href="https://github.com/hackernotfound/dsh-tacit/actions/workflows/test.yml"><img alt="test" src="https://github.com/hackernotfound/dsh-tacit/actions/workflows/test.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
-  <a href="README.zh.md">中文</a>
+  <a href="docs/README.zh.md">中文</a>
 </p>
 
 You keep writing prompts the way you already do. Tacit watches how each turn
