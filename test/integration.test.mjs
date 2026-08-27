@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 /**
  * End-to-end host smoke test WITHOUT the real harness: a stubbed cordis ctx
  * (projection registry, sessions, llm waterfall, web server) runs the full
@@ -117,13 +119,11 @@ function fakeLlm(capture) {
               { kind: 'missing-context', severity: 'medium', what: 'no file paths', why: 'agent searched everywhere' },
             ],
             improvedPrompt: 'Rewrite with clear acceptance criteria and file paths.',
-            explanation: 'Scope was open; the agent wandered.',
-            estimatedTokenSavingPct: 25,
+            explanation: 'Scope was open; the agent wandered.'
           })
           : JSON.stringify({
             improved: 'Improved draft with precise scope.',
             rationale: 'Added constraints.',
-            savingsEstimate: 15,
           })
       yield { type: 'text-delta', index: 0, text: payload.slice(0, 20) }
       yield { type: 'text-delta', index: 0, text: payload.slice(20) }
@@ -221,7 +221,6 @@ test('analyze route: folds a fake model call into a persisted report and profile
   assert.equal(result.body.ok, true)
   assert.equal(result.body.report.problems.length, 2)
   assert.equal(result.body.report.improvedPrompt, 'Rewrite with clear acceptance criteria and file paths.')
-  assert.equal(result.body.report.estimatedTokenSavingPct, 25)
   assert.equal(result.body.report.promptExcerpt, 'fix the bug please')
   assert.equal(result.body.profile.analyzedCount, 1)
   assert.equal(result.body.profile.patterns[0].kind, 'ambiguous-goal')
@@ -322,7 +321,6 @@ test('improve route returns an improved draft', async () => {
   const result = await callRoute(improve, { sessionId: 'session-1', draft: 'make the app better' })
   assert.equal(result.body.ok, true)
   assert.equal(result.body.improved, 'Improved draft with precise scope.')
-  assert.equal(result.body.savingsEstimate, 15)
   assert.equal(captured[0].provider, 'deepseek-official')
 })
 
@@ -346,8 +344,7 @@ test('analyze route: a reasoning-only model response is an empty-response error 
       const payload = JSON.stringify({
         problems: [{ kind: 'ambiguous-goal', severity: 'high', what: 'unclear scope', why: 'agent wandered' }],
         improvedPrompt: 'Rewritten via reasoning stream.',
-        explanation: 'Scope clarified.',
-        estimatedTokenSavingPct: 10,
+        explanation: 'Scope clarified.'
       })
       yield { type: 'block-start', index: 0, blockType: 'reasoning' }
       yield { type: 'reasoning-delta', index: 0, text: payload }
@@ -376,8 +373,7 @@ test('analyze route: a prose response triggers one strict-JSON repair retry', as
         : JSON.stringify({
           problems: [{ kind: 'ambiguous-goal', severity: 'high', what: 'unclear scope', why: 'agent wandered' }],
           improvedPrompt: 'Repaired rewrite.',
-          explanation: 'Scope clarified on the retry.',
-          estimatedTokenSavingPct: 5,
+          explanation: 'Scope clarified on the retry.'
         })
       yield { type: 'text-delta', index: 0, text: payload }
       yield { type: 'block-end', index: 0 }
@@ -433,9 +429,9 @@ test('config route: applies, persists, and re-validates a patch', async () => {
   const { ctx, routes } = makeFakeCtx({ llm: fakeLlm(), sessions: { get: () => undefined }, snapshotValue: [] })
   apply(ctx, {})
   const config = routes.find((r) => r.path === '/api/tacit/config')
-  const result = await callRoute(config, { patch: { learningThreshold: 1, liveSuggestions: false } })
+  const result = await callRoute(config, { patch: { autoDailyBudget: 1, liveSuggestions: false } })
   assert.equal(result.body.ok, true)
-  assert.equal(result.body.config.learningThreshold, 1)
+  assert.equal(result.body.config.autoDailyBudget, 1)
   assert.equal(result.body.config.liveSuggestions, false)
   assert.equal(result.body.config.model, 'deepseek-v4-flash')
   const patchFile = path.join(tmpHome, 'storages', 'tacit', 'config.patch.json')
@@ -477,13 +473,13 @@ test('bad request bodies are rejected by the route layer', async () => {
 test('state route reports the merged config and profile', async () => {
   const { ctx, routes } = makeFakeCtx({ llm: fakeLlm(), sessions: { get: () => undefined }, snapshotValue: [] })
   // A fresh loader/YAML base field (model) merges in; the field persisted by
-  // the earlier config-route test (learningThreshold: 1) wins over the base.
-  apply(ctx, { model: 'deepseek-v4-pro', learningThreshold: 7 })
+  // the earlier config-route test (autoDailyBudget: 1) wins over the base.
+  apply(ctx, { model: 'deepseek-v4-pro', autoDailyBudget: 7 })
   const state = routes.find((r) => r.path === '/api/tacit/state')
   const result = await callRoute(state, {})
   assert.equal(result.body.ok, true)
   assert.equal(result.body.config.model, 'deepseek-v4-pro')
-  assert.equal(result.body.config.learningThreshold, 1)
+  assert.equal(result.body.config.autoDailyBudget, 1)
   assert.equal(typeof result.body.profile.analyzedCount, 'number')
 })
 
@@ -504,7 +500,7 @@ function seedConfigPatch(patch) {
 }
 
 function seedReadyProfile() {
-  seedConfigPatch({ learningThreshold: 1, liveSuggestions: true })
+  seedConfigPatch({ liveSuggestions: true })
   seedProfile({
     analyzedCount: 5,
     patterns: [{ kind: 'ambiguous-goal', count: 2, lastExample: 'be specific' }],
@@ -545,7 +541,7 @@ test('improve returns rewriteId + patternsUsed and marks applied on /applied', a
   assert.equal(readProfile().patterns[0].accepted, 0)
 })
 
-test('feedback 👍 bumps accepted and stores the rewrite in the good-examples library (capped at 10)', async () => {
+test('feedback 👍 bumps accepted for every pattern used by the rewrite', async () => {
   seedReadyProfile()
   const { improve, feedback } = routesOf()
   const result = await callRoute(improve, { sessionId: 'session-1', draft: 'fix the login test' })
@@ -556,10 +552,7 @@ test('feedback 👍 bumps accepted and stores the rewrite in the good-examples l
   const profile = readProfile()
   assert.equal(profile.patterns[0].accepted, 12)
   assert.equal(profile.patterns[0].rejected, 0)
-  assert.equal(profile.goodExamples.length, 10)
-  assert.equal(profile.goodExamples[0].prompt, 'fix the login test')
-  assert.equal(profile.goodExamples[0].improved, 'Improved draft with precise scope.')
-  assert.equal(typeof profile.goodExamples[0].acceptedAt, 'number')
+  assert.equal(profile.goodExamples, undefined, 'the write-only good-examples library is gone')
 })
 
 test('feedback 👎 bumps rejected, logs the clipped reason verbatim, and it rides the NEXT improve call', async () => {
@@ -634,7 +627,7 @@ test('distillation failure is soft-silent: pendingDistill stays and feedback sti
     async *stream(options) {
       captured.push(options)
       if (typeof options.system === 'string' && options.system.includes('distill')) throw new Error('boom 401 auth')
-      const payload = JSON.stringify({ improved: 'Improved draft with precise scope.', rationale: '', savingsEstimate: 15 })
+      const payload = JSON.stringify({ improved: 'Improved draft with precise scope.', rationale: '' })
       yield { type: 'text-delta', index: 0, text: payload }
       yield { type: 'block-end', index: 0 }
     },
@@ -738,7 +731,7 @@ test('feedback/applied with an unknown rewriteId are ignored with HTTP 400', asy
 })
 
 test('the improve call uses whatever the profile has learned from the very first analysis (no threshold gate)', async () => {
-  seedConfigPatch({ learningThreshold: 20, liveSuggestions: true })
+  seedConfigPatch({ liveSuggestions: true })
   seedProfile({ analyzedCount: 1, patterns: [{ kind: 'ambiguous-goal', count: 2, lastExample: 'be specific' }], updatedAt: Date.now(), styleRules: [{ rule: 'Keep paths verbatim.', createdAt: 1 }] })
   const captured = []
   const fake = makeFakeCtx({
@@ -861,7 +854,7 @@ function steeringHarness({ config = {}, profile } = {}) {
 }
 
 const seedDirectives = (list) => ({
-  analyzedCount: 0, patterns: [], updatedAt: Date.now(), styleRules: [], goodExamples: [], feedbackLog: [], pendingDistill: 0,
+  analyzedCount: 0, patterns: [], updatedAt: Date.now(), styleRules: [], feedbackLog: [], pendingDistill: 0,
   directives: list,
 })
 

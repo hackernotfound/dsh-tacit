@@ -2,3 +2,15 @@ node_modules/
 .DS_Store
 *.log
 *.tgz
+
+# never commit credentials of any kind
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.keystore
+id_rsa*
+id_ed25519*
+credentials*
+secrets*

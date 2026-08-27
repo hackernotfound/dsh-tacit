@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createTimelineDefinition, applyTimeline, emptyTurn, DEFAULT_BOUNDS } from '../lib/fold.js'
@@ -9,7 +11,7 @@ function foldAll(events, bounds = DEFAULT_BOUNDS) {
   const definition = createTimelineDefinition(() => bounds)
   let state = definition.init()
   for (const event of events) state = definition.apply(state, event)
-  return { state, view: definition.view(state) }
+  return { state, view: definition.wire.view(state) }
 }
 
 const textMessage = (text, source = { kind: 'user' }) => ({

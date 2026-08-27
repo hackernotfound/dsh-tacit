@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -13,8 +15,8 @@ function tempStore() {
 test('config patch round-trips and survives a re-read', () => {
   const { store } = tempStore()
   assert.deepEqual(store.configPatch(), {})
-  store.saveConfigPatch({ model: 'deepseek-v4-pro', learningThreshold: 5 })
-  assert.deepEqual(store.configPatch(), { model: 'deepseek-v4-pro', learningThreshold: 5 })
+  store.saveConfigPatch({ model: 'deepseek-v4-pro', autoDailyBudget: 5 })
+  assert.deepEqual(store.configPatch(), { model: 'deepseek-v4-pro', autoDailyBudget: 5 })
 })
 
 test('profile round-trips with defaults filled in', () => {
@@ -33,7 +35,6 @@ test('profile v2 fields round-trip and old files get the v2 defaults merged', ()
   fs.writeFileSync(path.join(dir, 'profile.json'), JSON.stringify({ analyzedCount: 1, patterns: [], updatedAt: 7 }))
   const upgraded = store.profile()
   assert.deepEqual(upgraded.styleRules, [])
-  assert.deepEqual(upgraded.goodExamples, [])
   assert.deepEqual(upgraded.feedbackLog, [])
   assert.equal(upgraded.pendingDistill, 0)
 
@@ -42,7 +43,6 @@ test('profile v2 fields round-trip and old files get the v2 defaults merged', ()
     patterns: [],
     updatedAt: 8,
     styleRules: [{ rule: 'Be specific.', createdAt: 9 }],
-    goodExamples: [{ prompt: 'p', improved: 'i', acceptedAt: 10 }],
     feedbackLog: [{ time: 11, verdict: 'down', reason: 'vague', patternKinds: [] }],
     pendingDistill: 3,
   })
@@ -53,7 +53,7 @@ test('profile v2 fields round-trip and old files get the v2 defaults merged', ()
 
 test('reports round-trip per session and turn', () => {
   const { store } = tempStore()
-  const report = { ok: true, turn: 2, time: 9, model: 'm', problems: [], improvedPrompt: '', explanation: '', estimatedTokenSavingPct: 0 }
+  const report = { ok: true, turn: 2, time: 9, model: 'm', problems: [], improvedPrompt: '', explanation: '' }
   store.saveReport('session-abc', 2, report)
   store.saveReport('session-abc', 5, { ...report, turn: 5 })
   const listed = store.listReports('session-abc')
@@ -66,7 +66,7 @@ test('reports round-trip per session and turn', () => {
 
 test('session ids are sanitized before touching the filesystem', () => {
   const { store, dir } = tempStore()
-  store.saveReport('../../etc/passwd', 1, { ok: true, turn: 1, time: 1, model: 'm', problems: [], improvedPrompt: '', explanation: '', estimatedTokenSavingPct: 0 })
+  store.saveReport('../../etc/passwd', 1, { ok: true, turn: 1, time: 1, model: 'm', problems: [], improvedPrompt: '', explanation: '' })
   const entries = fs.readdirSync(path.join(dir, 'reports'))
   assert.equal(entries.length, 1)
   assert.ok(entries[0].includes('.._.._etc_passwd'))
@@ -77,7 +77,7 @@ test('session ids are sanitized before touching the filesystem', () => {
 
 test('clearReports removes only plugin-named report files', () => {
   const { store, dir } = tempStore()
-  const report = { ok: true, turn: 1, time: 1, model: 'm', problems: [], improvedPrompt: '', explanation: '', estimatedTokenSavingPct: 0 }
+  const report = { ok: true, turn: 1, time: 1, model: 'm', problems: [], improvedPrompt: '', explanation: '' }
   store.saveReport('s1', 1, report)
   store.saveReport('s1', 2, report)
   store.saveReport('s2', 1, report)
@@ -103,9 +103,9 @@ test('clearReports is a no-op when the reports directory is absent', () => {
 
 test('listAllReports merges sessions, sorts newest first, and caps the list', () => {
   const { store } = tempStore()
-  store.saveReport('s1', 1, { ok: true, turn: 1, time: 100, model: 'm', problems: [], improvedPrompt: 'a', explanation: '', estimatedTokenSavingPct: 10, promptExcerpt: 'excerpt one' })
-  store.saveReport('s2', 3, { ok: true, turn: 3, time: 300, model: 'm', problems: [], improvedPrompt: 'c', explanation: '', estimatedTokenSavingPct: 30, promptExcerpt: 'excerpt three' })
-  store.saveReport('s1', 2, { ok: true, turn: 2, time: 200, model: 'm', problems: [], improvedPrompt: 'b', explanation: '', estimatedTokenSavingPct: 20 })
+  store.saveReport('s1', 1, { ok: true, turn: 1, time: 100, model: 'm', problems: [], improvedPrompt: 'a', explanation: '', promptExcerpt: 'excerpt one' })
+  store.saveReport('s2', 3, { ok: true, turn: 3, time: 300, model: 'm', problems: [], improvedPrompt: 'c', explanation: '', promptExcerpt: 'excerpt three' })
+  store.saveReport('s1', 2, { ok: true, turn: 2, time: 200, model: 'm', problems: [], improvedPrompt: 'b', explanation: '' })
 
   const all = store.listAllReports(10)
   assert.equal(all.length, 3)

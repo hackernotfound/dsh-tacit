@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 /**
  * callCoachModel: cheap, structured model calls through the harness llm
  * waterfall — low reasoning effort, tool-schema structured output, no

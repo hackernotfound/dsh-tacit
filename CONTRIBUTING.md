@@ -54,7 +54,7 @@ CI runs `pnpm test` on Node 22 and 24. Please keep it green.
 
 ## Where things live
 
-See the *Architecture* table in [README.md](README.md). Short version:
+See [docs/architecture.md](docs/architecture.md). Short version:
 `lib/fold.js` turns session events into turn digests, `lib/analyze.js` holds
 the prompts, heuristics and model calls, `lib/service.js` is the host service
 (auto triggers, trials, bootstrap, steering), `lib/routes.js` the JSON API,

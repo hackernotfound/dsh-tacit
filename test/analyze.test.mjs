@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
@@ -53,14 +55,12 @@ test('normalizeReport shapes a valid parsed object and validates against reportS
     ],
     improvedPrompt: 'Add acceptance criteria and file paths.',
     explanation: 'The prompt left scope open.',
-    estimatedTokenSavingPct: 35,
   }
   const report = normalizeReport(parsed, { turn: 3, time: 42, model: 'deepseek-v4-flash', rawText: '' })
   assert.equal(report.ok, true)
   assert.equal(report.problems.length, 2)
   assert.equal(report.problems[0].kind, 'ambiguous-goal')
   assert.equal(report.problems[0].severity, 'high')
-  assert.equal(report.estimatedTokenSavingPct, 35)
   assert.doesNotThrow(() => reportSchema.parse(report))
 })
 
@@ -71,13 +71,6 @@ test('normalizeReport falls back to a notes problem on unparseable model output'
   assert.equal(report.problems[0].kind, 'notes')
   assert.equal(report.improvedPrompt, '')
   assert.doesNotThrow(() => reportSchema.parse(report))
-})
-
-test('normalizeReport clamps the savings percentage into 0..90', () => {
-  const high = normalizeReport({ estimatedTokenSavingPct: 500 }, { turn: 1, time: 1, model: 'm', rawText: '' })
-  const low = normalizeReport({ estimatedTokenSavingPct: -10 }, { turn: 1, time: 1, model: 'm', rawText: '' })
-  assert.equal(high.estimatedTokenSavingPct, 90)
-  assert.equal(low.estimatedTokenSavingPct, 0)
 })
 
 test('aggregateProfile merges counts, sorts by count, caps patterns, and counts analyses', () => {
@@ -184,7 +177,6 @@ test('aggregateProfile preserves the v2 loop fields across re-analyses', () => {
     patterns: [{ kind: 'ambiguous-goal', count: 2, lastExample: 'old', applied: 1, accepted: 1, rejected: 0, verified: 1, unverified: 0 }],
     updatedAt: 1,
     styleRules: [{ rule: 'Be specific.', createdAt: 2 }],
-    goodExamples: [{ prompt: 'p', improved: 'i', acceptedAt: 3 }],
     feedbackLog: [{ time: 4, verdict: 'down', reason: 'vague', patternKinds: ['ambiguous-goal'] }],
     pendingDistill: 2,
   }
@@ -199,7 +191,6 @@ test('aggregateProfile preserves the v2 loop fields across re-analyses', () => {
   assert.equal(next.patterns[0].accepted, 1)
   assert.equal(next.patterns[0].verified, 1)
   assert.deepEqual(next.styleRules, prev.styleRules)
-  assert.deepEqual(next.goodExamples, prev.goodExamples)
   assert.deepEqual(next.feedbackLog, prev.feedbackLog)
   assert.equal(next.pendingDistill, 2)
   assert.doesNotThrow(() => profileSchema.parse(next))
@@ -208,14 +199,14 @@ test('aggregateProfile preserves the v2 loop fields across re-analyses', () => {
 test('normalizeImprove falls back to the original draft when the model produces nothing', () => {
   const empty = normalizeImprove(null, 'original draft')
   assert.equal(empty.improved, 'original draft')
-  assert.equal(empty.savingsEstimate, 0)
+  assert.equal(empty.rationale, '')
 
   const blank = normalizeImprove({ improved: '   ' }, 'original draft')
   assert.equal(blank.improved, 'original draft')
 
-  const good = normalizeImprove({ improved: 'better', rationale: 'shorter', savingsEstimate: 20 }, 'original')
+  const good = normalizeImprove({ improved: 'better', rationale: 'shorter' }, 'original')
   assert.equal(good.improved, 'better')
-  assert.equal(good.savingsEstimate, 20)
+  assert.equal(good.rationale, 'shorter')
 })
 
 // ── Zero-click learning: trigger heuristics ────────────────────────────────
@@ -253,7 +244,7 @@ test('buildAnalysisUserText carries the user\'s next message as correction evide
 
 // ── Ambient steering: directives → system-prompt section ───────────────────
 
-import { renderSteeringSection, normalizeDirectives, buildDirectiveUserText, STEERING_MAX_CHARS } from '../lib/analyze.js'
+import { renderSteeringSection, buildDirectiveUserText, STEERING_MAX_CHARS } from '../lib/analyze.js'
 
 test('renderSteeringSection is empty without enabled directives and lists enabled ones', () => {
   assert.equal(renderSteeringSection({ directives: [] }), '')
@@ -276,10 +267,10 @@ test('renderSteeringSection stays within the token-cheap character budget', () =
   assert.ok(renderSteeringSection({ directives }).length <= STEERING_MAX_CHARS)
 })
 
-test('normalizeDirectives parses the tool payload into clipped, deduped imperatives', () => {
-  const parsed = normalizeDirectives(JSON.stringify({ directives: ['Grep before asking.', ' grep before asking. ', '', 42, 'Second rule.'] }))
+test('classifyDirectives parses the tool payload into clipped, deduped imperatives', () => {
+  const parsed = classifyDirectives(JSON.stringify({ directives: ['Grep before asking.', ' grep before asking. ', '', 42, 'Second rule.'] })).kept
   assert.deepEqual(parsed, ['Grep before asking.', 'Second rule.'])
-  assert.deepEqual(normalizeDirectives('nonsense'), [])
+  assert.deepEqual(classifyDirectives('nonsense').kept, [])
 })
 
 test('buildDirectiveUserText feeds patterns, examples, style rules and recent corrections to the distiller', () => {
@@ -373,7 +364,7 @@ test('classifyDirectives rejects directives that make the agent ask the user', (
     'Assume the Next.js app under apps/web unless told otherwise.',
   ])
   assert.equal(rejected.length, 2)
-  assert.deepEqual(normalizeDirectives(JSON.stringify({ directives: ['Get approval from the user first.'] })), [])
+  assert.deepEqual(classifyDirectives(JSON.stringify({ directives: ['Get approval from the user first.'] })).kept, [])
 })
 
 test('renderSteeringSection renders candidates and active directives but never retired ones', () => {
