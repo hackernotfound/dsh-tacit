@@ -1,0 +1,104 @@
+{
+  "name": "dsh-tacit",
+  "version": "0.2.0",
+  "description": "Tacit learns what you leave unsaid in your prompts — from messy turns and your own corrections, with zero clicks — and tells the agent how to compensate, on every turn, via a system-prompt section you can read and edit.",
+  "author": "hackernotfound",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hackernotfound/dsh-tacit.git"
+  },
+  "homepage": "https://github.com/hackernotfound/dsh-tacit#readme",
+  "bugs": {
+    "url": "https://github.com/hackernotfound/dsh-tacit/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./client/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "client",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "dshhub": {
+    "schemaVersion": 1,
+    "displayName": "Tacit",
+    "summary": "Learns what you leave unsaid (auto-analysis of messy turns and your corrections) and steers the agent for you through an editable system-prompt section. Optional ✨ Improve rewrite and opt-in pre-send context.",
+    "categories": [
+      "prompt",
+      "workflow",
+      "web-ui"
+    ],
+    "surfaces": [
+      "host",
+      "web"
+    ],
+    "capabilities": {
+      "provides": [
+        "service:tacit"
+      ]
+    },
+    "compatibility": {
+      "dsh": ">=0.1.1-rc.1",
+      "node": ">=22"
+    },
+    "permissions": {
+      "network": [
+        "https://api.deepseek.com"
+      ],
+      "filesystem": [
+        "filesystem:read",
+        "filesystem:write"
+      ]
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-home-paths": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "prompt",
+    "prompt-engineering",
+    "system-prompt",
+    "personalization",
+    "tacit"
+  ]
+}

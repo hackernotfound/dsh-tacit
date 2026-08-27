@@ -1,0 +1,15 @@
+# dsh-tacit — bundle patch layer.
+#
+# One host row over the profile: this loads the package's main entry as the
+# host half. Because the package declares dsh.client (platform: web), the web
+# app also loads its ./client bundle as the browser half.
+#
+# The plugin's settings can be tuned from this layer's sibling user patch
+# (~/.dsh/profiles/web/cordis.patch.yml) with an id-targeted override, e.g.:
+#   - id: tacit
+#     config:
+#       model: deepseek-v4-pro
+#       autoDailyBudget: 50
+- insert:
+    - id: tacit
+      name: dsh-tacit
