@@ -1,0 +1,33 @@
+name: compatibility
+
+on:
+  schedule:
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  latest-dsh:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.23.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Pack Tacit
+        run: npm pack --json > "${RUNNER_TEMP}/dsh-tacit-pack.json"
+      - name: Install into the latest DSH profile
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-tacit-compat-home
+        run: |
+          compatibility_tarball=$(node -e "const p=require(process.env.RUNNER_TEMP+'/dsh-tacit-pack.json'); process.stdout.write(p[0].filename)")
+          npx --yes @deepseek-ai/dsh@latest --version
+          npx --yes @deepseek-ai/dsh@latest plugin --profile web add "./${compatibility_tarball}"

@@ -2,19 +2,18 @@
 
 ## Unreleased
 
-- Docs overhaul, no code changes: new *Getting started* and *How it works*
-  pages (with a pipeline diagram and glossary), a docs index, and rewritten
-  *Configuration*, *Privacy, cost & limitations* and *Architecture* pages as
-  tables. Corrected claims to match the code: one JSON repair retry exists,
-  only automatic analyses are capped, the style-rule distillation call is not
-  session-tagged, the steering budget is 1400 chars (~300 tokens), distillation
-  yields 1–4 directives, the provider route is the session's own. README links
-  are absolute so they work on npm.
-
 ## 0.2.1 — 2026-08-27
 
-- npm package page now shows the English README (the Chinese one moved to
-  `docs/README.zh.md`). No code changes.
+- The npm package page now shows the English README; the Chinese translation
+  moved to `docs/README.zh.md`.
+- Documentation overhaul, with no runtime changes: added *Getting started*,
+  *How it works*, a docs index, a pipeline diagram and a glossary; rewrote the
+  configuration, privacy/cost and architecture references as tables.
+- Corrected documentation claims to match the code: one JSON repair retry
+  exists, only automatic analyses are capped, style-rule distillation is not
+  session-tagged, steering is capped at 1400 characters, distillation yields
+  1–4 directives, and model calls follow the session's provider route.
+- README documentation links are absolute so they work from npmjs.com.
 
 ## 0.2.0 — 2026-08-27
 
