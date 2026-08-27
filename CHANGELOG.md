@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 — 2026-08-27
+
+- npm package page now shows the English README (the Chinese one moved to
+  `docs/README.zh.md`). No code changes.
+
 ## 0.2.0 — 2026-08-27
 
 First public release. Renamed from `dsh-prompt-coach` to **Tacit**; an existing
