@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 /**
  * Trust & selection unit tests for the v2 self-improving loop: the pure
  * trust score, trusted-pattern selection for the improve prompt, verbatim

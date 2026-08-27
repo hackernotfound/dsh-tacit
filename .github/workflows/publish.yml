@@ -1,0 +1,30 @@
+# Publishes to npm with provenance when a GitHub release is published.
+# Uses npm Trusted Publishing (OIDC) — no npm token is stored in this repo.
+# One-time setup on npmjs.com: package → Settings → Trusted publisher →
+# GitHub Actions, repository hackernotfound/dsh-tacit, workflow publish.yml.
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: npm publish --provenance --access public

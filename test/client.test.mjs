@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 /**
  * Client bundle smoke test WITHOUT a browser: stubs the module-loader
  * environment, loads the real bundle, applies it against a fake client ctx,
@@ -140,7 +142,7 @@ test('the Coach tab renders turn rows, chips, and the Analyze button', () => {
 
 test('a stored report renders problems, improved prompt, explanation, and its trigger badge', () => {
   store.initDone = true
-  store.config = { model: 'deepseek-v4-flash', learningThreshold: 20, liveSuggestions: true }
+  store.config = { model: 'deepseek-v4-flash', liveSuggestions: true }
   store.profile = { analyzedCount: 1, patterns: [] }
   store.reports['2'] = {
     ok: true,
@@ -149,8 +151,7 @@ test('a stored report renders problems, improved prompt, explanation, and its tr
     model: 'deepseek-v4-flash',
     problems: [{ kind: 'ambiguous-goal', severity: 'high', what: 'no acceptance criteria', why: 'agent wandered' }],
     improvedPrompt: 'Rewritten prompt',
-    explanation: 'Scope was open.',
-    estimatedTokenSavingPct: 20,
+    explanation: 'Scope was open.'
   }
   const Tab = slotEntries.find((e) => e.name === 'conversation.view').registration.component
   // Collapsed by default: the header carries the trigger badge, the body waits behind a toggle.
@@ -185,7 +186,7 @@ test('the composer button appears as soon as the store is ready (no learning gat
 
   // Ready with zero analyses: the button is already there.
   freshStore.initDone = true
-  freshStore.config = { model: 'deepseek-v4-flash', learningThreshold: 20, liveSuggestions: true }
+  freshStore.config = { model: 'deepseek-v4-flash', liveSuggestions: true }
   freshStore.profile = { analyzedCount: 0, patterns: [] }
   const readyMarkup = renderToStaticMarkup(React.createElement(Button, {
     sessionId: 'session-ssr-2',
@@ -206,7 +207,7 @@ test('the composer button appears as soon as the store is ready (no learning gat
 
 test('the tab renders the auto-learning status, per-prompt checkboxes, and the batch button', () => {
   store.initDone = true
-  store.config = { model: 'deepseek-v4-flash', learningThreshold: 20, liveSuggestions: true, autoAnalyze: true, autoDailyBudget: 30 }
+  store.config = { model: 'deepseek-v4-flash', liveSuggestions: true, autoAnalyze: true, autoDailyBudget: 30 }
   store.profile = { analyzedCount: 3, patterns: [] }
   store.auto = { today: 2, budget: 30 }
   const Tab = slotEntries.find((e) => e.name === 'conversation.view').registration.component
@@ -245,7 +246,7 @@ test('the preview overlay renders pending, result, and closed states', () => {
   const pendingMarkup = renderToStaticMarkup(React.createElement(Overlay, overlayProps))
   assert.ok(pendingMarkup.includes('Analyzing your draft…'))
 
-  store.preview = { open: true, pending: false, original: 'original draft', data: { improved: 'improved draft', rationale: 'added constraints', savingsEstimate: 10 }, error: null }
+  store.preview = { open: true, pending: false, original: 'original draft', data: { improved: 'improved draft', rationale: 'added constraints' }, error: null }
   const resultMarkup = renderToStaticMarkup(React.createElement(Overlay, overlayProps))
   assert.ok(resultMarkup.includes('original draft'))
   assert.ok(resultMarkup.includes('improved draft'))
@@ -260,7 +261,7 @@ test('the preview overlay renders pending, result, and closed states', () => {
 })
 
 test('the settings panel renders with the allowlisted model selector', () => {
-  store.config = { model: 'deepseek-v4-flash', learningThreshold: 20, liveSuggestions: true }
+  store.config = { model: 'deepseek-v4-flash', liveSuggestions: true }
   store.profile = { analyzedCount: 1, patterns: [] }
   const Tab = slotEntries.find((e) => e.name === 'conversation.view').registration.component
   // The settings panel opens via a button click; render it directly through
@@ -279,7 +280,7 @@ const testKit = plugin.__test
 
 test('the feedback strip opens under the composer after every Apply (no learning gate)', () => {
   store.initDone = true
-  store.config = { model: 'deepseek-v4-flash', learningThreshold: 20, liveSuggestions: true }
+  store.config = { model: 'deepseek-v4-flash', liveSuggestions: true }
   store.feedback = { open: false, verdict: null, reason: '', sending: false, noted: false, rewriteId: null, fading: false }
 
   // Disabled feature: Apply must NOT open the strip.
@@ -333,7 +334,7 @@ test('the strip fades out (CSS class) instead of hard-closing when the next send
 
 test('the settings page shows learned style rules once they exist', () => {
   const rootStore = testKit.rootStore
-  rootStore.config = { model: 'deepseek-v4-flash', learningThreshold: 20, liveSuggestions: true }
+  rootStore.config = { model: 'deepseek-v4-flash', liveSuggestions: true }
   rootStore.profile = {
     analyzedCount: 25,
     patterns: [],
@@ -387,7 +388,7 @@ test('the settings page shows what the agent is told, with per-directive toggles
 test('the report card no longer shows the guessed savings percentage', () => {
   store.initDone = true
   store.config = { model: 'deepseek-v4-flash', liveSuggestions: true }
-  store.reports['2'] = { ok: true, turn: 2, time: Date.now(), model: 'deepseek-v4-flash', problems: [], improvedPrompt: 'Rewritten', explanation: '', estimatedTokenSavingPct: 45, trigger: 'auto' }
+  store.reports['2'] = { ok: true, turn: 2, time: Date.now(), model: 'deepseek-v4-flash', problems: [], improvedPrompt: 'Rewritten', explanation: '', trigger: 'auto' }
   const Tab = slotEntries.find((e) => e.name === 'conversation.view').registration.component
   store.expanded.add(2)
   const markup = renderToStaticMarkup(React.createElement(Tab, tabProps))

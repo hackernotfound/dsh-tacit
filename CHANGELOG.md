@@ -19,6 +19,11 @@ First public release. Renamed from `dsh-prompt-coach` to **Tacit**; an existing
   savings figure.
 - ✨ Improve rewrite with 👍/👎 feedback and learned style rules; opt-in
   pre-send context (`enrichPrompts`).
+- Tacit's routes refuse cross-site requests (the harness web server has no
+  origin policy of its own).
+- Removed: the guessed "token savings %" (never shown; no longer requested
+  from the model), the unused good-examples library, the `learningThreshold`
+  gate (old config keys are ignored, not rejected).
 
 ## 0.1.x — `dsh-prompt-coach`
 

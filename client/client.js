@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 /**
  * dsh-tacit — Client half (installed package bundle entry, zero-build).
  *
@@ -8,9 +10,9 @@
  * UI surface:
  *  - a "Tacit" tab in the conversation view ring (`conversation.view`
  *    slot, beside Chat/Trajectory) listing every turn's digest with an
- *    Analyze button and the coach report;
+ *    Analyze button and the analysis report;
  *  - a small ✨ Improve button in the composer tool row
- *    (`conversation.input.left`) once the coach has learned enough patterns;
+ *    (`conversation.input.left`) once Tacit has learned enough patterns;
  *  - a before/after preview popup in `conversation.input.overlay` whose
  *    Apply action replaces the composer draft via `inputActions.setDraft`.
  *
@@ -77,15 +79,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       settings: '设置',
       'settings.title': 'Tacit 设置',
       'settings.sectionLabel': 'Tacit',
-      'sidebar.label': 'Tacit',
-      'sidebar.short': 'Tacit',
       'panel.title': 'Tacit',
-      'panel.desc': '分析过去的提示词与轨迹，学习更好的提问方式。',
       'panel.coached': '已分析的提示词',
       'panel.coachedEmpty': '还没有分析过的提示词——在对话的「Tacit」标签里勾选提示词并点击「分析所选」。',
       'panel.hint': '挑选提示词：打开任意对话，点击「Tacit」标签。',
-      'panel.close': '关闭',
-      'panel.session': '会话',
       'settings.model': '分析模型',
       'settings.live': '启用输入框改进按钮',
       'settings.apply': '应用',
@@ -105,14 +102,11 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'turn.steps': '{n} 步',
       'turn.tokens': '≈{n} tokens',
       'turn.retries': '重试 {n}',
-      'turn.prompt': '提示词',
-      'turn.promptPreview': '提示词预览',
       'turn.expand': '展开',
       'turn.collapse': '收起',
       'turn.analyze': '分析',
       'turn.analyzing': '分析中…',
       'turn.reanalyze': '重新分析',
-      'turn.finished': '已完成',
       'turn.running': '进行中',
       'report.problems': '发现的问题',
       'report.improved': '改进后的提示词',
@@ -132,8 +126,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'preview.pending': '正在分析草稿…',
       'preview.apply': '应用改进',
       'preview.cancel': '取消',
-      'preview.close': '关闭',
-      'preview.emptyDraft': '输入框为空，请先写点什么。',
       'feedback.title': '这次改进有帮助吗？',
       'feedback.up': '有帮助',
       'feedback.down': '没有帮助',
@@ -194,15 +186,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       settings: 'Settings',
       'settings.title': 'Tacit settings',
       'settings.sectionLabel': 'Tacit',
-      'sidebar.label': 'Tacit',
-      'sidebar.short': 'PC',
       'panel.title': 'Tacit',
-      'panel.desc': 'Analyze past prompts and trajectories to improve your prompting.',
       'panel.coached': 'Analyzed prompts',
       'panel.coachedEmpty': 'No analyzed prompts yet — tick prompts in the Tacit tab of a conversation and click "Analyze selected".',
       'panel.hint': 'To pick prompts: open any conversation and click the "Tacit" tab.',
-      'panel.close': 'Close',
-      'panel.session': 'Session',
       'settings.model': 'Analysis model',
       'settings.live': 'Enable the composer Improve button',
       'settings.apply': 'Apply',
@@ -222,14 +209,11 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'turn.steps': '{n} steps',
       'turn.tokens': '≈{n} tokens',
       'turn.retries': 'retries {n}',
-      'turn.prompt': 'Prompt',
-      'turn.promptPreview': 'Prompt preview',
       'turn.expand': 'Expand',
       'turn.collapse': 'Collapse',
       'turn.analyze': 'Analyze',
       'turn.analyzing': 'Analyzing…',
       'turn.reanalyze': 'Re-analyze',
-      'turn.finished': 'Finished',
       'turn.running': 'In progress',
       'report.problems': 'Problems found',
       'report.improved': 'Improved prompt',
@@ -249,8 +233,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'preview.pending': 'Analyzing your draft…',
       'preview.apply': 'Apply improvement',
       'preview.cancel': 'Cancel',
-      'preview.close': 'Close',
-      'preview.emptyDraft': 'The composer is empty — write something first.',
       'feedback.title': 'Was this better?',
       'feedback.up': 'Yes',
       'feedback.down': 'No',
@@ -289,9 +271,24 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       } catch {
         data = null
       }
-      if (!response.ok) throw new Error('http ' + String(response.status))
+      if (!response.ok) {
+        // Server envelopes carry a code (forbidden, bad-request, internal…);
+        // surface it so the dictionary can explain instead of a generic "network".
+        const error = new Error('http ' + String(response.status))
+        error.code = data !== null && typeof data === 'object' && typeof data.code === 'string' && data.code.length > 0 ? data.code : 'network'
+        error.detail = data !== null && typeof data === 'object' && typeof data.detail === 'string' ? data.detail : ''
+        throw error
+      }
       if (data === null || typeof data !== 'object') throw new Error('bad response')
       return data
+    }
+
+    /** {code, detail} for the UI from any thrown value (network failures → 'network'). */
+    function errorOf(error) {
+      return {
+        code: error !== null && typeof error === 'object' && typeof error.code === 'string' ? error.code : 'network',
+        detail: error !== null && typeof error === 'object' && typeof error.detail === 'string' ? error.detail : '',
+      }
     }
 
     // ── Shared per-session store (tab + composer button + preview) ─────────
@@ -314,6 +311,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         // {open, verdict: null|'up'|'down', reason, sending, noted, rewriteId, fading}
         feedback: { open: false, verdict: null, reason: '', sending: false, noted: false, rewriteId: null, fading: false },
         error: null, // transient {code, detail} for the tab
+        notice: null, // transient {code} after a successful settings action
         initStarted: false,
         initDone: false,
         listeners: new Set(),
@@ -401,8 +399,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           rootStore.trend = stats.trend
         }
         rootStore.initDone = true
-      } catch {
-        rootStore.error = { code: 'network', detail: '' }
+      } catch (error) {
+        rootStore.error = errorOf(error)
         rootStore.initDone = true
       }
       notifyRoot()
@@ -437,8 +435,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             detail: result !== null && typeof result === 'object' && typeof result.detail === 'string' ? result.detail : '',
           }
         }
-      } catch {
-        rootStore.error = { code: 'network', detail: '' }
+      } catch (error) {
+        rootStore.error = errorOf(error)
       }
       notifyRoot()
     }
@@ -452,8 +450,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         } else {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
         }
-      } catch {
-        rootStore.error = { code: 'network', detail: '' }
+      } catch (error) {
+        rootStore.error = errorOf(error)
       }
       notifyRoot()
     }
@@ -494,8 +492,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           store.profile = state.profile !== null && typeof state.profile === 'object' ? state.profile : store.profile
           store.bootstrap = state.bootstrap !== null && typeof state.bootstrap === 'object' ? state.bootstrap : null
         }
-      } catch {
-        store.error = { code: 'network', detail: '' }
+      } catch (error) {
+        store.error = errorOf(error)
         store.bootstrap = null
       }
       notify(store)
@@ -515,8 +513,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         if (!(result !== null && typeof result === 'object' && result.ok)) {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed', detail: '' }
         }
-      } catch {
-        rootStore.error = { code: 'network', detail: '' }
+      } catch (error) {
+        rootStore.error = errorOf(error)
       }
       rootStore.initStarted = false
       rootStore.initDone = false
@@ -533,8 +531,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         } else {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
         }
-      } catch {
-        rootStore.error = { code: 'network', detail: '' }
+      } catch (error) {
+        rootStore.error = errorOf(error)
       }
       notifyRoot()
     }
@@ -555,8 +553,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           store.reports = reports.reports
         }
         store.initDone = true
-      } catch {
-        store.error = { code: 'network', detail: '' }
+      } catch (error) {
+        store.error = errorOf(error)
         store.initDone = true
       }
       notify(store)
@@ -583,8 +581,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             store.profile = result.profile
           }
         })
-        .catch(() => {
-          store.error = { code: 'network', detail: '' }
+        .catch((error) => {
+          store.error = errorOf(error)
         })
         .finally(() => {
           delete store.inFlight[String(turn)]
@@ -614,8 +612,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               store.profile = result.profile
             }
           })
-          .catch(() => {
-            store.error = { code: 'network', detail: '' }
+          .catch((error) => {
+            store.error = errorOf(error)
           })
           .finally(() => {
             delete store.inFlight[String(turn)]
@@ -673,8 +671,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             }
           }
         })
-        .catch(() => {
-          store.preview = { ...store.preview, pending: false, error: { code: 'network', detail: '' } }
+        .catch((error) => {
+          store.preview = { ...store.preview, pending: false, error: errorOf(error) }
         })
         .finally(() => notify(store))
     }
@@ -774,8 +772,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             detail: result !== null && typeof result === 'object' && typeof result.detail === 'string' ? result.detail : '',
           }
         }
-      } catch {
-        store.error = { code: 'network', detail: '' }
+      } catch (error) {
+        store.error = errorOf(error)
       }
       notify(store)
     }
@@ -790,8 +788,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         } else {
           store.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
         }
-      } catch {
-        store.error = { code: 'network', detail: '' }
+      } catch (error) {
+        store.error = errorOf(error)
       }
       notify(store)
     }
@@ -823,7 +821,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       if (value === null || typeof value !== 'object') return null
       return {
         analyzedCount: typeof value.analyzedCount === 'number' ? value.analyzedCount : 0,
-        patterns: Array.isArray(value.patterns) ? value.patterns : [],
       }
     }
 
@@ -1531,28 +1528,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
     }
 
-    function PluginConfigCard(kit) {
-      const { t } = kit
-      const CoachPanelView = CoachPanel(kit)
-      return function PluginConfigCardView() {
-        const [open, setOpen] = useState(true)
-        return h('li', { className: 'tacit-settings-card' },
-          h('button', {
-            type: 'button',
-            className: 'tacit-settings-card-head',
-            onClick: () => setOpen((value) => !value),
-          },
-          h('div', { className: 'tacit-settings-card-text' },
-            h('span', { className: 'tacit-settings-card-title' }, t('panel.title')),
-            h('span', { className: 'tacit-settings-card-desc' }, t('panel.desc'))),
-          h('span', {
-            className: 'tacit-settings-card-chev' + (open ? ' tacit-chev-open' : ''),
-            'aria-hidden': true,
-          }, '▾')),
-          open ? h('div', { className: 'tacit-settings-card-body' }, h(CoachPanelView)) : null)
-      }
-    }
-
     function SettingsSection(kit) {
       const { t } = kit
       const CoachPanelView = CoachPanel(kit)
@@ -1582,14 +1557,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-row-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}.tacit-row-heading{display:flex;align-items:baseline;gap:8px;font-weight:600}.tacit-row-turn{font-size:13px}.tacit-row-time{color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:400}.tacit-row-live{color:var(--dsw-alias-state-success-primary);font-size:11px;font-weight:600}'
       + '.tacit-row-chips{display:flex;flex-wrap:wrap;gap:4px;margin-left:auto}.tacit-chip{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);border-radius:4px;padding:1px 7px;font-size:11px}.tacit-chip-warn{color:var(--dsw-alias-state-warn-primary)}'
       + '.tacit-row-prompt{display:flex;align-items:flex-start;gap:8px;margin-top:8px}.tacit-row-prompt-text{font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);background:none;border:0;cursor:pointer;text-align:left;padding:0;white-space:pre-wrap;word-break:break-word;flex:1;line-height:1.55}'
-      + '.tacit-row-actions{display:flex;gap:6px;margin-top:8px}'
       + '.tacit-report{border-top:1px dashed var(--dsw-alias-border-l1);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;gap:6px}'
       + '.tacit-report-title{font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary)}'
       + '.tacit-report-note{color:var(--dsw-alias-label-secondary);font-size:12px}'
       + '.tacit-report-body{color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.6;word-break:break-word}.tacit-report-body>div{font-size:13px;line-height:1.6}'
       + '.tacit-report-improved{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);padding:8px 10px;display:flex;flex-direction:column;gap:6px}'
       + '.tacit-report-actions{display:flex;justify-content:flex-end}'
-      + '.tacit-report-savings{color:var(--dsw-alias-state-success-primary);font-size:11px;font-weight:600}'
       + '.tacit-problem{border:1px solid var(--dsw-alias-border-l1);border-left:3px solid var(--dsw-alias-state-warn-primary);border-radius:6px;background:var(--dsw-alias-bg-layer-2);padding:6px 10px;display:flex;flex-direction:column;gap:3px}'
       + '.tacit-problem-head{display:flex;align-items:center;gap:8px}.tacit-problem-kind{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;font-weight:600}.tacit-problem-sev{font-size:10px;font-weight:600;border-radius:4px;padding:1px 6px}'
       + '.tacit-sev-high{background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 18%, transparent);color:var(--dsw-alias-state-error-primary)}'
@@ -1606,13 +1579,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-check{width:14px;height:14px;accent-color:var(--dsw-alias-brand-primary);flex:none;margin:2px 4px 0 0}'
       + '.tacit-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}.tacit-toolbar-hint{flex:1;min-width:200px}.tacit-btn-quiet{color:var(--dsw-alias-label-secondary);background:transparent}.tacit-chip-muted{opacity:.7}.tacit-row-analyzed{border-left:3px solid var(--dsw-alias-brand-primary)}'
       + '.tacit-progress-head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}.tacit-progress-count{font-variant-numeric:tabular-nums;font-weight:600;color:var(--dsw-alias-label-primary)}'
-      + '.tacit-progress-bar{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:999px;height:8px;overflow:hidden;margin-bottom:6px}.tacit-progress-fill{background:var(--dsw-alias-brand-primary);height:100%;border-radius:999px;transition:width .25s ease}.tacit-progress-text{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.5}'
+      + '.tacit-progress-text{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.5}'
       + '.tacit-panel{display:flex;flex-direction:column;gap:10px}.tacit-panel-section{display:flex;flex-direction:column;gap:6px}.tacit-panel-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.5}'
       + '.tacit-coached-list{display:flex;flex-direction:column;gap:6px}.tacit-coached-row{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;display:flex;flex-direction:column;gap:3px}'
-      + '.tacit-coached-meta{display:flex;align-items:baseline;gap:8px}.tacit-coached-turn{font-weight:600;font-size:12px}.tacit-coached-time{color:var(--dsw-alias-label-secondary);font-size:11px}.tacit-coached-savings{color:var(--dsw-alias-state-success-primary);font-size:11px;font-weight:600;margin-left:auto}'
+      + '.tacit-coached-meta{display:flex;align-items:baseline;gap:8px}.tacit-coached-turn{font-weight:600;font-size:12px}.tacit-coached-time{color:var(--dsw-alias-label-secondary);font-size:11px}'
       + '.tacit-coached-excerpt{font-size:12px;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word;line-height:1.5}.tacit-coached-improved{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.5;white-space:pre-wrap;word-break:break-word}'
-      + '.tacit-header-btn{font:inherit;font-size:12px;font-weight:500;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;cursor:pointer;height:28px;padding:0 12px;white-space:nowrap;display:inline-flex;align-items:center}.tacit-header-btn:hover{border-color:var(--dsw-alias-label-primary)}'
-      + '.tacit-settings-card{list-style:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);border-radius:12px;overflow:hidden}.tacit-settings-card-head{appearance:none;width:100%;font:inherit;color:inherit;background:none;border:0;text-align:left;cursor:pointer;align-items:center;gap:12px;padding:14px 16px;display:flex}.tacit-settings-card-head:hover{background:var(--dsw-alias-interactive-bg-hover)}.tacit-settings-card-text{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}.tacit-settings-card-title{color:var(--dsw-alias-label-primary);font-size:15px;font-weight:600;line-height:1.4}.tacit-settings-card-desc{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1.5}.tacit-settings-card-chev{color:var(--dsw-alias-label-tertiary);flex:none;transition:transform .16s}.tacit-chev-open{transform:rotate(180deg)}.tacit-settings-card-body{border-top:1px solid var(--dsw-alias-border-l2);margin:0 16px;padding:14px 0 16px}'
+      + ''
       + '.tacit-modal-backdrop{z-index:200;background:#00000073;display:flex;justify-content:center;align-items:center;position:fixed;inset:0}'
       + '.tacit-modal-card{box-sizing:border-box;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);width:min(760px,100vw - 48px);max-height:min(84vh,800px);box-shadow:var(--dsw-shadow-lv3,0 12px 32px #0006);color:var(--dsw-alias-label-primary);border-radius:12px;padding:16px 18px 18px;font-size:13px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}'
       + '.tacit-modal-head{display:flex;align-items:baseline;gap:8px}.tacit-modal-title{font-size:14px;font-weight:600;margin-right:auto}.tacit-modal-close{color:var(--dsw-alias-label-secondary);cursor:pointer;background:none;border:0;border-radius:6px;padding:2px 8px;font-family:inherit;font-size:18px;line-height:1}.tacit-modal-close:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}'
@@ -1710,15 +1682,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       __test: {
         css,
         applyImproved,
-        voteFeedback,
-        sendFeedback,
         closeFeedback,
         fadeFeedback,
-        storeReady,
-        storeFor,
-        notify,
         rootStore,
-        notifyRoot,
       },
     }
   },

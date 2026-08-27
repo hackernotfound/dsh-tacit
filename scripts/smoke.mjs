@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 /**
  * Live smoke for Tacit against a RUNNING `dsh web` (http://127.0.0.1:3080).
  * Pure HTTP — the same routes the browser uses. Real model calls (a few

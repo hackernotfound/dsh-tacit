@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 hackernotfound — https://github.com/hackernotfound/dsh-tacit
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
@@ -7,7 +9,6 @@ import {
   turnSchema,
   feedbackArgSchema,
   appliedArgSchema,
-  improvePayloadSchema,
 } from '../lib/schema.js'
 
 // Regression: the loader passes `undefined` when the patch row has no
@@ -16,7 +17,6 @@ test('Config.parse(undefined) resolves to all defaults', () => {
   const parsed = Config.parse(undefined)
   assert.deepEqual(parsed, {
     model: 'deepseek-v4-flash',
-    learningThreshold: 20,
     liveSuggestions: true,
     maxKeptTurns: 60,
     maxPromptChars: 4000,
@@ -36,8 +36,8 @@ test('Config.parse(undefined) resolves to all defaults', () => {
 })
 
 test('Config.parse keeps overrides and fills the rest with defaults', () => {
-  const parsed = Config.parse({ learningThreshold: 1 })
-  assert.equal(parsed.learningThreshold, 1)
+  const parsed = Config.parse({ autoDailyBudget: 1 })
+  assert.equal(parsed.autoDailyBudget, 1)
   assert.equal(parsed.model, 'deepseek-v4-flash')
   assert.equal(parsed.maxKeptTurns, 60)
 })
@@ -63,7 +63,6 @@ test('a v1 profile (no counters, no v2 fields) parses into the v2 shape with def
     unverified: 0,
   })
   assert.deepEqual(parsed.styleRules, [])
-  assert.deepEqual(parsed.goodExamples, [])
   assert.deepEqual(parsed.feedbackLog, [])
   assert.equal(parsed.pendingDistill, 0)
 })
@@ -74,7 +73,6 @@ test('profile v2 parses counters, style rules, good examples, and the feedback l
     patterns: [{ kind: 'k', count: 1, lastExample: '', applied: 2, accepted: 1, rejected: 1, verified: 1, unverified: 0 }],
     updatedAt: 1,
     styleRules: [{ rule: 'Keep the original intent.', createdAt: 2 }],
-    goodExamples: [{ prompt: 'p', improved: 'i', acceptedAt: 3 }],
     feedbackLog: [{ time: 4, verdict: 'down', reason: 'lost intent', patternKinds: ['k'] }],
     pendingDistill: 2,
   })
@@ -99,12 +97,4 @@ test('feedback/applied arg schemas validate the loop payloads', () => {
   assert.equal(feedbackArgSchema.safeParse({ rewriteId: 'rw-1', verdict: 'down', reason: 'x'.repeat(400) }).success, true)
   assert.deepEqual(appliedArgSchema.parse({ sessionId: 's1', rewriteId: 'rw-1' }), { sessionId: 's1', rewriteId: 'rw-1' })
   assert.equal(appliedArgSchema.safeParse({ rewriteId: 'rw-1' }).success, false)
-})
-
-test('improve payloads accept rewriteId and patternsUsed (defaulted for old clients)', () => {
-  const minimal = improvePayloadSchema.parse({ ok: true, improved: 'x', rationale: '', savingsEstimate: 0, code: '', detail: '' })
-  assert.equal(minimal.rewriteId, '')
-  assert.deepEqual(minimal.patternsUsed, [])
-  const full = improvePayloadSchema.parse({ ok: true, improved: 'x', rationale: '', savingsEstimate: 0, rewriteId: 'rw-1', patternsUsed: ['k'], code: '', detail: '' })
-  assert.equal(full.rewriteId, 'rw-1')
 })
