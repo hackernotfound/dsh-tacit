@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added a sanitized Settings → Tacit screenshot and a short install, learning
+  and editable-directive demo to the GitHub README. Include them on npm with
+  the next natural patch release.
+
 ## 0.2.1 — 2026-08-27
 
 - The npm package page now shows the English README; the Chinese translation
