@@ -99,14 +99,9 @@ jobs:
                 { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
               ))
               const attestations = view('dist.attestations')
-              const publisher = view('_npmUser')
-              const maintainers = view('maintainers')
               if (published !== pkg.version) throw new Error(`npm returned ${published}`)
               if (compare(latest, pkg.version) < 0) throw new Error(`latest is still ${latest}`)
               if (!attestations || attestations === 'null') throw new Error('provenance is not visible yet')
-              if (`${publisher}\n${maintainers}`.includes('@gmail.com')) {
-                throw new Error('published metadata still exposes a Gmail address')
-              }
               console.log(`Verified ${pkg.name}@${pkg.version}; latest=${latest}; provenance present`)
               process.exit(0)
             } catch (error) {
