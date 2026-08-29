@@ -26,16 +26,20 @@ Tacit:  learns → "The user often omits which app they mean — check apps/web 
 ```
 
 <p align="center">
-  <img alt="Install Tacit, let it learn, and edit the directive it gives the agent" src="https://raw.githubusercontent.com/hackernotfound/dsh-tacit/main/docs/assets/tacit-demo.gif" width="960">
+  <img alt="Install Tacit, open its conversation tab, review learning controls, and edit the directive it gives the agent" src="https://raw.githubusercontent.com/hackernotfound/dsh-tacit/main/docs/assets/tacit-demo.gif" width="960">
 </p>
 
 ## Install — 30 seconds
 
 ```bash
-dsh plugin --profile web add dsh-tacit
+npx @deepseek-ai/dsh plugin --profile web add dsh-tacit
 ```
 
-Restart `dsh web`, refresh the page. Optional kick-start: **Settings → Tacit →
+If `dsh` is already installed globally, `dsh plugin --profile web add dsh-tacit`
+is the equivalent shorthand.
+
+Start (or restart) with `npx @deepseek-ai/dsh web`, then refresh the page.
+Optional kick-start: **Settings → Tacit →
 *Learn from my last 20 turns*** (≈ $0.02–0.05, once).
 
 Requires DeepSeek Harness `>= 0.1.1-rc.1`, Node `>= 22`, and a DeepSeek API key

@@ -7,7 +7,7 @@
 | Where | How | Notes |
 | --- | --- | --- |
 | **Settings → Tacit** (UI) | flip the switch / pick the model / type the cap | writes only the keys you changed to `~/.dsh/storages/tacit/config.patch.json` |
-| **Profile patch** (YAML) | add an id-targeted row to `~/.dsh/profiles/web/cordis.patch.yml` | any key, incl. the ones with no UI control; takes effect after restarting `dsh web` |
+| **Profile patch** (YAML) | add an id-targeted row to `~/.dsh/profiles/web/cordis.patch.yml` | any key, incl. the ones with no UI control; takes effect after restarting `npx @deepseek-ai/dsh web` |
 
 ```yaml
 # ~/.dsh/profiles/web/cordis.patch.yml

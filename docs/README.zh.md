@@ -29,10 +29,10 @@ Tacit:  学到 → "用户常常不说明是哪个应用——先查 apps/web。
 ## 安装——30 秒
 
 ```bash
-dsh plugin --profile web add dsh-tacit
+npx @deepseek-ai/dsh plugin --profile web add dsh-tacit
 ```
 
-重启 `dsh web`，刷新页面。可选的快速起步：**设置 → Tacit → *从我最近 20 轮中学习***
+用 `npx @deepseek-ai/dsh web` 启动（或重启），然后刷新页面。可选的快速起步：**设置 → Tacit → *从我最近 20 轮中学习***
 （约 $0.02–0.05，一次性）。
 
 需要 DeepSeek Harness `>= 0.1.1-rc.1`、Node `>= 22`，以及已在 harness 里配置好的
