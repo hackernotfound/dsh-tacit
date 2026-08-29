@@ -1,4 +1,4 @@
-    // ── Root store (sidebar action + settings section + frame overlay) ─────
+    // ── Root store (settings section + bootstrap + directives editor) ──────
 
     const rootStore = {
       config: null,

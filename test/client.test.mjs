@@ -114,7 +114,7 @@ test('the bundle registers and applies with the five expected slots', () => {
   assert.equal(plugin.name, 'dsh-tacit')
   assert.deepEqual(
     slotEntries.map((e) => e.name),
-    ['conversation.view', 'conversation.input.left', 'conversation.input.overlay', 'conversation.composer.dock', 'settings.section'],
+    ['conversation.view', 'conversation.input.left', 'conversation.input.overlay', 'conversation.input.dock', 'settings.section'],
   )
 })
 
@@ -325,11 +325,13 @@ test('the settings panel renders with the allowlisted model selector', () => {
 
 // ── v2 self-improving loop (feedback strip) ───────────────────────────────
 
-const Dock = slotEntries.find((e) => e.name === 'conversation.composer.dock').registration.component
+// input.dock, not composer.dock: the harness renders composer.dock only once a
+// conversation has content, so a strip there never shows for a first prompt.
+const Dock = slotEntries.find((e) => e.name === 'conversation.input.dock').registration.component
 const dockProps = { sessionId: 'session-ssr', useInput: () => '' }
 const testKit = plugin.__test
 
-test('the feedback strip opens under the composer after every Apply (no learning gate)', () => {
+test('the feedback strip opens above the composer after every Apply (no learning gate)', () => {
   store.initDone = true
   store.config = { model: 'deepseek-v4-flash', liveSuggestions: true }
   store.feedback = { open: false, verdict: null, reason: '', sending: false, noted: false, rewriteId: null, fading: false }
