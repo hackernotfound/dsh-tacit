@@ -24,7 +24,7 @@ modules — no bundler, no TypeScript step.*
 | --- | --- | --- |
 | `ctx.sessionProjections` unit `tacitTimeline` | Tacit's per-turn digest, derived from the session log; the browser reads it with `useProjection('tacitTimeline')` | `fold.js`, `index.js` |
 | `sessionProjections.onChanged` | the only trigger source — on every change: `maybeAutoAnalyze → recordTrialTurns → handleVerification`; no polling | `service.js` |
-| `ctx.systemPrompt.section({ name: 'tacit:steering', order: 60 })` | the directives block; text captured once per session object (`WeakMap`) | `index.js`, `service.js` |
+| `ctx.systemPrompt.section({ name: 'tacit:steering', order: 60 })` | the directives block; text and the injected directive ids captured once per session object (`WeakMap`, plus a bounded id map by session id for trials) | `index.js`, `service.js` |
 | `agent/pre-step` (waterfall) | opt-in `enrichPrompts`: append one plugin-sourced user message on step 1 | `service.js` |
 | `ctx.llm.stream` | every model call: allowlisted model, session's provider route, `reasoningEffort: 'low'` (one retry without it if unsupported), tool schema, `maxTokens`, timeout, `sessionId` | `analyze.js` |
 | `webServer` routes | the JSON API below | `routes.js` |

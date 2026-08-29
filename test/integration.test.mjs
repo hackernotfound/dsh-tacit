@@ -1095,10 +1095,12 @@ test('freshly distilled directives start as candidates with a baseline messy rat
 test('a candidate that coincides with more messy turns retires itself; a clean trial activates it', async () => {
   const mkTurn = (turn, messy) => ({ ...sampleTurn, turn, retries: messy ? 1 : 0, toolErrors: 0, compactions: 0, steps: 2, endReason: 'success', startedAt: Date.now() - 1000, endedAt: Date.now() })
   const seed = (id, text) => ({ id, text, enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 0, messy: 0, baselineRate: 0.2, startedAt: 1 } })
-  const { routes, fireProjectionChange } = steeringHarness({
+  const { routes, sections, fireProjectionChange } = steeringHarness({
     config: { directiveTrialTurns: 4, directiveWorseBy: 0.15, autoAnalyze: false },
     profile: seedDirectives([seed('bad', 'Directive on trial that makes things worse.')]),
   })
+  // The conversation assembles its system prompt (freezing the candidate in) before its turns count.
+  sections[0].text({ agent: { session: { id: 'session-1' } } })
   const turns = []
   for (let i = 1; i <= 4; i += 1) {
     turns.push(mkTurn(200 + i, true)) // 100% messy during the trial vs 20% baseline
@@ -1111,12 +1113,13 @@ test('a candidate that coincides with more messy turns retires itself; a clean t
   assert.match(entry.retiredReason, /20% → 100%/)
   assert.ok(!state.body.steering.text.includes('makes things worse'))
 
-  // A clean run activates.
+  // A clean run activates — in a conversation that started after the candidate existed.
   seedProfile(seedDirectives([seed('good', 'Directive on trial that helps.')]))
+  sections[0].text({ agent: { session: { id: 'session-3' } } })
   const clean = []
   for (let i = 1; i <= 4; i += 1) {
     clean.push(mkTurn(300 + i, false))
-    fireProjectionChange({ id: 'session-1' }, [...clean], 10 + i)
+    fireProjectionChange({ id: 'session-3' }, [...clean], 10 + i)
   }
   state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
   entry = state.body.profile.directives.find((d) => d.id === 'good')
@@ -1128,6 +1131,40 @@ test('a candidate that coincides with more messy turns retires itself; a clean t
   const toggled = await callRoute(routes.find((r) => r.path === '/api/tacit/directives'), { action: 'toggle', id: 'r', enabled: true })
   assert.equal(toggled.body.profile.directives[0].status, 'active')
   assert.ok(toggled.body.steering.text.includes('Retired but wanted.'))
+})
+
+test('trial turns only count from conversations whose frozen steering contained the candidate', async () => {
+  const mkTurn = (turn) => ({ ...sampleTurn, turn, retries: 1, toolErrors: 0, compactions: 0, steps: 2, endReason: 'success', startedAt: Date.now() - 1000, endedAt: Date.now() })
+  const seed = (id, text) => ({ id, text, enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 0, messy: 0, baselineRate: 0.2, startedAt: 1 } })
+  const { routes, sections, fireProjectionChange } = steeringHarness({
+    config: { directiveTrialTurns: 4, directiveWorseBy: 0.15, autoAnalyze: false },
+    profile: seedDirectives([]),
+  })
+  const state = () => callRoute(routes.find((r) => r.path === '/api/tacit/state'), {}).then((r) => r.body.profile.directives.find((d) => d.id === 'c'))
+  // session-old assembled its prompt while there was no candidate at all.
+  sections[0].text({ agent: { session: { id: 'session-old' } } })
+  seedProfile(seedDirectives([seed('c', 'Candidate that appeared later.')]))
+  // session-never never assembled a prompt through Tacit at all.
+  let turns = []
+  for (let i = 1; i <= 4; i += 1) {
+    turns.push(mkTurn(400 + i))
+    fireProjectionChange({ id: 'session-old' }, [...turns], i)
+    fireProjectionChange({ id: 'session-never' }, [...turns], 10 + i)
+  }
+  let entry = await state()
+  assert.equal(entry.status, 'candidate', 'eight messy turns from unsteered conversations change nothing')
+  assert.equal(entry.trial.turns, 0)
+  assert.equal(entry.trial.messy, 0)
+  // A conversation that started with the candidate in its steering is the only one that counts.
+  sections[0].text({ agent: { session: { id: 'session-new' } } })
+  turns = []
+  for (let i = 1; i <= 4; i += 1) {
+    turns.push(mkTurn(500 + i))
+    fireProjectionChange({ id: 'session-new' }, [...turns], 20 + i)
+  }
+  entry = await state()
+  assert.equal(entry.trial.turns, 4)
+  assert.equal(entry.status, 'retired', 'four messy steered turns vs a 20% baseline retire it')
 })
 
 // ── Bootstrap: learn from the last N turns now ─────────────────────────────
