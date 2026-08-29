@@ -93,7 +93,11 @@ gh pr create        # 或在 github.com 上从你的 fork 发起 PR
   且传入 `sessionId` 以便成本插件归因，并用 `metered()` 包裹调用，使其计入用量台账；
   新的*自动*调用应当有上限（见 `autoDailyBudget`）。任何新调用都要加进
   [docs/privacy-and-cost.md](privacy-and-cost.md#cost) 的成本表。
-- **不删用户数据。** 唯一的删除路径是设置里的「清除所有分析报告」。
+- **不删用户数据。** 只有两条删除路径，且都只限于 Tacit 自己的文件：分析报告
+  （`reports/<session>/<turn>.json`），通过设置里的「清除所有分析报告」；以及
+  超过 `costHistoryDays` 的用量日文件（`usage/<YYYY-MM-DD>.json`），或通过
+  `clearUsage()` 一次性清空全部。磁盘上其他任何东西都不会被触碰，两个目录本身
+  也从不会被删除。
 
 ## 代码在哪里
 
