@@ -1282,3 +1282,89 @@ for (const [concurrency, expectedMax] of [[undefined, 1], [2, 2]]) {
     assert.equal(state.body.bootstrap.total, 3)
   })
 }
+
+// ── Per-workspace directives ───────────────────────────────────────────────
+
+test('the steering section gives a session its own workspace\'s directives first and hides other workspaces\' ones', () => {
+  const { sections } = steeringHarness({
+    profile: seedDirectives([
+      { id: 'g', text: 'Global rule.', enabled: true, source: 'distilled', createdAt: 1 },
+      { id: 'a', text: 'Check apps/web first.', enabled: true, source: 'distilled', createdAt: 2, workspace: '/repos/alpha' },
+      { id: 'b', text: 'Beta-only rule.', enabled: true, source: 'user', createdAt: 3, workspace: '/repos/beta' },
+    ]),
+  })
+  const alpha = sections[0].text({ agent: { session: { id: 'session-alpha', header: { cwd: '/repos/alpha' } } } })
+  assert.ok(alpha.indexOf('Check apps/web first.') < alpha.indexOf('Global rule.'))
+  assert.ok(!alpha.includes('Beta-only rule.'))
+  const elsewhere = sections[0].text({ agent: { session: { id: 'session-none' } } })
+  assert.ok(elsewhere.includes('Global rule.'))
+  assert.ok(!elsewhere.includes('Check apps/web first.'))
+})
+
+test('distillation resolves a workspace name back to the directory of the reports it came from; unknown names stay global', async () => {
+  const captured = []
+  const workspaceLlm = {
+    async *stream(options) {
+      captured.push(options)
+      const system = typeof options.system === 'string' ? options.system : ''
+      if (system.includes('directives')) {
+        const payload = JSON.stringify({ directives: [
+          { text: 'Check apps/web first.', workspace: 'alpha' },
+          { text: 'State assumptions before continuing.' },
+          { text: 'Nowhere rule.', workspace: 'never-seen' },
+        ] })
+        yield { type: 'text-delta', index: 0, text: payload }
+        yield { type: 'block-end', index: 0 }
+        return
+      }
+      yield* fakeLlm().stream(options)
+    },
+  }
+  fs.rmSync(path.join(tmpHome, 'storages', 'tacit', 'reports', 'session-ws'), { recursive: true, force: true })
+  const sessionObj = { id: 'session-ws', header: { cwd: '/repos/alpha' } }
+  const { ctx, routes, provided } = makeFakeCtx({
+    llm: workspaceLlm,
+    sessions: { get: (id) => (id === 'session-ws' ? sessionObj : undefined), list: () => [sessionObj] },
+    snapshotValue: [sampleTurn],
+  })
+  seedProfile(seedDirectives([]))
+  apply(ctx, { directiveEvery: 1, autoAnalyze: false })
+  const service = provided.get('tacit')
+  await callRoute(routes.find((r) => r.path === '/api/tacit/analyze'), { sessionId: 'session-ws', turn: 2 })
+  await service.flushAuto()
+  const saved = JSON.parse(fs.readFileSync(path.join(tmpHome, 'storages', 'tacit', 'reports', 'session-ws', '2.json'), 'utf8'))
+  assert.equal(saved.cwd, '/repos/alpha', 'the report remembers the workspace')
+  const distillCall = captured.find((c) => typeof c.system === 'string' && c.system.includes('directives'))
+  assert.ok(distillCall.messages.some((m) => JSON.stringify(m).includes('alpha')) || JSON.stringify(distillCall).includes('alpha'), 'the model sees the workspace name')
+  assert.ok(!JSON.stringify(distillCall).includes('/repos/alpha'), 'but never the full path')
+  const profile = readProfile()
+  const scoped = profile.directives.find((d) => d.text === 'Check apps/web first.')
+  assert.equal(scoped.workspace, '/repos/alpha')
+  assert.equal(profile.directives.find((d) => d.text === 'State assumptions before continuing.').workspace, undefined)
+  assert.equal(profile.directives.find((d) => d.text === 'Nowhere rule.').workspace, undefined, 'an unknown name is treated as global')
+  // /state with the session id previews that workspace; without it, global only.
+  const scopedState = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), { sessionId: 'session-ws' })
+  assert.ok(scopedState.body.steering.text.includes('Check apps/web first.'))
+  assert.deepEqual(scopedState.body.workspaces, [{ cwd: '/repos/alpha', label: 'alpha' }])
+  const globalState = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  assert.ok(!globalState.body.steering.text.includes('Check apps/web first.'))
+  assert.ok(globalState.body.steering.text.includes('State assumptions before continuing.'))
+})
+
+test('directives add accepts a workspace, and a distillation that never mentions a workspace keeps its directives', async () => {
+  const { routes } = steeringHarness({
+    profile: seedDirectives([{ id: 'other', text: 'Kept from another project.', enabled: true, source: 'distilled', createdAt: 1, workspace: '/repos/beta' }]),
+  })
+  const directives = routes.find((r) => r.path === '/api/tacit/directives')
+  const added = await callRoute(directives, { action: 'add', text: 'Scoped by hand.', workspace: '/repos/alpha' })
+  assert.equal(added.body.ok, true)
+  const mine = added.body.profile.directives.find((d) => d.text === 'Scoped by hand.')
+  assert.equal(mine.workspace, '/repos/alpha')
+  assert.equal(mine.source, 'user')
+  assert.ok(!added.body.steering.text.includes('Scoped by hand.'), 'the global preview does not show a scoped directive')
+  // Four scoped directives per workspace at most; a fifth is dropped.
+  for (let i = 0; i < 4; i += 1) await callRoute(directives, { action: 'add', text: 'Scoped ' + i + ' by hand.', workspace: '/repos/alpha' })
+  const capped = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  assert.equal(capped.body.profile.directives.filter((d) => d.workspace === '/repos/alpha').length, 4)
+  assert.equal(capped.body.profile.directives.filter((d) => d.workspace === '/repos/beta').length, 1, 'other workspaces untouched')
+})

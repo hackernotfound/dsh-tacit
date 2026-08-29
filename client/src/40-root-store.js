@@ -5,6 +5,7 @@
       profile: null,
       auto: null,
       steering: null, // {enabled, text}
+      workspaces: [], // [{cwd, label}] from /state
       trend: null, // measured early-vs-recent trend
       bootstrap: null, // {running, done, total}
       coached: [], // cross-session coached-prompt entries
@@ -40,6 +41,7 @@
           rootStore.profile = state.profile !== null && typeof state.profile === 'object' ? state.profile : null
           rootStore.auto = state.auto !== null && typeof state.auto === 'object' ? state.auto : null
           rootStore.steering = state.steering !== null && typeof state.steering === 'object' ? state.steering : null
+          rootStore.workspaces = Array.isArray(state.workspaces) ? state.workspaces : []
           rootStore.bootstrap = state.bootstrap !== null && typeof state.bootstrap === 'object' ? state.bootstrap : null
         }
         const coached = await api('/history', { limit: 50 })
@@ -67,6 +69,7 @@
           rootStore.profile = state.profile !== null && typeof state.profile === 'object' ? state.profile : null
           rootStore.auto = state.auto !== null && typeof state.auto === 'object' ? state.auto : null
           rootStore.steering = state.steering !== null && typeof state.steering === 'object' ? state.steering : null
+          rootStore.workspaces = Array.isArray(state.workspaces) ? state.workspaces : []
           rootStore.bootstrap = state.bootstrap !== null && typeof state.bootstrap === 'object' ? state.bootstrap : null
         }
       } catch {
