@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bootstrap can run several analyses at once (`bootstrapConcurrency`, 1–4;
+  default 1 keeps today's one-at-a-time behaviour).
 - README: new *Help shape Tacit* section pointing to issues, labels and
   Discussions.
 

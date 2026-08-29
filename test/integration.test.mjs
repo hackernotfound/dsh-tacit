@@ -1196,3 +1196,52 @@ test('/bootstrap refuses to run twice at once (busy) and reports progress while 
   assert.equal(done.body.ok, true)
   assert.equal(done.body.analyzed, 2)
 })
+
+/** A gated llm that records how many streams are open at once. */
+function concurrencyProbe() {
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const probe = { inFlight: 0, maxInFlight: 0, release }
+  probe.llm = {
+    async *stream(options) {
+      probe.inFlight += 1
+      probe.maxInFlight = Math.max(probe.maxInFlight, probe.inFlight)
+      await gate
+      probe.inFlight -= 1
+      yield* fakeLlm().stream(options)
+    },
+  }
+  return probe
+}
+
+for (const [concurrency, expectedMax] of [[undefined, 1], [2, 2]]) {
+  test(`/bootstrap with bootstrapConcurrency=${concurrency ?? 'default'} keeps at most ${expectedMax} analyses in flight and still forces ONE distillation`, async () => {
+    const mk = (turn, prompt) => ({ ...sampleTurn, turn, prompt, endedAt: turn * 1000, retries: 0, steps: 2, endReason: 'success' })
+    const sessionId = 'session-conc-' + expectedMax
+    fs.rmSync(path.join(tmpHome, 'storages', 'tacit', 'reports', sessionId), { recursive: true, force: true })
+    const probe = concurrencyProbe()
+    const captured = []
+    const { ctx, routes } = makeFakeCtx({
+      llm: { async *stream(options) { captured.push(options); yield* probe.llm.stream(options) } },
+      sessions: { get: (id) => (id === sessionId ? { id: sessionId } : undefined), list: () => [{ id: sessionId }] },
+      snapshotValue: [mk(1, 'First real prompt here.'), mk(2, 'Second real prompt here.'), mk(3, 'Third real prompt here.')],
+    })
+    apply(ctx, { directiveEvery: 1000, ...(concurrency === undefined ? {} : { bootstrapConcurrency: concurrency }) })
+    const bootstrap = routes.find((r) => r.path === '/api/tacit/bootstrap')
+    const pending = callRoute(bootstrap, { sessionId, limit: 20 })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    assert.equal(probe.inFlight, expectedMax, 'analyses in flight while gated')
+    probe.release()
+    const done = await pending
+    assert.equal(done.body.ok, true)
+    assert.equal(done.body.analyzed, 3)
+    assert.equal(done.body.skipped, 0)
+    assert.equal(probe.maxInFlight, expectedMax)
+    assert.equal(captured.filter((c) => c.system.includes('prompt-engineering coach')).length, 3)
+    assert.equal(captured.filter((c) => c.system.includes('directives')).length, 1, 'one forced distillation after all analyses')
+    const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+    assert.equal(state.body.bootstrap.running, false)
+    assert.equal(state.body.bootstrap.done, 3)
+    assert.equal(state.body.bootstrap.total, 3)
+  })
+}
