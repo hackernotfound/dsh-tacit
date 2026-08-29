@@ -17,6 +17,8 @@ import {
   priceCall,
   normalizeCostMeterState,
 } from '../lib/pricing.js'
+import { COACH_MODELS } from '../lib/schema.js'
+import { createPricingSource } from '../lib/pricing-source.js'
 
 const weekday = (h, m = 0) => Date.UTC(2026, 8, 2, h, m) // Wednesday 2026-09-02
 
@@ -347,4 +349,127 @@ test('normalizeCostMeterState: missing windows/peakEnabled/effectiveAt fall back
   assert.deepEqual(normalized.windows, PEAK_WINDOWS_UTC)
   assert.equal(normalized.peakEnabled, true)
   assert.equal(normalized.effectiveAtMs, 0)
+})
+
+// ── pricing source (lib/pricing-source.js) ───────────────────────────────
+
+const costMeterState = {
+  peakEnabled: true,
+  peakWindows: [{ start: 1, end: 4 }],
+  peakEffectiveAt: 0,
+  config: {
+    prices: {
+      currency: 'USD',
+      models: {
+        'deepseek-v4-flash': {
+          offPeak: { cacheHit: 0.01, cacheMiss: 0.3, output: 0.9 },
+          peak: { cacheHit: 0.02, cacheMiss: 0.6, output: 1.8 },
+        },
+      },
+      providers: { 'my-proxy': { models: { 'deepseek-v4-flash': { input: 1, cachedInput: 0.5, output: 2 } } } },
+    },
+  },
+}
+
+/** A ctx double exposing (or hiding) a `costMeter` service. */
+function ctxWith(service) {
+  return { get: (name) => (name === 'costMeter' ? service : undefined) }
+}
+
+test('pricing source: no costMeter service → bundled prices', async () => {
+  const source = createPricingSource(ctxWith(undefined), { now: () => weekday(12) })
+  assert.deepEqual(source.status(), { source: 'bundled', asOf: PRICES_AS_OF, refreshedAt: 0, tierNow: 'offPeak', error: '' })
+  await source.refresh()
+  const status = source.status()
+  assert.equal(status.source, 'bundled')
+  assert.equal(status.refreshedAt, 0)
+  assert.ok(status.error.length > 0, 'the absent service is reported, not hidden')
+  assert.equal(source.priceCall({ model: 'deepseek-v4-flash', provider: 'deepseek', atMs: weekday(12), usage: { inputTokens: 1e6 } }).source, 'bundled')
+})
+
+test('pricing source: a ctx without get() never throws', async () => {
+  const source = createPricingSource({}, { now: () => weekday(12) })
+  await source.refresh()
+  assert.equal(source.status().source, 'bundled')
+})
+
+test('pricing source: a valid costMeter state becomes the snapshot', async () => {
+  const now = () => weekday(2) // inside the table's 01:00-04:00 peak window
+  const source = createPricingSource(ctxWith({ getState: () => costMeterState }), { now })
+  await source.refresh()
+  const status = source.status()
+  assert.equal(status.source, 'costMeter')
+  assert.equal(status.refreshedAt, weekday(2))
+  assert.equal(status.error, '')
+  assert.equal(status.tierNow, 'peak')
+  assert.ok(Number.isFinite(Date.parse(status.asOf)))
+
+  const priced = source.priceCall({ model: 'deepseek-v4-flash', provider: 'deepseek', atMs: weekday(2), usage: { outputTokens: 1e6 } })
+  assert.equal(priced.source, 'costMeter')
+  assert.equal(priced.tier, 'peak')
+  assert.equal(priced.usd, 1.8)
+  // a proxy route the table knows about is priced flat
+  assert.equal(source.priceCall({ model: 'deepseek-v4-flash', provider: 'my-proxy', atMs: weekday(2), usage: { outputTokens: 1e6 } }).usd, 2)
+})
+
+test('pricing source: an async getState is awaited', async () => {
+  const source = createPricingSource(ctxWith({ getState: async () => costMeterState }), { now: () => weekday(12) })
+  await source.refresh()
+  assert.equal(source.status().source, 'costMeter')
+})
+
+test('pricing source: a throwing / rejecting / junk getState falls back to bundled with an error', async () => {
+  const cases = [
+    ['throws', () => { throw new Error('boom') }],
+    ['rejects', () => Promise.reject(new Error('nope'))],
+    ['returns junk', () => 42],
+    ['returns a state with no usable prices', () => ({ config: { prices: { models: { m: { cacheHit: NaN, cacheMiss: 1, output: 1 } } } } })],
+    ['is not a function', undefined],
+  ]
+  for (const [name, getState] of cases) {
+    const source = createPricingSource(ctxWith({ getState }), { now: () => weekday(12) })
+    await source.refresh()
+    const status = source.status()
+    assert.equal(status.source, 'bundled', name)
+    assert.equal(status.refreshedAt, 0, name)
+    assert.ok(status.error.length > 0, name)
+    assert.equal(source.priceCall({ model: 'deepseek-v4-flash', provider: 'deepseek', atMs: weekday(12), usage: { outputTokens: 1e6 } }).source, 'bundled', name)
+  }
+})
+
+test('pricing source: a hanging getState gives up after timeoutMs', async () => {
+  const source = createPricingSource(ctxWith({ getState: () => new Promise(() => {}) }), { now: () => weekday(12), timeoutMs: 10 })
+  const startedAt = Date.now()
+  await source.refresh()
+  assert.ok(Date.now() - startedAt < 2000, 'refresh returned promptly')
+  assert.equal(source.status().source, 'bundled')
+  assert.ok(source.status().error.length > 0)
+})
+
+test('pricing source: a later failure drops back to bundled', async () => {
+  let ok = true
+  const source = createPricingSource(ctxWith({ getState: () => { if (!ok) throw new Error('gone'); return costMeterState } }), { now: () => weekday(12) })
+  await source.refresh()
+  assert.equal(source.status().source, 'costMeter')
+  ok = false
+  await source.refresh()
+  assert.equal(source.status().source, 'bundled')
+  assert.equal(source.priceCall({ model: 'deepseek-v4-flash', provider: 'deepseek', atMs: weekday(12), usage: { outputTokens: 1e6 } }).source, 'bundled')
+})
+
+test('pricing source: rates() covers both coach models, from the snapshot then the bundle', async () => {
+  const source = createPricingSource(ctxWith({ getState: () => costMeterState }), { now: () => weekday(12) })
+  const bundled = source.rates()
+  assert.deepEqual(Object.keys(bundled), COACH_MODELS)
+  for (const model of COACH_MODELS) {
+    assert.deepEqual(bundled[model], { offPeak: BUNDLED_PRICES[model].offPeak, peak: BUNDLED_PRICES[model].peak })
+    assert.notEqual(bundled[model].offPeak, BUNDLED_PRICES[model].offPeak, 'a fresh copy, not a reference')
+  }
+  bundled['deepseek-v4-flash'].offPeak.output = 999
+  assert.equal(BUNDLED_PRICES['deepseek-v4-flash'].offPeak.output, 0.66, 'the bundle is not mutable through rates()')
+
+  await source.refresh()
+  const live = source.rates()
+  assert.deepEqual(live['deepseek-v4-flash'], { offPeak: { cacheHit: 0.01, cacheMiss: 0.3, output: 0.9 }, peak: { cacheHit: 0.02, cacheMiss: 0.6, output: 1.8 } })
+  assert.deepEqual(live['deepseek-v4-pro'], { offPeak: BUNDLED_PRICES['deepseek-v4-pro'].offPeak, peak: BUNDLED_PRICES['deepseek-v4-pro'].peak }, 'a model the table omits keeps its bundled price')
 })
