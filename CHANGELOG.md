@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Directive trials count only turns from conversations whose system prompt
+  actually contained the candidate; conversations started earlier no longer
+  move its counters.
 - Bootstrap can run several analyses at once (`bootstrapConcurrency`, 1–4;
   default 1 keeps today's one-at-a-time behaviour).
 - README: new *Help shape Tacit* section pointing to issues, labels and

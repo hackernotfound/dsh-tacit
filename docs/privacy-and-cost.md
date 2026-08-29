@@ -96,9 +96,10 @@ Honest list — these are v0.2 behaviours, not hidden surprises:
 
 - **Steering is frozen per conversation.** Any verdict, toggle, edit or new directive
   applies to conversations started afterwards; the running one keeps what it started with.
-- **Trials are a trend check, not an A/B test.** All candidates see the same turns,
-  drawn from every loaded conversation — including ones whose frozen steering text
-  never contained the candidate.
+- **Trials are a trend check, not an A/B test.** A candidate is judged only on turns
+  from conversations whose frozen steering text actually contained it; conversations
+  started before it existed (or before a restart) contribute nothing, so a trial can
+  take more than `directiveTrialTurns` turns of wall-clock time to conclude.
 - **"Messy" means two slightly different things.** Auto-analysis also counts 15+
   steps as messy; the trend and the trial verdict do not (long-but-successful work is
   never held against a directive).
