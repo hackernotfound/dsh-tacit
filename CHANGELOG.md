@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.3 — 2026-08-29
+
 - Tacit also learns from a clean prompt that follows a messy one — what you
   included the second time feeds the directives. Automatic, capped like the
   other automatic analyses; off with `learnFromGood: false`.
