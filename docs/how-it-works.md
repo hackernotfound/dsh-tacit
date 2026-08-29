@@ -57,7 +57,7 @@ A finished turn is messy when any of these is true:
 | **auto** | the newest turn finished messy, ended after Tacit started, and its prompt is not a bare continuation | that turn |
 | **correction** | you send a new message that is ≤ 300 characters and starts with or contains a correction marker — *no, wrong, I meant, I said, undo, revert, still, again, instead, why did you, that's not, doesn't work, 不对, 不是, 错了, 我是说, 为什么*… | the **previous** turn, with your message attached as evidence |
 | **manual** | you click *Analyze* in the Tacit tab | that turn (bare continuations return "continuation" without a call) |
-| **bootstrap** | you click *Learn from my last 20 turns* | up to 20 recent turns, serially, then one forced distillation |
+| **bootstrap** | you click *Learn from my last 20 turns* | up to 20 recent turns, one at a time unless `bootstrapConcurrency` is raised, then one forced distillation |
 
 *Bare continuation* means the whole prompt is something like "continue", "go
 ahead", "ok", "yes", "继续", "好的" — up to six words starting with one of those.

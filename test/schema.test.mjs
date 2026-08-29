@@ -32,6 +32,7 @@ test('Config.parse(undefined) resolves to all defaults', () => {
     enrichPrompts: false,
     directiveTrialTurns: 10,
     directiveWorseBy: 0.15,
+    bootstrapConcurrency: 1,
   })
 })
 

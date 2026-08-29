@@ -33,6 +33,7 @@ winning over YAML until you change it again in the UI (patch keys are never remo
 | `directiveEvery` | `3` | 1–100 | new analyses between two directive distillations | — |
 | `directiveTrialTurns` | `10` | 1–500 | finished turns a candidate directive stays on trial | — |
 | `directiveWorseBy` | `0.15` | 0–1 | retire a candidate when its trial messy-turn rate exceeds the baseline by more than this | — |
+| `bootstrapConcurrency` | `1` | 1–4 | analyses run at once during *Learn from my last 20 turns*; same calls and cost, less waiting | — |
 | `enrichPrompts` | `false` | boolean | opt-in: one small call before each send appends learned context (never rewrites your words); uncapped | Add learned context before each send |
 | `liveSuggestions` | `true` | boolean | show the ✨ Improve prompt button | Enable the composer Improve button |
 | `maxPatterns` | `12` | 1–50 | mistake patterns kept in the profile and offered to ✨ Improve | — |
