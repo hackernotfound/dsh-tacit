@@ -505,3 +505,263 @@ test('token buckets stay separate as totals accumulate', () => {
   assert.equal(totalTokens(run.totals.tokens), 328)
   assert.equal(totalTokens(usage.summary().lifetime.tokens), 328)
 })
+
+// ── report / run / clear (the read side) ────────────────────────────────
+
+/** A pricing double handing out a different usd to every call (so medians are visible). */
+function steppedPricing(list) {
+  let index = 0
+  return {
+    priceCall() {
+      const usd = list[Math.min(index, list.length - 1)]
+      index += 1
+      return { source: 'bundled', tier: 'offPeak', rates: { cacheHit: 0.007, cacheMiss: 0.22, output: 0.66 }, asOf: '2026-08-22', usd }
+    },
+  }
+}
+
+const REPORT_ARGS = {
+  config: { costHistoryDays: 30, costWarnDailyUsd: 0, costWarnMonthlyUsd: 0 },
+  pricingStatus: { source: 'bundled', asOf: '2026-08-22', refreshedAt: 0, tierNow: 'offPeak', error: '' },
+  pricingRates: { 'deepseek-v4-flash': { offPeak: {}, peak: {} } },
+  filters: {},
+}
+const report = (usage, over = {}) => usage.report({ ...REPORT_ARGS, ...over })
+
+/** One finished run of `ops` attempts on the tracker's current day. */
+function finishRun(usage, clock, { type = 'analysis', ops = ['analysis'], over = {}, ...begin } = {}) {
+  const runId = usage.beginRun({ type, model: 'deepseek-v4-flash', provider: 'deepseek-official', ...begin })
+  for (const op of ops) usage.attemptSink(runId, { op })(record(clock, over))
+  usage.endRun(runId, { results: { ok: 1 } })
+  return runId
+}
+
+test('report rolls the summary and the day files into periods, series, breakdowns and paged runs', () => {
+  const { usage, clock } = setup({ start: START - 20 * MS_PER_DAY })
+  const oldRun = finishRun(usage, clock, { type: 'analysis', sessionId: 'old', workspace: 'alpha' })
+  const oldDay = dayKey(clock.ms)
+
+  clock.ms = START - 3 * MS_PER_DAY
+  const midRun = finishRun(usage, clock, { type: 'improve', ops: ['improve', 'improve'], sessionId: 'mid', workspace: 'beta' })
+
+  clock.ms = START
+  const newRun = finishRun(usage, clock, { type: 'analysis', ops: ['analysis', 'analysis'], sessionId: 'new', workspace: 'alpha' })
+  usage.flush()
+
+  const result = report(usage)
+  assert.equal(result.ok, true)
+  assert.equal(result.code, '')
+  assert.equal(result.detail, '')
+  assert.equal(result.pricing.source, 'bundled')
+  assert.equal(result.pricing.label, 'Measured usage · list-price cost')
+  assert.deepEqual(result.pricing.rates, REPORT_ARGS.pricingRates)
+  assert.equal(result.trackingSince, usage.summary().trackingSince)
+
+  assert.equal(result.today.attempts, 2)
+  assert.equal(result.today.billedCalls, 2)
+  assert.equal(result.today.usdKnown, 1)
+  assert.equal(result.last7.attempts, 4)
+  assert.equal(result.last7.usdKnown, 2)
+  assert.equal(result.last30.attempts, 5)
+  assert.equal(result.last30.usdKnown, 2.5)
+  assert.equal(result.lifetime.attempts, 5)
+  assert.equal(result.lifetime.usdKnown, 2.5)
+  // 100 uncached input + 10 cache reads per attempt.
+  assert.equal(result.today.cachedInputRate, 20 / 220)
+
+  assert.equal(result.series7.length, 7)
+  assert.equal(result.series30.length, 30)
+  assert.equal(result.series30.at(-1).day, dayKey(START))
+  assert.equal(result.series30.at(-1).usdKnown, 1)
+  assert.equal(result.series30.at(-1).billedCalls, 2)
+  assert.equal(result.series30[9].day, oldDay)
+  assert.equal(result.series30[9].usdKnown, 0.5)
+  assert.equal(result.series30[10].usdKnown, 0, 'quiet days are zero-filled')
+
+  assert.deepEqual(Object.keys(result.byType).sort(), ['analysis', 'improve'])
+  assert.equal(result.byType.analysis.attempts, 3)
+  assert.equal(result.byType.improve.attempts, 2)
+  assert.deepEqual(Object.keys(result.byModel), ['deepseek-v4-flash'])
+  assert.equal(result.byModel['deepseek-v4-flash'].attempts, 5)
+
+  assert.deepEqual(result.runs.items.map((item) => item.runId), [newRun, midRun, oldRun])
+  assert.equal(result.runs.total, 3)
+  assert.equal(result.runs.page, 1)
+  assert.equal(result.runs.pageSize, 20)
+  const [newest] = result.runs.items
+  assert.equal(newest.attempts, 2, 'the count, not the rows')
+  assert.equal(newest.status, 'success')
+  assert.equal(newest.workspace, 'alpha')
+  assert.deepEqual(newest.results, { ok: 1 })
+  assert.equal(newest.usdKnown, 1)
+  assert.equal(newest.trigger, '')
+  assert.equal(newest.provider, 'deepseek-official')
+  assert.equal(newest.endedAt, START)
+})
+
+test('report: avgAnalysisUsd is the median priced analysis attempt, null without one', () => {
+  const { usage, clock } = setup({ pricing: steppedPricing([1, 2, 3, 4]) })
+  finishRun(usage, clock, { type: 'analysis', ops: ['analysis', 'analysis', 'analysis', 'analysis'] })
+  finishRun(usage, clock, { type: 'improve', ops: ['improve'] })
+  usage.flush()
+  // 1,2,3,4 → the two middles averaged; the improve attempt never counts.
+  assert.equal(report(usage).today.avgAnalysisUsd, 2.5)
+
+  const odd = setup({ pricing: steppedPricing([1, 9, 2]) })
+  finishRun(odd.usage, odd.clock, { type: 'analysis', ops: ['analysis', 'analysis', 'analysis'] })
+  odd.usage.flush()
+  assert.equal(report(odd.usage).today.avgAnalysisUsd, 2)
+
+  const none = setup()
+  finishRun(none.usage, none.clock, { type: 'improve', ops: ['improve'] })
+  none.usage.flush()
+  assert.equal(report(none.usage).today.avgAnalysisUsd, null)
+  assert.equal(report(none.usage).lifetime.avgAnalysisUsd, null)
+})
+
+test('report: cachedInputRate is null when nothing was billed for input', () => {
+  const { usage, clock } = setup()
+  finishRun(usage, clock, { ops: ['analysis'], over: { usage: null } })
+  usage.flush()
+  const result = report(usage)
+  assert.equal(result.today.attempts, 1)
+  assert.equal(result.today.unmeteredCalls, 1)
+  assert.equal(result.today.cachedInputRate, null)
+  assert.equal(result.today.avgAnalysisUsd, null)
+})
+
+test('report: byModel skips attempts the harness never named a model for', () => {
+  const { usage, clock } = setup()
+  finishRun(usage, clock, { ops: ['analysis'], over: { model: '' } })
+  finishRun(usage, clock, { ops: ['analysis'] })
+  usage.flush()
+  assert.deepEqual(Object.keys(report(usage).byModel), ['deepseek-v4-flash'])
+  assert.equal(report(usage).byModel['deepseek-v4-flash'].attempts, 1)
+})
+
+test('report: warning levels follow the limit, and a limit of 0 is off', () => {
+  const { usage, clock } = setup({ pricing: fakePricing(8) })
+  finishRun(usage, clock, { ops: ['analysis'] })
+  usage.flush()
+  const off = report(usage).warnings
+  assert.deepEqual(off.daily, { limit: 0, spent: 8, level: 'none' })
+  assert.deepEqual(off.monthly, { limit: 0, spent: 8, level: 'none' })
+
+  const warn = report(usage, { config: { costHistoryDays: 30, costWarnDailyUsd: 10, costWarnMonthlyUsd: 10 } }).warnings
+  assert.equal(warn.daily.level, 'warn')
+  assert.equal(warn.monthly.level, 'warn')
+
+  const exceeded = report(usage, { config: { costHistoryDays: 30, costWarnDailyUsd: 8, costWarnMonthlyUsd: 4 } }).warnings
+  assert.equal(exceeded.daily.level, 'exceeded')
+  assert.equal(exceeded.monthly.level, 'exceeded')
+
+  const negative = report(usage, { config: { costHistoryDays: 30, costWarnDailyUsd: -1, costWarnMonthlyUsd: 0 } }).warnings
+  assert.equal(negative.daily.level, 'none')
+})
+
+test('report: the range bounds which day files are read, and costHistoryDays bounds the range', () => {
+  const { usage, clock } = setup({ start: START - 9 * MS_PER_DAY })
+  const oldRun = finishRun(usage, clock, {})
+  clock.ms = START - 2 * MS_PER_DAY
+  const midRun = finishRun(usage, clock, {})
+  clock.ms = START
+  const newRun = finishRun(usage, clock, {})
+  usage.flush()
+
+  const ids = (filters, config) => report(usage, { filters, ...(config === undefined ? {} : { config }) }).runs.items.map((item) => item.runId)
+  assert.deepEqual(ids({ range: 'today' }), [newRun])
+  assert.deepEqual(ids({ range: '7d' }), [newRun, midRun])
+  assert.deepEqual(ids({ range: '30d' }), [newRun, midRun, oldRun])
+  assert.deepEqual(ids({ range: 'all' }), [newRun, midRun, oldRun])
+  assert.deepEqual(ids({ range: 'all' }, { costHistoryDays: 7 }), [newRun, midRun], 'retention wins over the asked-for range')
+  assert.deepEqual(ids({ range: 'month' }).length >= 1, true)
+})
+
+test('report: filters are exact and paging slices after the count', () => {
+  const { usage, clock } = setup()
+  const first = finishRun(usage, clock, { type: 'analysis', sessionId: 's1', workspace: 'alpha' })
+  clock.ms += 1000
+  const second = finishRun(usage, clock, { type: 'improve', ops: ['improve'], sessionId: 's2', workspace: 'beta' })
+  clock.ms += 1000
+  const third = finishRun(usage, clock, { type: 'analysis', sessionId: 's1', workspace: 'alpha', over: { model: 'deepseek-v4-pro' } })
+  usage.flush()
+
+  const runs = (filters) => report(usage, { filters }).runs
+  assert.deepEqual(runs({}).items.map((item) => item.runId), [third, second, first])
+  assert.deepEqual(runs({ type: 'improve' }).items.map((item) => item.runId), [second])
+  assert.deepEqual(runs({ sessionId: 's1' }).items.map((item) => item.runId), [third, first])
+  assert.deepEqual(runs({ workspace: 'beta' }).items.map((item) => item.runId), [second])
+  assert.deepEqual(runs({ workspace: 'bet' }).items, [])
+  assert.deepEqual(runs({ status: 'success' }).items.length, 3)
+  assert.deepEqual(runs({ status: 'failed' }).items, [])
+
+  const paged = runs({ page: 2, pageSize: 2 })
+  assert.deepEqual(paged.items.map((item) => item.runId), [first])
+  assert.equal(paged.total, 3)
+  const beyond = runs({ page: 4, pageSize: 2 })
+  assert.deepEqual(beyond.items, [])
+  assert.equal(beyond.total, 3)
+})
+
+test('run() answers from the live map first, then the day files, and null otherwise', () => {
+  const { usage, clock } = setup()
+  const liveId = usage.beginRun({ type: 'analysis', model: 'deepseek-v4-flash' })
+  usage.attemptSink(liveId, { op: 'analysis' })(record(clock))
+  const live = usage.run(liveId)
+  assert.equal(live.runId, liveId)
+  assert.equal(live.status, 'running')
+  assert.equal(live.attempts.length, 1)
+  assert.equal(live.attempts[0].priced.usd, 0.5)
+  assert.equal(usage.run('nope'), null)
+
+  usage.endRun(liveId, { results: { ok: 1 } })
+  const stored = usage.run(liveId)
+  assert.equal(stored.status, 'success')
+  assert.equal(stored.attempts.length, 1)
+  assert.deepEqual(stored.results, { ok: 1 })
+})
+
+test('run() reads the newest day file first and never mutates the live run', () => {
+  const { usage, clock } = setup()
+  const oldId = finishRun(usage, clock, {})
+  clock.ms += MS_PER_DAY
+  finishRun(usage, clock, {})
+  usage.flush()
+  assert.equal(usage.run(oldId).runId, oldId, 'an older day is still reachable')
+
+  const liveId = usage.beginRun({ type: 'analysis' })
+  usage.attemptSink(liveId, { op: 'analysis' })(record(clock))
+  usage.run(liveId).attempts.push('tampered')
+  assert.equal(usage.liveRuns().find((run) => run.runId === liveId).attempts.length, 1)
+})
+
+test('clear() empties the ledger on disk and in memory, and live runs keep recording', () => {
+  const { usage, clock, store } = setup()
+  finishRun(usage, clock, {})
+  usage.flush()
+  const before = usage.summary().trackingSince
+  assert.equal(store.listUsageDays().length, 1)
+
+  const liveId = usage.beginRun({ type: 'improve' })
+  const cleared = usage.clear()
+  assert.equal(cleared.removed, 1)
+  assert.ok(cleared.trackingSince >= before)
+  assert.deepEqual(store.listUsageDays(), [])
+  assert.equal(usage.summary().lifetime.attempts, 0)
+  assert.deepEqual(usage.summary().days, {})
+  assert.equal(usage.summary().trackingSince, cleared.trackingSince)
+
+  const after = report(usage)
+  assert.equal(after.lifetime.attempts, 0)
+  assert.deepEqual(after.byType, {})
+  assert.deepEqual(after.runs.items, [])
+  assert.equal(after.trackingSince, cleared.trackingSince)
+
+  // The live run survived and its next attempt lands in the fresh summary.
+  usage.attemptSink(liveId, { op: 'improve' })(record(clock))
+  assert.equal(usage.runSummary(liveId).billedCalls, 1)
+  assert.equal(usage.summary().lifetime.attempts, 1)
+  assert.equal(usage.run(liveId).status, 'running')
+  usage.flush()
+  assert.equal(store.listUsageDays().length, 1)
+})
