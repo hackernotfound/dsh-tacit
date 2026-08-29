@@ -1,6 +1,6 @@
 {
   "name": "dsh-tacit",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Tacit learns what you leave unsaid in your prompts — from messy turns and your own corrections, with zero clicks — and tells the agent how to compensate, on every turn, via a system-prompt section you can read and edit.",
   "author": "hackernotfound",
   "license": "MIT",
