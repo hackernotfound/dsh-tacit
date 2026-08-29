@@ -34,6 +34,7 @@ test('Config.parse(undefined) resolves to all defaults', () => {
     directiveTrialTurns: 10,
     directiveWorseBy: 0.15,
     bootstrapConcurrency: 1,
+    learnFromGood: true,
   })
 })
 
@@ -63,6 +64,7 @@ test('a v1 profile (no counters, no v2 fields) parses into the v2 shape with def
     rejected: 0,
     verified: 0,
     unverified: 0,
+    resolved: 0,
   })
   assert.deepEqual(parsed.styleRules, [])
   assert.deepEqual(parsed.feedbackLog, [])

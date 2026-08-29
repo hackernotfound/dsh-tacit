@@ -58,6 +58,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'trigger.correction': '纠正',
       'trigger.manual': '手动',
       'trigger.bootstrap': '引导',
+      'trigger.good': '做对了',
+      'report.strengths': '这次做对了什么',
+      'report.lesson': '经验',
+      'settings.learnGood': '也从混乱之后的顺利提示词中学习',
       'bootstrap.btn': '从我最近 20 轮中学习',
       'bootstrap.running': '学习中… {done}/{total}',
       'bootstrap.hint': '约 $0.02–0.05，一次性。已顺利完成的提示词会被跳过。',
@@ -168,6 +172,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'trigger.correction': 'correction',
       'trigger.manual': 'manual',
       'trigger.bootstrap': 'bootstrap',
+      'trigger.good': 'what worked',
+      'report.strengths': 'What this prompt got right',
+      'report.lesson': 'Lesson',
+      'settings.learnGood': 'Also learn from a clean prompt right after a messy turn',
       'bootstrap.btn': 'Learn from my last 20 turns',
       'bootstrap.running': 'Learning… {done}/{total}',
       'bootstrap.hint': '≈ $0.02–0.05, one time. Skips prompts that already went fine on their own.',
@@ -954,14 +962,21 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
       return h('div', { className: 'tacit-report' },
         h('div', { className: 'tacit-report-title' },
-          t('report.problems'),
+          report.trigger === 'good' ? t('report.strengths') : t('report.problems'),
           ' ',
-          h('span', { className: 'tacit-chip tacit-chip-trigger' }, t('trigger.' + report.trigger))),
-        report.problems.length === 0
-          ? h('div', { className: 'tacit-report-note' }, '—')
-          : report.problems.map((problem, index) => ProblemRow(kit, problem, index)),
-        h('div', { className: 'tacit-report-title' }, t('report.improved')),
-        improved.length > 0
+          h('span', { className: 'tacit-chip tacit-chip-trigger' + (report.trigger === 'good' ? ' tacit-chip-ok' : '') }, t('trigger.' + report.trigger))),
+        report.trigger === 'good'
+          ? (Array.isArray(report.strengths) && report.strengths.length > 0
+            ? report.strengths.map((strength, index) => h('div', { key: index, className: 'tacit-problem' },
+              h('span', { className: 'tacit-chip tacit-chip-ok' }, String(strength.kind)),
+              ' ',
+              h('span', { className: 'tacit-problem-what' }, String(strength.what))))
+            : h('div', { className: 'tacit-report-note' }, '—'))
+          : report.problems.length === 0
+            ? h('div', { className: 'tacit-report-note' }, '—')
+            : report.problems.map((problem, index) => ProblemRow(kit, problem, index)),
+        report.trigger === 'good' ? null : h('div', { className: 'tacit-report-title' }, t('report.improved')),
+        report.trigger === 'good' ? null : improved.length > 0
           ? h('div', { className: 'tacit-report-improved' },
             h('div', { className: 'tacit-report-actions' },
               h('button', {
@@ -976,7 +991,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           : h('div', { className: 'tacit-report-note' }, t('report.emptyImproved')),
         typeof report.explanation === 'string' && report.explanation.length > 0
           ? h('div', null,
-            h('div', { className: 'tacit-report-title' }, t('report.explanation')),
+            h('div', { className: 'tacit-report-title' }, report.trigger === 'good' ? t('report.lesson') : t('report.explanation')),
             h('div', { className: 'tacit-report-body' },
               MarkdownText !== null
                 ? h(MarkdownText, { text: report.explanation })
@@ -1073,6 +1088,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       const [model, setModel] = useState(config !== null && typeof config.model === 'string' ? config.model : 'deepseek-v4-flash')
       const [budgetText, setBudgetText] = useState(config !== null && typeof config.autoDailyBudget === 'number' ? String(config.autoDailyBudget) : '30')
       const [auto, setAuto] = useState(config !== null && config.autoAnalyze !== false)
+      const [learnGood, setLearnGood] = useState(config !== null && config.learnFromGood !== false)
       const [live, setLive] = useState(config !== null && config.liveSuggestions !== false)
       const [notice, setNotice] = useState(null)
 
@@ -1081,6 +1097,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           if (typeof config.model === 'string') setModel(config.model)
           if (typeof config.autoDailyBudget === 'number') setBudgetText(String(config.autoDailyBudget))
           if (typeof config.autoAnalyze === 'boolean') setAuto(config.autoAnalyze)
+          if (typeof config.learnFromGood === 'boolean') setLearnGood(config.learnFromGood)
           if (typeof config.liveSuggestions === 'boolean') setLive(config.liveSuggestions)
         }
       }, [config])
@@ -1093,6 +1110,11 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         const number = Math.max(0, Math.min(1000, Math.round(Number(budgetText) || 0)))
         setBudgetText(String(number))
         updateConfig(store, { autoDailyBudget: number })
+      }
+      const toggleLearnGood = () => {
+        const next = !learnGood
+        setLearnGood(next)
+        updateConfig(store, { learnFromGood: next })
       }
       const toggleAuto = () => {
         const next = !auto
@@ -1126,6 +1148,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         h('div', { className: 'tacit-settings-row' },
           h('label', { className: 'tacit-settings-label' }, t('settings.auto')),
           h('input', { type: 'checkbox', checked: auto, onChange: toggleAuto })),
+        h('div', { className: 'tacit-settings-row' },
+          h('label', { className: 'tacit-settings-label' }, t('settings.learnGood')),
+          h('input', { type: 'checkbox', checked: learnGood, onChange: toggleLearnGood })),
         h('div', { className: 'tacit-settings-row' },
           h('label', { className: 'tacit-settings-label' }, t('settings.budget')),
           h('input', {
@@ -1454,6 +1479,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         const [model, setModel] = useState(config !== null && typeof config.model === 'string' ? config.model : 'deepseek-v4-flash')
         const [budgetText, setBudgetText] = useState(config !== null && typeof config.autoDailyBudget === 'number' ? String(config.autoDailyBudget) : '30')
         const [auto, setAuto] = useState(config !== null && config.autoAnalyze !== false)
+        const [learnGood, setLearnGood] = useState(config !== null && config.learnFromGood !== false)
         const [live, setLive] = useState(config !== null && config.liveSuggestions !== false)
 
         useEffect(() => {
@@ -1461,6 +1487,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             if (typeof config.model === 'string') setModel(config.model)
             if (typeof config.autoDailyBudget === 'number') setBudgetText(String(config.autoDailyBudget))
             if (typeof config.autoAnalyze === 'boolean') setAuto(config.autoAnalyze)
+            if (typeof config.learnFromGood === 'boolean') setLearnGood(config.learnFromGood)
             if (typeof config.liveSuggestions === 'boolean') setLive(config.liveSuggestions)
           }
         }, [config])
@@ -1473,6 +1500,11 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           const number = Math.max(0, Math.min(1000, Math.round(Number(budgetText) || 0)))
           setBudgetText(String(number))
           updateRootConfig({ autoDailyBudget: number })
+        }
+        const toggleLearnGood = () => {
+          const next = !learnGood
+          setLearnGood(next)
+          updateRootConfig({ learnFromGood: next })
         }
         const toggleAuto = () => {
           const next = !auto
@@ -1513,6 +1545,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.auto')),
               h('input', { type: 'checkbox', checked: auto, onChange: toggleAuto })),
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label' }, t('settings.learnGood')),
+              h('input', { type: 'checkbox', checked: learnGood, onChange: toggleLearnGood })),
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.budget')),
               h('input', {
