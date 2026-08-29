@@ -765,3 +765,44 @@ test('clear() empties the ledger on disk and in memory, and live runs keep recor
   usage.flush()
   assert.equal(store.listUsageDays().length, 1)
 })
+
+test('report: the detail window covers 30 days however narrow the asked-for range is', () => {
+  const { usage, clock } = setup({ pricing: steppedPricing([9, 3, 1]) })
+  clock.ms = START - 20 * MS_PER_DAY
+  finishRun(usage, clock, { over: { model: 'deepseek-v4-pro' } })
+  clock.ms = START - 5 * MS_PER_DAY
+  finishRun(usage, clock, { over: { model: 'deepseek-v4-pro' } })
+  clock.ms = START
+  const todayRun = finishRun(usage, clock, {})
+  usage.flush()
+
+  const wide = report(usage, { filters: { range: '30d' } })
+  const narrow = report(usage, { filters: { range: 'today' } })
+  assert.deepEqual(narrow.runs.items.map((item) => item.runId), [todayRun], 'only the run list narrows')
+  assert.equal(narrow.runs.total, 1)
+  assert.equal(wide.runs.total, 3)
+
+  assert.equal(wide.last30.avgAnalysisUsd, 3)
+  assert.equal(narrow.last30.avgAnalysisUsd, 3)
+  assert.equal(narrow.last7.avgAnalysisUsd, wide.last7.avgAnalysisUsd)
+  assert.equal(narrow.lifetime.avgAnalysisUsd, wide.lifetime.avgAnalysisUsd)
+  assert.deepEqual(narrow.byModel, wide.byModel)
+  assert.equal(narrow.byModel['deepseek-v4-pro'].attempts, 2)
+  assert.deepEqual(narrow.byType, wide.byType)
+})
+
+test('run() hands back a snapshot, not a window onto the live run', () => {
+  const { usage, clock } = setup()
+  const runId = usage.beginRun({ type: 'analysis' })
+  usage.attemptSink(runId, { op: 'analysis' })(record(clock))
+  const snapshot = usage.run(runId)
+  snapshot.attempts[0].usage.inputTokens = 999999
+  snapshot.totals.usdKnown = 999999
+  const liveRun = usage.liveRuns().find((entry) => entry.runId === runId)
+  assert.equal(liveRun.attempts[0].usage.inputTokens, 100)
+  assert.equal(liveRun.totals.usdKnown, 0.5)
+  // …and the snapshot does not keep growing with the run.
+  usage.attemptSink(runId, { op: 'analysis' })(record(clock))
+  assert.equal(snapshot.attempts.length, 1)
+  assert.equal(usage.run(runId).attempts.length, 2)
+})

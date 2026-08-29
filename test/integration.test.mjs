@@ -2100,3 +2100,33 @@ test('config route: the cost fields are clamped (history 7-365, thresholds 0 or 
   assert.equal((await patch({ costWarnMonthlyUsd: 2.5 })).costWarnMonthlyUsd, 2.5)
   assert.equal((await patch({ costWarnMonthlyUsd: -5 })).costWarnMonthlyUsd, 0)
 })
+
+test('usage report: a narrow range narrows only the run list, never the 30-day figures', async () => {
+  const runs = [
+    seedRun({ runId: 'n-today', offset: 0, usd: 1, model: 'deepseek-v4-flash' }),
+    seedRun({ runId: 'n-5d', offset: 5, usd: 3, model: 'deepseek-v4-pro' }),
+    seedRun({ runId: 'n-20d', offset: 20, usd: 9, model: 'deepseek-v4-pro' }),
+  ]
+  const { byPath } = await reportHarness({ runs })
+  const wide = (await callRoute(byPath('/usage'), { range: '30d' })).body
+  const narrow = (await callRoute(byPath('/usage'), { range: 'today' })).body
+
+  // The run list is the ONLY thing `range` may narrow.
+  assert.deepEqual(narrow.runs.items.map((item) => item.runId), ['n-today'])
+  assert.equal(narrow.runs.total, 1)
+  assert.deepEqual(wide.runs.items.map((item) => item.runId), ['n-today', 'n-5d', 'n-20d'])
+
+  // Fixed windows are identical either way: 1, 3, 9 → median 3.
+  assert.equal(wide.last30.avgAnalysisUsd, 3)
+  assert.equal(narrow.last30.avgAnalysisUsd, wide.last30.avgAnalysisUsd)
+  assert.equal(narrow.last7.avgAnalysisUsd, wide.last7.avgAnalysisUsd)
+  assert.equal(narrow.month.avgAnalysisUsd, wide.month.avgAnalysisUsd)
+  assert.equal(narrow.lifetime.avgAnalysisUsd, wide.lifetime.avgAnalysisUsd)
+  assert.deepEqual(narrow.byModel, wide.byModel)
+  assert.deepEqual(narrow.byType, wide.byType)
+  assert.deepEqual(Object.keys(narrow.byModel).sort(), ['deepseek-v4-flash', 'deepseek-v4-pro'])
+  assert.equal(narrow.byModel['deepseek-v4-pro'].attempts, 2)
+  assert.equal(narrow.byModel['deepseek-v4-pro'].usdKnown, 12)
+  assert.deepEqual(narrow.last30, wide.last30)
+  assert.deepEqual(narrow.today, wide.today)
+})
