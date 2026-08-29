@@ -1,4 +1,4 @@
-    // ── Global panel (settings section, sidebar action, frame overlay) ─────
+    // ── Global panel (Settings → Tacit section) ────────────────────────────
 
     function DirectivesEditor(kit) {
       const { t } = kit

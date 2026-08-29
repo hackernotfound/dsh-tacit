@@ -1,4 +1,4 @@
-    // ── Feedback strip (under the composer, Improve enabled only) ───────────
+    // ── Feedback strip (above the composer, Improve enabled only) ───────────
 
     function FeedbackStrip(kit) {
       const { t } = kit
