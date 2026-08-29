@@ -375,6 +375,13 @@
         const preview = store.preview
         const onApply = () => applyImproved(store, props.inputActions)
         const onCancel = () => closePreview(store)
+        const improvedText = preview.data !== null && typeof preview.data === 'object' && typeof preview.data.improved === 'string'
+          ? preview.data.improved
+          : ''
+        // The model returns a finished draft verbatim (its fixed point): show
+        // that instead of two identical columns, and offer no Apply so a no-op
+        // rewrite never counts as applied.
+        const unchanged = !preview.pending && preview.error === null && improvedText.trim() === preview.original.trim()
 
         return h('div', { className: 'tacit-modal-backdrop' },
           h('div', { className: 'tacit-modal-card' },
@@ -387,20 +394,24 @@
                 ? h('div', { className: 'tacit-error' },
                   t('err.' + String(preview.error.code), { detail: String(preview.error.detail || '') }))
                 : h('div', null,
-                  h('div', { className: 'tacit-modal-cols' },
-                    h('div', { className: 'tacit-modal-col' },
-                      h('div', { className: 'tacit-modal-col-title' }, t('preview.original')),
-                      h('pre', { className: 'tacit-pre' }, preview.original)),
-                    h('div', { className: 'tacit-modal-col' },
-                      h('div', { className: 'tacit-modal-col-title' }, t('preview.improved')),
-                      h('pre', { className: 'tacit-pre' }, preview.data !== null && typeof preview.data.improved === 'string' ? preview.data.improved : ''))),
+                  unchanged
+                    ? h('div', { className: 'tacit-modal-unchanged' }, t('preview.unchanged'))
+                    : h('div', { className: 'tacit-modal-cols' },
+                      h('div', { className: 'tacit-modal-col' },
+                        h('div', { className: 'tacit-modal-col-title' }, t('preview.original')),
+                        h('pre', { className: 'tacit-pre' }, preview.original)),
+                      h('div', { className: 'tacit-modal-col' },
+                        h('div', { className: 'tacit-modal-col-title' }, t('preview.improved')),
+                        h('pre', { className: 'tacit-pre' }, improvedText))),
                   preview.data !== null && typeof preview.data === 'object' && typeof preview.data.rationale === 'string' && preview.data.rationale.length > 0
                     ? h('div', { className: 'tacit-modal-rationale' },
                       h('div', { className: 'tacit-modal-col-title' }, t('preview.rationale')),
                       h('div', { className: 'tacit-modal-rationale-text' }, preview.data.rationale))
                     : null,
                   h('div', { className: 'tacit-modal-actions' },
-                    h('button', { type: 'button', className: 'tacit-btn tacit-btn-primary', onClick: onApply }, t('preview.apply')),
+                    unchanged
+                      ? null
+                      : h('button', { type: 'button', className: 'tacit-btn tacit-btn-primary', onClick: onApply }, t('preview.apply')),
                     h('button', { type: 'button', className: 'tacit-btn', onClick: onCancel }, t('preview.cancel'))))))
       }
     }

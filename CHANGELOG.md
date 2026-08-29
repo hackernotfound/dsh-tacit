@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- ✨ Improve converges in one pass: the rewrite is checked against a fixed
+  checklist (goal, context, scope, constraints, output format, efficiency) and
+  pulls concrete facts from the recent turns, so one click reaches the finished
+  prompt. Improving a finished prompt again returns it unchanged; the preview
+  says *already complete* and offers no Apply.
+
 ## 0.2.3 — 2026-08-29
 
 - Tacit also learns from a clean prompt that follows a messy one — what you

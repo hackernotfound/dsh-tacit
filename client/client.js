@@ -132,6 +132,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'preview.improved': '改进后',
       'preview.rationale': '改动说明',
       'preview.pending': '正在分析草稿…',
+      'preview.unchanged': '草稿已经完整，无需修改。',
       'preview.apply': '应用改进',
       'preview.cancel': '取消',
       'feedback.title': '这次改进有帮助吗？',
@@ -246,6 +247,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'preview.improved': 'Improved',
       'preview.rationale': 'What changed',
       'preview.pending': 'Analyzing your draft…',
+      'preview.unchanged': 'Your draft is already complete — nothing to change.',
       'preview.apply': 'Apply improvement',
       'preview.cancel': 'Cancel',
       'feedback.title': 'Was this better?',
@@ -1264,6 +1266,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         const preview = store.preview
         const onApply = () => applyImproved(store, props.inputActions)
         const onCancel = () => closePreview(store)
+        const improvedText = preview.data !== null && typeof preview.data === 'object' && typeof preview.data.improved === 'string'
+          ? preview.data.improved
+          : ''
+        // The model returns a finished draft verbatim (its fixed point): show
+        // that instead of two identical columns, and offer no Apply so a no-op
+        // rewrite never counts as applied.
+        const unchanged = !preview.pending && preview.error === null && improvedText.trim() === preview.original.trim()
 
         return h('div', { className: 'tacit-modal-backdrop' },
           h('div', { className: 'tacit-modal-card' },
@@ -1276,20 +1285,24 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 ? h('div', { className: 'tacit-error' },
                   t('err.' + String(preview.error.code), { detail: String(preview.error.detail || '') }))
                 : h('div', null,
-                  h('div', { className: 'tacit-modal-cols' },
-                    h('div', { className: 'tacit-modal-col' },
-                      h('div', { className: 'tacit-modal-col-title' }, t('preview.original')),
-                      h('pre', { className: 'tacit-pre' }, preview.original)),
-                    h('div', { className: 'tacit-modal-col' },
-                      h('div', { className: 'tacit-modal-col-title' }, t('preview.improved')),
-                      h('pre', { className: 'tacit-pre' }, preview.data !== null && typeof preview.data.improved === 'string' ? preview.data.improved : ''))),
+                  unchanged
+                    ? h('div', { className: 'tacit-modal-unchanged' }, t('preview.unchanged'))
+                    : h('div', { className: 'tacit-modal-cols' },
+                      h('div', { className: 'tacit-modal-col' },
+                        h('div', { className: 'tacit-modal-col-title' }, t('preview.original')),
+                        h('pre', { className: 'tacit-pre' }, preview.original)),
+                      h('div', { className: 'tacit-modal-col' },
+                        h('div', { className: 'tacit-modal-col-title' }, t('preview.improved')),
+                        h('pre', { className: 'tacit-pre' }, improvedText))),
                   preview.data !== null && typeof preview.data === 'object' && typeof preview.data.rationale === 'string' && preview.data.rationale.length > 0
                     ? h('div', { className: 'tacit-modal-rationale' },
                       h('div', { className: 'tacit-modal-col-title' }, t('preview.rationale')),
                       h('div', { className: 'tacit-modal-rationale-text' }, preview.data.rationale))
                     : null,
                   h('div', { className: 'tacit-modal-actions' },
-                    h('button', { type: 'button', className: 'tacit-btn tacit-btn-primary', onClick: onApply }, t('preview.apply')),
+                    unchanged
+                      ? null
+                      : h('button', { type: 'button', className: 'tacit-btn tacit-btn-primary', onClick: onApply }, t('preview.apply')),
                     h('button', { type: 'button', className: 'tacit-btn', onClick: onCancel }, t('preview.cancel'))))))
       }
     }
@@ -1655,6 +1668,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-modal-card{box-sizing:border-box;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);width:min(760px,100vw - 48px);max-height:min(84vh,800px);box-shadow:var(--dsw-shadow-lv3,0 12px 32px #0006);color:var(--dsw-alias-label-primary);border-radius:12px;padding:16px 18px 18px;font-size:13px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}'
       + '.tacit-modal-head{display:flex;align-items:baseline;gap:8px}.tacit-modal-title{font-size:14px;font-weight:600;margin-right:auto}.tacit-modal-close{color:var(--dsw-alias-label-secondary);cursor:pointer;background:none;border:0;border-radius:6px;padding:2px 8px;font-family:inherit;font-size:18px;line-height:1}.tacit-modal-close:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}'
       + '.tacit-modal-pending{color:var(--dsw-alias-label-secondary);padding:16px 0;text-align:center}'
+      + '.tacit-modal-unchanged{color:var(--dsw-alias-label-primary);padding:16px 0;text-align:center}'
       + '.tacit-modal-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tacit-modal-col{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);padding:8px 10px;min-width:0;max-height:300px;overflow-y:auto}'
       + '.tacit-modal-col-title{font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);margin-bottom:6px}'
       + '.tacit-modal-rationale-text{font-size:12px;color:var(--dsw-alias-label-primary);line-height:1.6}.tacit-modal-savings{color:var(--dsw-alias-state-success-primary);font-size:12px;font-weight:600}'
