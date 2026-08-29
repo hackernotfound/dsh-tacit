@@ -109,16 +109,17 @@ Rules applied to the result:
 
 | State | How you get there | Injected into new conversations? | Shown as |
 | --- | --- | --- | --- |
-| **candidate** | freshly distilled | yes | *trial n/10* |
+| **candidate** | freshly distilled | yes | *trial n/10* (n counts finished turns in conversations that were steered by it) |
 | **active** | 10 finished turns later (`directiveTrialTurns`), messy-turn rate ≤ baseline + 0.15 (`directiveWorseBy`); or you typed it; or you re-enabled a retired one | yes | *active* |
 | **retired** | messy-turn rate during the trial rose by more than 15 percentage points over the baseline | no | *retired · messy turns 20% → 40% while active* |
 | **off** | you untick it | no | greyed out |
 
 The baseline is the messy-turn rate over the latest 20 finished turns at the
 moment the candidate was created. Trials are a *trend check*, not an A/B test:
-every candidate sees the same turns, and those turns come from every loaded
-conversation, including ones whose (frozen) steering text never contained the
-candidate.
+a candidate is judged on every finished turn of every conversation whose frozen
+steering text contained it, with no control group. Conversations that started
+before the candidate existed (or before Tacit was restarted) never contained it
+and count toward nothing.
 
 ## 7. Steering section
 
