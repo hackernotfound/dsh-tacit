@@ -100,7 +100,8 @@ const tabProps = {
 }
 
 const overlayEntry = slotEntries.find((e) => e.name === 'conversation.input.overlay')
-const store = overlayEntry.registration.options.inject('session-ssr').hooks.tacitStore
+const overlayInjection = overlayEntry.registration.options.inject('session-ssr')
+const store = overlayInjection.tacitStore
 
 const buttonProps = {
   sessionId: 'session-ssr',
@@ -115,6 +116,11 @@ test('the bundle registers and applies with the five expected slots', () => {
     slotEntries.map((e) => e.name),
     ['conversation.view', 'conversation.input.left', 'conversation.input.overlay', 'conversation.composer.dock', 'settings.section'],
   )
+})
+
+test('the preview store is injected as a flat prop, outside DSH reserved hooks', () => {
+  assert.equal(Object.hasOwn(overlayInjection, 'hooks'), false)
+  assert.equal(overlayInjection.tacitStore, store)
 })
 
 test('the settings section renders a Tacit page with the coach panel', () => {
@@ -176,7 +182,7 @@ test('the composer button appears as soon as the store is ready (no learning gat
   const Button = slotEntries.find((e) => e.name === 'conversation.input.left').registration.component
 
   // Before init: nothing rendered.
-  const freshStore = overlayEntry.registration.options.inject('session-ssr-2').hooks.tacitStore
+  const freshStore = overlayEntry.registration.options.inject('session-ssr-2').tacitStore
   const beforeInit = renderToStaticMarkup(React.createElement(Button, {
     sessionId: 'session-ssr-2',
     input: { draft: 'hello' },
@@ -237,7 +243,11 @@ test('the tab renders the auto-learning status, per-prompt checkboxes, and the b
 
 test('the preview overlay renders pending, result, and closed states', () => {
   const Overlay = overlayEntry.registration.component
-  const overlayProps = { sessionId: 'session-ssr', hooks: overlayEntry.registration.options.inject('session-ssr').hooks, inputActions: { setDraft() {} } }
+  const overlayProps = {
+    sessionId: 'session-ssr',
+    ...overlayEntry.registration.options.inject('session-ssr'),
+    inputActions: { setDraft() {} },
+  }
 
   store.preview = { open: false, pending: false, original: '', data: null, error: null }
   assert.equal(renderToStaticMarkup(React.createElement(Overlay, overlayProps)), '')
@@ -258,6 +268,47 @@ test('the preview overlay renders pending, result, and closed states', () => {
   store.preview = { open: true, pending: false, original: 'original draft', data: null, error: { code: 'call-failed', detail: 'boom' } }
   const errorMarkup = renderToStaticMarkup(React.createElement(Overlay, overlayProps))
   assert.ok(errorMarkup.includes('The model call failed: boom'))
+})
+
+test('Apply replaces the draft without sending, while Cancel preserves it', () => {
+  const testKit = plugin.__test
+  let draft = 'original draft'
+  let sends = 0
+  const inputActions = {
+    setDraft(value) {
+      draft = value
+    },
+    send() {
+      sends += 1
+    },
+  }
+
+  store.initDone = true
+  store.config = { model: 'deepseek-v4-flash', liveSuggestions: true }
+  store.preview = {
+    open: true,
+    pending: false,
+    original: draft,
+    data: { improved: 'improved draft', rewriteId: 'rw-apply' },
+    error: null,
+  }
+  testKit.applyImproved(store, inputActions)
+  assert.equal(draft, 'improved draft')
+  assert.equal(sends, 0)
+  assert.equal(store.preview.open, false)
+
+  draft = 'draft to keep'
+  store.preview = {
+    open: true,
+    pending: false,
+    original: draft,
+    data: { improved: 'unused rewrite' },
+    error: null,
+  }
+  testKit.closePreview(store)
+  assert.equal(draft, 'draft to keep')
+  assert.equal(sends, 0)
+  assert.equal(store.preview.open, false)
 })
 
 test('the settings panel renders with the allowlisted model selector', () => {
