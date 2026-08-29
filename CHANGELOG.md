@@ -5,6 +5,9 @@
 - Added a sanitized Settings → Tacit screenshot and a short demo covering the
   universal `npx` install command, the Tacit conversation tab, learning and an
   editable directive. Include them on npm with the next natural patch release.
+- The style-rule distillation call now carries the session id, so cost meters
+  attribute it like every other call.
+- The bootstrap hint in Settings shows the documented $0.02–0.05 range.
 
 ## 0.2.1 — 2026-08-27
 
