@@ -3,6 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  IMPROVE_SYSTEM_PROMPT,
   aggregateProfile,
   buildAnalysisUserText,
   buildImproveUserText,
@@ -463,4 +464,17 @@ test('normalizeGoodReport keeps the prompt, records strengths and the lesson, an
   const fed = buildDirectiveUserText({ patterns: [], styleRules: [], directives: [] }, [{ promptExcerpt: 'fix login', lesson: 'They name the file.', cwd: '/repos/alpha' }])
   assert.ok(fed.includes('=== WHAT WORKED'))
   assert.ok(fed.includes('[workspace: alpha] "fix login": They name the file.'))
+})
+
+test('IMPROVE_SYSTEM_PROMPT keeps its test anchor, the completeness checklist and the fixed-point rule', () => {
+  // Integration tests dispatch on this phrase — it must stay on the first line.
+  assert.ok(IMPROVE_SYSTEM_PROMPT.startsWith('You are a prompt-improvement assistant inside DeepSeek Harness.'))
+  for (const item of ['GOAL', 'CONTEXT', 'SCOPE', 'CONSTRAINTS', 'OUTPUT FORMAT', 'EFFICIENCY']) {
+    assert.ok(IMPROVE_SYSTEM_PROMPT.includes('- ' + item), 'checklist item ' + item)
+  }
+  assert.ok(IMPROVE_SYSTEM_PROMPT.includes('ONE pass'))
+  assert.ok(IMPROVE_SYSTEM_PROMPT.includes('VERBATIM'))
+  assert.ok(IMPROVE_SYSTEM_PROMPT.includes('Already complete.'))
+  assert.ok(IMPROVE_SYSTEM_PROMPT.includes('RESPONSE FORMAT'))
+  assert.ok(IMPROVE_SYSTEM_PROMPT.includes('Reply in the same language as the draft.'))
 })

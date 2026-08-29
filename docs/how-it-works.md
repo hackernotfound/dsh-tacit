@@ -169,7 +169,11 @@ not covered by the daily cap.
 
 *Improve* sends your draft, the last two turns, your style rules, the last three
 👎 reasons and your trusted patterns to the model and returns a rewrite with a
-rationale. *Apply* replaces the draft and marks those patterns as applied.
+rationale. It is a single pass against a fixed checklist (goal, context, scope,
+constraints, output format, efficiency), so one click reaches the finished
+prompt; improving a finished prompt again returns it unchanged and the preview
+says *already complete* with no Apply button. *Apply* replaces the draft and
+marks those patterns as applied.
 
 - 👍 counts as accepted. 👎 asks for a one-line reason, counts as rejected, and
   after every 3 reasons one call distills them into **style rules** (up to 6,

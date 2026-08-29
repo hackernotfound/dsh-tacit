@@ -270,6 +270,23 @@ test('the preview overlay renders pending, result, and closed states', () => {
   assert.ok(errorMarkup.includes('The model call failed: boom'))
 })
 
+test('the preview overlay shows "already complete" and no Apply when the rewrite equals the draft', () => {
+  const Overlay = overlayEntry.registration.component
+  const overlayProps = {
+    sessionId: 'session-ssr',
+    ...overlayEntry.registration.options.inject('session-ssr'),
+    inputActions: { setDraft() {} },
+  }
+
+  store.preview = { open: true, pending: false, original: 'a finished prompt', data: { improved: '  a finished prompt \n', rationale: 'Already complete.', rewriteId: 'rw-same' }, error: null }
+  const markup = renderToStaticMarkup(React.createElement(Overlay, overlayProps))
+  assert.ok(markup.includes('already complete'))
+  assert.ok(markup.includes('Already complete.'))
+  assert.ok(!markup.includes('Apply improvement'))
+  assert.ok(markup.includes('Cancel'))
+  store.preview = { open: false, pending: false, original: '', data: null, error: null }
+})
+
 test('Apply replaces the draft without sending, while Cancel preserves it', () => {
   const testKit = plugin.__test
   let draft = 'original draft'

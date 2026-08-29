@@ -71,7 +71,7 @@ shows the real spend next to the conversation.
 | Repair retry | analysis or Improve returned unparseable JSON (rare) | same as the call | no | yes | doubles that one call |
 | Directive distillation | every 3 analyses | 1500 | no | yes | ≈ $0.0005–0.001 |
 | Style-rule distillation | every 3 👎 with a reason | 1000 | no | yes | < $0.001 |
-| ✨ Improve | you click | 1500 | no | yes | ≈ $0.001–0.002 |
+| ✨ Improve | you click | 1500 | no | yes | ≈ $0.001–0.002 (its system prompt is a stable, cache-hit prefix) |
 | Pre-send context (opt-in) | **every** send with an 8–1500-char draft | 1000 | no | yes | < $0.001 each, but on every send |
 
 \* Computed from DeepSeek's list prices (per 1M tokens) with a typical analysis
