@@ -12,7 +12,7 @@
  *    slot, beside Chat/Trajectory) listing every turn's digest with an
  *    Analyze button and the analysis report;
  *  - a small ✨ Improve button in the composer tool row
- *    (`conversation.input.left`) once Tacit has learned enough patterns;
+ *    (`conversation.input.left`) while it is enabled in Settings;
  *  - a before/after preview popup in `conversation.input.overlay` whose
  *    Apply action replaces the composer draft via `inputActions.setDraft`.
  *
@@ -59,7 +59,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'trigger.bootstrap': '引导',
       'bootstrap.btn': '从我最近 20 轮中学习',
       'bootstrap.running': '学习中… {done}/{total}',
-      'bootstrap.hint': '≈ $0.02，一次性。已顺利完成的提示词会被跳过。',
+      'bootstrap.hint': '约 $0.02–0.05，一次性。已顺利完成的提示词会被跳过。',
       'steer.enrich': '发送前补充学到的上下文（实验性，每次发送一次小调用）',
       'steer.title': '智能体被告知的关于你的信息',
       'steer.desc': '这些指令会注入每个新会话的系统提示词，让智能体替你补上你通常没说的内容。',
@@ -166,7 +166,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'trigger.bootstrap': 'bootstrap',
       'bootstrap.btn': 'Learn from my last 20 turns',
       'bootstrap.running': 'Learning… {done}/{total}',
-      'bootstrap.hint': '≈ $0.02, one time. Skips prompts that already went fine on their own.',
+      'bootstrap.hint': '≈ $0.02–0.05, one time. Skips prompts that already went fine on their own.',
       'steer.enrich': 'Add learned context before each send (experimental — one small call per send)',
       'steer.title': 'What the agent is told about you',
       'steer.desc': 'These directives ride every new session\'s system prompt so the agent fills in what you usually leave unsaid.',
@@ -1258,7 +1258,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
     }
 
-    // ── Feedback strip (under the composer, live stage only) ────────────────
+    // ── Feedback strip (under the composer, Improve enabled only) ───────────
 
     function FeedbackStrip(kit) {
       const { t } = kit
@@ -1650,7 +1650,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }, (props) => h(PreviewOverlayView, props)))
 
       // The post-apply 👍/👎 strip lives in the band UNDER the composer card
-      // (composer.dock), only for the live stage (threshold reached).
+      // (composer.dock), only while the Improve button is enabled.
       const FeedbackStripView = FeedbackStrip(kit)
       ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
         name: 'conversation.composer.dock',
@@ -1661,8 +1661,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }, (props) => h(FeedbackStripView, props)))
 
       // Own Settings page under "Cost": a nav section in the Settings panel,
-      // on its own. Reuses the coach panel (progress, model, threshold, live,
-      // clear reports, coached prompts). Order 32 places it right after
+      // on its own. Reuses the coach panel. Order 32 places it right after
       // cost-meter's "Cost" section (order 30/31).
       const SettingsSectionView = SettingsSection(kit)
       ctx.slots.inject('settings.section', () => ctx.slots.register({

@@ -594,8 +594,9 @@ test('3 unreviewed down-reasons fire ONE distillation call that writes style rul
   assert.equal(profile.styleRules.length, 3)
   assert.equal(profile.styleRules[0].rule, 'Keep the original intent.')
   assert.equal(typeof profile.styleRules[0].createdAt, 'number')
-  const distillCallsAfter = captured.filter((options) => typeof options.system === 'string' && options.system.includes('distill')).length
-  assert.equal(distillCallsAfter, distillCallsBefore + 1, 'exactly one distillation call fired')
+  const distillCalls = captured.filter((options) => typeof options.system === 'string' && options.system.includes('distill'))
+  assert.equal(distillCalls.length, distillCallsBefore + 1, 'exactly one distillation call fired')
+  assert.equal(distillCalls.at(-1).sessionId, 'session-1', 'distillation is attributed to the session that triggered it')
 
   // The fresh rules ride every subsequent improve call.
   const again = await callRoute(improve, { sessionId: 'session-1', draft: 'draft four' })
