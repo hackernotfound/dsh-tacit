@@ -96,16 +96,23 @@ patterns, the last few corrections ("prompt" → "your correction"), your style
 rules and the current directives, and returns the complete new set of **1–4
 directives**: one imperative sentence each, ≤ 220 characters, written for the
 *agent* ("The user often omits which app they mean — check `apps/web` first.").
+Each correction in the evidence is tagged with the name of the workspace it
+came from; when every piece of evidence for a habit carries the same tag, the
+model may return that directive **scoped to that workspace**, and it is then
+allowed to mention that project's layout. Everything else stays global.
 
 Rules applied to the result:
 
 - directives that would make the agent *ask you* instead of compensating are dropped;
 - a directive you typed yourself is kept untouched and listed first;
 - a re-emitted directive keeps its identity (state, trial, on/off);
-- a genuinely new one becomes a **candidate**;
+- a genuinely new one becomes a **candidate** (a workspace-scoped one is judged
+  against that workspace's own messy-turn rate when it has 20 finished turns);
 - each directive is one sentence of at most 25 words; a longer one is cut at its
   last sentence or word boundary, never mid-word;
-- at most 8 directives in total.
+- a distillation replaces the global distilled set and the distilled set of every
+  workspace it mentioned; distilled directives of other workspaces are kept;
+- at most 8 global directives and 4 per workspace.
 
 ## 6. Trials
 
@@ -126,7 +133,10 @@ and count toward nothing.
 ## 7. Steering section
 
 Active and candidate directives are rendered as a system-prompt section named
-`tacit:steering` (order 60 — after the persona, before tool guidance):
+`tacit:steering` (order 60 — after the persona, before tool guidance). A
+conversation gets the directives scoped to its own workspace (the directory it
+was started in) first, then the global ones; directives scoped to other
+workspaces are left out:
 
 ```
 ## About this user (learned by Tacit from their past prompts)

@@ -11,8 +11,8 @@ rename) and never truncated in place.
 
 | File | Holds |
 | --- | --- |
-| `profile.json` | mistake patterns with trust counters, directives (max 8), style rules (max 6), the last 10 👎 verdicts, counters |
-| `reports/<conversation>/<turn>.json` | one analysis report per analyzed turn (problems, improved prompt, explanation, a 200-char excerpt of the prompt, your correction if any) |
+| `profile.json` | mistake patterns with trust counters, directives (max 8 global + 4 per workspace, each with the absolute workspace path it is scoped to, if any), style rules (max 6), the last 10 👎 verdicts, counters |
+| `reports/<conversation>/<turn>.json` | one analysis report per analyzed turn (problems, improved prompt, explanation, a 200-char excerpt of the prompt, your correction if any, the absolute workspace directory of the conversation) |
 | `config.patch.json` | the settings you changed in the UI |
 | `auto.json` | today's date and how many automatic analyses were spent |
 
@@ -108,8 +108,9 @@ Honest list — these are v0.2 behaviours, not hidden surprises:
 - **The trend only sees loaded conversations**, and only turns within
   `maxKeptTurns`; it needs 40 finished turns to show.
 - **Bootstrap runs serially** and ignores the daily cap.
-- Directives are global, not per workspace; learning from *good* prompts and a
-  weekly digest are not implemented yet.
+- The distiller sees workspace **names** (the last path segment, e.g. `dsh-tacit`),
+  never full paths; full paths stay in the local reports and profile.
+- Learning from *good* prompts and a weekly digest are not implemented yet.
 
 ---
 

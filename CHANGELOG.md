@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Directives can be scoped to a workspace: the distiller scopes a habit that only
+  shows up in one project, the add form offers *Everywhere* or a workspace, and
+  each conversation gets its own workspace's directives first.
 - Distilled directives are one sentence of at most 25 words, and a long one is
   cut at a sentence or word boundary instead of mid-word. Tacit logs one line at
   startup with what it is injecting.

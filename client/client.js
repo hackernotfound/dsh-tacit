@@ -75,6 +75,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.active': '已生效',
       'steer.retired': '已淘汰 · {reason}',
       'steer.user': '你添加的',
+      'steer.workspace': '仅 {name}',
+      'steer.scope': '适用范围',
+      'steer.everywhere': '所有工作区',
       'settings.auto': '自动分析混乱轮次',
       'settings.budget': '每日自动分析上限',
       settings: '设置',
@@ -182,6 +185,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.active': 'active',
       'steer.retired': 'retired · {reason}',
       'steer.user': 'yours',
+      'steer.workspace': 'only {name}',
+      'steer.scope': 'Applies to',
+      'steer.everywhere': 'Everywhere',
       'settings.auto': 'Auto-analyze messy turns',
       'settings.budget': 'Daily cap on automatic analyses',
       settings: 'Settings',
@@ -354,6 +360,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       profile: null,
       auto: null,
       steering: null, // {enabled, text}
+      workspaces: [], // [{cwd, label}] from /state
       trend: null, // measured early-vs-recent trend
       bootstrap: null, // {running, done, total}
       coached: [], // cross-session coached-prompt entries
@@ -389,6 +396,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           rootStore.profile = state.profile !== null && typeof state.profile === 'object' ? state.profile : null
           rootStore.auto = state.auto !== null && typeof state.auto === 'object' ? state.auto : null
           rootStore.steering = state.steering !== null && typeof state.steering === 'object' ? state.steering : null
+          rootStore.workspaces = Array.isArray(state.workspaces) ? state.workspaces : []
           rootStore.bootstrap = state.bootstrap !== null && typeof state.bootstrap === 'object' ? state.bootstrap : null
         }
         const coached = await api('/history', { limit: 50 })
@@ -416,6 +424,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           rootStore.profile = state.profile !== null && typeof state.profile === 'object' ? state.profile : null
           rootStore.auto = state.auto !== null && typeof state.auto === 'object' ? state.auto : null
           rootStore.steering = state.steering !== null && typeof state.steering === 'object' ? state.steering : null
+          rootStore.workspaces = Array.isArray(state.workspaces) ? state.workspaces : []
           rootStore.bootstrap = state.bootstrap !== null && typeof state.bootstrap === 'object' ? state.bootstrap : null
         }
       } catch {
@@ -1336,7 +1345,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       const { t } = kit
       return function DirectivesEditorView(props) {
         const { config, directives, steering } = props
+        const workspaces = Array.isArray(props.workspaces) ? props.workspaces : []
         const [draft, setDraft] = useState('')
+        const [scope, setScope] = useState('')
+        const labelOf = (cwd) => {
+          const parts = String(cwd).split(/[\\/]+/).filter((part) => part.length > 0)
+          return parts.length > 0 ? parts[parts.length - 1] : String(cwd)
+        }
         const [steerOn, setSteerOn] = useState(config !== null && config.steerAgent !== false)
         const [enrichOn, setEnrichOn] = useState(config !== null && config.enrichPrompts === true)
         useEffect(() => {
@@ -1357,7 +1372,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           const text = draft.trim()
           if (text.length === 0) return
           setDraft('')
-          editDirectives({ action: 'add', text: text.slice(0, 300) })
+          editDirectives({ action: 'add', text: text.slice(0, 300), ...(scope.length > 0 ? { workspace: scope } : {}) })
         }
         return h('div', { className: 'tacit-panel-section', 'data-testid': 'tacit-steering' },
           h('div', { className: 'tacit-report-title' }, t('steer.title')),
@@ -1381,6 +1396,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 }),
                 h('span', { className: 'tacit-directive-text' }, String(entry.text)),
                 h('span', { className: 'tacit-chip' }, entry.source === 'user' ? t('steer.user') : t('steer.distilled')),
+                typeof entry.workspace === 'string' && entry.workspace.length > 0
+                  ? h('span', { className: 'tacit-chip tacit-chip-scope', title: entry.workspace }, t('steer.workspace', { name: labelOf(entry.workspace) }))
+                  : null,
                 entry.status === 'candidate'
                   ? h('span', { className: 'tacit-chip tacit-chip-trial' }, t('steer.trial', {
                     n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
@@ -1403,6 +1421,16 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 if (event.key === 'Enter') onAdd()
               },
             }),
+            workspaces.length > 0
+              ? h('select', {
+                className: 'tacit-input tacit-select',
+                'aria-label': t('steer.scope'),
+                value: scope,
+                onChange: (event) => setScope(event.target.value),
+              },
+              h('option', { value: '' }, t('steer.everywhere')),
+              ...workspaces.map((entry) => h('option', { key: entry.cwd, value: entry.cwd }, entry.label)))
+              : null,
             h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: draft.trim().length === 0, onClick: onAdd }, t('steer.add'))),
           steering !== null && typeof steering === 'object' && typeof steering.text === 'string' && steering.text.length > 0
             ? h('details', { className: 'tacit-preview' },
@@ -1503,7 +1531,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           error !== null && typeof error === 'object'
             ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
             : null,
-          h(DirectivesEditorView, { config, directives, steering: rootStore.steering }),
+          h(DirectivesEditorView, {
+            workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering }),
           h('div', { className: 'tacit-panel-section' },
             h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
             styleRules.length === 0
@@ -1601,7 +1630,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-feedback-reason{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.tacit-feedback-input{width:260px;max-width:60vw}'
       + '.tacit-feedback-noted{color:var(--dsw-alias-state-success-primary);font-weight:600}'
       + '.tacit-trend{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}.tacit-chip-trigger,.tacit-coached-trigger{text-transform:uppercase;letter-spacing:.04em;font-size:10px}.tacit-coached-trigger{margin-left:auto}.tacit-row-enrichment{margin-top:8px;border-left:3px solid var(--dsw-alias-brand-primary);padding:4px 10px;background:var(--dsw-alias-bg-layer-2);border-radius:6px}'
-      + '.tacit-chip-trial{color:var(--dsw-alias-brand-primary)}.tacit-chip-ok{color:var(--dsw-alias-state-success-primary)}'
+      + '.tacit-chip-trial{color:var(--dsw-alias-brand-primary)}.tacit-chip-ok{color:var(--dsw-alias-state-success-primary)}.tacit-chip-scope{color:var(--dsw-alias-brand-primary)}.tacit-select{max-width:11rem}'
       + '.tacit-directive{display:flex;align-items:center;gap:8px}.tacit-directive-text{flex:1;min-width:0}.tacit-directive-off .tacit-directive-text{opacity:.5;text-decoration:line-through}.tacit-directive-input{width:min(420px,100%);flex:1}.tacit-preview summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.tacit-preview pre{margin-top:6px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:8px 10px}'
       + '.tacit-rules-list{display:flex;flex-direction:column;gap:6px}.tacit-rule{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-left:3px solid var(--dsw-alias-brand-primary);border-radius:6px;padding:6px 10px;font-size:12px;line-height:1.55;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}'
 

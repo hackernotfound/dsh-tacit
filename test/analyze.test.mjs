@@ -244,7 +244,7 @@ test('buildAnalysisUserText carries the user\'s next message as correction evide
 
 // ── Ambient steering: directives → system-prompt section ───────────────────
 
-import { renderSteeringSection, buildDirectiveUserText, STEERING_MAX_CHARS } from '../lib/analyze.js'
+import { renderSteeringSection, buildSteeringSection, buildDirectiveUserText, workspaceLabel, STEERING_MAX_CHARS } from '../lib/analyze.js'
 
 test('renderSteeringSection is empty without enabled directives and lists enabled ones', () => {
   assert.equal(renderSteeringSection({ directives: [] }), '')
@@ -269,7 +269,7 @@ test('renderSteeringSection stays within the token-cheap character budget', () =
 
 test('classifyDirectives parses the tool payload into clipped, deduped imperatives', () => {
   const parsed = classifyDirectives(JSON.stringify({ directives: ['Grep before asking.', ' grep before asking. ', '', 42, 'Second rule.'] })).kept
-  assert.deepEqual(parsed, ['Grep before asking.', 'Second rule.'])
+  assert.deepEqual(parsed, [{ text: 'Grep before asking.' }, { text: 'Second rule.' }])
   assert.deepEqual(classifyDirectives('nonsense').kept, [])
 })
 
@@ -360,8 +360,8 @@ test('classifyDirectives rejects directives that make the agent ask the user', (
     'Assume the Next.js app under apps/web unless told otherwise.',
   ] }))
   assert.deepEqual(kept, [
-    'When the user names a feature but no files, grep the repo for it first.',
-    'Assume the Next.js app under apps/web unless told otherwise.',
+    { text: 'When the user names a feature but no files, grep the repo for it first.' },
+    { text: 'Assume the Next.js app under apps/web unless told otherwise.' },
   ])
   assert.equal(rejected.length, 2)
   assert.deepEqual(classifyDirectives(JSON.stringify({ directives: ['Get approval from the user first.'] })).kept, [])
@@ -398,5 +398,54 @@ test('classifyDirectives stores a long model directive clipped at its sentence b
   const long = 'When the user asks broadly to review, check, or see what is missing without naming files, inspect every loaded module first. Then state the assumptions you made and continue without asking, unless the target is genuinely undiscoverable from the repository.'
   const { kept } = classifyDirectives(JSON.stringify({ directives: [long] }))
   assert.equal(kept.length, 1)
-  assert.equal(kept[0], 'When the user asks broadly to review, check, or see what is missing without naming files, inspect every loaded module first.')
+  assert.equal(kept[0].text, 'When the user asks broadly to review, check, or see what is missing without naming files, inspect every loaded module first.')
+})
+
+test('buildSteeringSection keeps global directives, adds only the current workspace\'s scoped ones, and lists those first', () => {
+  const profile = { directives: [
+    { id: 'g', text: 'Global rule.', enabled: true, source: 'distilled', createdAt: 1 },
+    { id: 'a', text: 'Check apps/web first.', enabled: true, source: 'distilled', createdAt: 2, workspace: '/repos/alpha' },
+    { id: 'b', text: 'Beta-only rule.', enabled: true, source: 'user', createdAt: 3, workspace: '/repos/beta' },
+  ] }
+  const alpha = buildSteeringSection(profile, { cwd: '/repos/alpha' })
+  assert.deepEqual(alpha.ids, ['a', 'g'], 'workspace directive first, then global; other workspaces left out')
+  assert.ok(!alpha.text.includes('Beta-only'))
+  const nowhere = buildSteeringSection(profile)
+  assert.deepEqual(nowhere.ids, ['g'], 'a session without a workspace gets global directives only')
+  assert.equal(renderSteeringSection(profile, { cwd: '/repos/beta' }).includes('Beta-only rule.'), true)
+})
+
+test('classifyDirectives accepts { text, workspace } objects and keeps the workspace name', () => {
+  const { kept } = classifyDirectives(JSON.stringify({ directives: [
+    { text: 'Check apps/web first.', workspace: 'alpha' },
+    { text: 'General rule.' },
+    { text: 'Check apps/web first.', workspace: 'alpha' },
+    'Bare string still works.',
+  ] }))
+  assert.deepEqual(kept, [
+    { text: 'Check apps/web first.', workspace: 'alpha' },
+    { text: 'General rule.' },
+    { text: 'Bare string still works.' },
+  ])
+})
+
+test('buildDirectiveUserText tags corrections and current directives with workspace names and lists the workspaces seen', () => {
+  const text = buildDirectiveUserText({
+    patterns: [],
+    styleRules: [],
+    directives: [{ id: 'a', text: 'Scoped rule.', enabled: true, source: 'distilled', createdAt: 1, workspace: '/repos/alpha' }],
+  }, [
+    { promptExcerpt: 'fix it', followUp: 'no I meant apps/web', cwd: '/repos/alpha' },
+    { promptExcerpt: 'other', followUp: 'wrong file', cwd: '/repos/beta' },
+    { promptExcerpt: 'third', followUp: 'nope', cwd: '/repos/alpha' },
+  ])
+  assert.ok(text.includes('[workspace: alpha] "fix it"'))
+  assert.ok(text.includes('Scoped rule. [workspace: alpha]'))
+  assert.ok(text.includes('=== WORKSPACES IN THE RECENT ANALYSES'))
+  assert.ok(text.includes('- alpha (2)'))
+  assert.ok(text.includes('- beta (1)'))
+  assert.ok(!text.includes('/repos/'), 'full paths never reach the model')
+  assert.equal(workspaceLabel('/Users/x/Repositories/dsh-tacit/'), 'dsh-tacit')
+  assert.equal(workspaceLabel('C:\\work\\proj'), 'proj')
+  assert.equal(workspaceLabel(''), '')
 })

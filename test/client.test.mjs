@@ -548,3 +548,26 @@ test('every error code the client can render has a message in both dictionaries'
     assert.equal(typeof dicts.zh['err.' + code], 'string', code)
   }
 })
+
+test('the settings page marks workspace-scoped directives and offers a scope for new ones', () => {
+  const rootStore = testKit.rootStore
+  rootStore.config = { model: 'deepseek-v4-flash', liveSuggestions: true, steerAgent: true }
+  rootStore.profile = {
+    analyzedCount: 3,
+    patterns: [],
+    styleRules: [],
+    directives: [
+      { id: 'g', text: 'Global rule.', enabled: true, source: 'distilled', createdAt: 1, status: 'active' },
+      { id: 'a', text: 'Check apps/web first.', enabled: true, source: 'user', createdAt: 2, workspace: '/repos/alpha' },
+    ],
+  }
+  rootStore.steering = { enabled: true, text: '' }
+  rootStore.workspaces = [{ cwd: '/repos/alpha', label: 'alpha' }, { cwd: '/repos/beta', label: 'beta' }]
+  const Section = slotEntries.find((e) => e.name === 'settings.section').registration.component
+  const markup = renderToStaticMarkup(React.createElement(Section, {}))
+  assert.ok(markup.includes('only alpha'), 'scoped chip shows the workspace name')
+  assert.ok(markup.includes('Everywhere'), 'scope selector defaults to everywhere')
+  assert.ok(markup.includes('<option value="/repos/beta">beta</option>'))
+  rootStore.workspaces = []
+  rootStore.profile = null
+})

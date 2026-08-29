@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import {
   Config,
   profileSchema,
+  reportSchema,
   patternCountersSchema,
   turnSchema,
   feedbackArgSchema,
@@ -98,4 +99,18 @@ test('feedback/applied arg schemas validate the loop payloads', () => {
   assert.equal(feedbackArgSchema.safeParse({ rewriteId: 'rw-1', verdict: 'down', reason: 'x'.repeat(400) }).success, true)
   assert.deepEqual(appliedArgSchema.parse({ sessionId: 's1', rewriteId: 'rw-1' }), { sessionId: 's1', rewriteId: 'rw-1' })
   assert.equal(appliedArgSchema.safeParse({ rewriteId: 'rw-1' }).success, false)
+})
+
+test('a directive may carry the workspace it is scoped to, and a report the conversation\'s cwd', () => {
+  const profile = profileSchema.parse({
+    analyzedCount: 0, patterns: [], updatedAt: 1, styleRules: [], feedbackLog: [], pendingDistill: 0, analysesSinceDirectives: 0,
+    directives: [
+      { id: 'a', text: 'Scoped.', createdAt: 1, workspace: '/repos/alpha' },
+      { id: 'g', text: 'Global.', createdAt: 2 },
+    ],
+  })
+  assert.equal(profile.directives[0].workspace, '/repos/alpha')
+  assert.equal(profile.directives[1].workspace, undefined)
+  const report = reportSchema.parse({ ok: true, turn: 1, time: 1, model: 'm', problems: [], improvedPrompt: 'p', explanation: 'e', cwd: '/repos/alpha' })
+  assert.equal(report.cwd, '/repos/alpha')
 })

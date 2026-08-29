@@ -4,7 +4,13 @@
       const { t } = kit
       return function DirectivesEditorView(props) {
         const { config, directives, steering } = props
+        const workspaces = Array.isArray(props.workspaces) ? props.workspaces : []
         const [draft, setDraft] = useState('')
+        const [scope, setScope] = useState('')
+        const labelOf = (cwd) => {
+          const parts = String(cwd).split(/[\\/]+/).filter((part) => part.length > 0)
+          return parts.length > 0 ? parts[parts.length - 1] : String(cwd)
+        }
         const [steerOn, setSteerOn] = useState(config !== null && config.steerAgent !== false)
         const [enrichOn, setEnrichOn] = useState(config !== null && config.enrichPrompts === true)
         useEffect(() => {
@@ -25,7 +31,7 @@
           const text = draft.trim()
           if (text.length === 0) return
           setDraft('')
-          editDirectives({ action: 'add', text: text.slice(0, 300) })
+          editDirectives({ action: 'add', text: text.slice(0, 300), ...(scope.length > 0 ? { workspace: scope } : {}) })
         }
         return h('div', { className: 'tacit-panel-section', 'data-testid': 'tacit-steering' },
           h('div', { className: 'tacit-report-title' }, t('steer.title')),
@@ -49,6 +55,9 @@
                 }),
                 h('span', { className: 'tacit-directive-text' }, String(entry.text)),
                 h('span', { className: 'tacit-chip' }, entry.source === 'user' ? t('steer.user') : t('steer.distilled')),
+                typeof entry.workspace === 'string' && entry.workspace.length > 0
+                  ? h('span', { className: 'tacit-chip tacit-chip-scope', title: entry.workspace }, t('steer.workspace', { name: labelOf(entry.workspace) }))
+                  : null,
                 entry.status === 'candidate'
                   ? h('span', { className: 'tacit-chip tacit-chip-trial' }, t('steer.trial', {
                     n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
@@ -71,6 +80,16 @@
                 if (event.key === 'Enter') onAdd()
               },
             }),
+            workspaces.length > 0
+              ? h('select', {
+                className: 'tacit-input tacit-select',
+                'aria-label': t('steer.scope'),
+                value: scope,
+                onChange: (event) => setScope(event.target.value),
+              },
+              h('option', { value: '' }, t('steer.everywhere')),
+              ...workspaces.map((entry) => h('option', { key: entry.cwd, value: entry.cwd }, entry.label)))
+              : null,
             h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: draft.trim().length === 0, onClick: onAdd }, t('steer.add'))),
           steering !== null && typeof steering === 'object' && typeof steering.text === 'string' && steering.text.length > 0
             ? h('details', { className: 'tacit-preview' },
@@ -171,7 +190,8 @@
           error !== null && typeof error === 'object'
             ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
             : null,
-          h(DirectivesEditorView, { config, directives, steering: rootStore.steering }),
+          h(DirectivesEditorView, {
+            workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering }),
           h('div', { className: 'tacit-panel-section' },
             h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
             styleRules.length === 0

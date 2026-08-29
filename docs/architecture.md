@@ -24,7 +24,7 @@ modules — no bundler, no TypeScript step.*
 | --- | --- | --- |
 | `ctx.sessionProjections` unit `tacitTimeline` | Tacit's per-turn digest, derived from the session log; the browser reads it with `useProjection('tacitTimeline')` | `fold.js`, `index.js` |
 | `sessionProjections.onChanged` | the only trigger source — on every change: `maybeAutoAnalyze → recordTrialTurns → handleVerification`; no polling | `service.js` |
-| `ctx.systemPrompt.section({ name: 'tacit:steering', order: 60 })` | the directives block; text and the injected directive ids captured once per session object (`WeakMap`, plus a bounded id map by session id for trials) | `index.js`, `service.js` |
+| `ctx.systemPrompt.section({ name: 'tacit:steering', order: 60 })` | the directives block for that session's workspace (`session.header.cwd`: its own scoped directives first, then global); text and the injected directive ids captured once per session object (`WeakMap`, plus a bounded id map by session id for trials) | `index.js`, `service.js` |
 | `agent/pre-step` (waterfall) | opt-in `enrichPrompts`: append one plugin-sourced user message on step 1 | `service.js` |
 | `ctx.llm.stream` | every model call: allowlisted model, session's provider route, `reasoningEffort: 'low'` (one retry without it if unsupported), tool schema, `maxTokens`, timeout, `sessionId` | `analyze.js` |
 | `webServer` routes | the JSON API below | `routes.js` |
@@ -74,7 +74,7 @@ bad JSON → 400; handler `bad-request` / `unknown-rewrite` → 400; every other
 ## Storage
 
 `~/.dsh/storages/tacit/` (root = `$DSH_HOME` or `~/.dsh`): `config.patch.json`,
-`profile.json`, `auto.json`, `reports/<sessionId>/<turn>.json`. Session ids are
+`profile.json`, `auto.json`, `reports/<sessionId>/<turn>.json` (a report records the conversation's absolute workspace directory as `cwd`; a directive may carry a `workspace` it is limited to). Session ids are
 sanitised to `[A-Za-z0-9._-]{1,128}`. Writes go to a `.tmp-<pid>-<time>` file
 then `rename`. On first start a legacy `storages/prompt-coach` directory is renamed
 to `tacit` if the new one does not exist (nothing is deleted; safe to drop after 0.3).
