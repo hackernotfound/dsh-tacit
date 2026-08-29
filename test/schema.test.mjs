@@ -10,6 +10,15 @@ import {
   turnSchema,
   feedbackArgSchema,
   appliedArgSchema,
+  configArgSchema,
+  tokenBucketsSchema,
+  usageAttemptSchema,
+  usageTotalsSchema,
+  usageRunSchema,
+  usageDayFileSchema,
+  usageSummarySchema,
+  USAGE_OPS,
+  USAGE_RUN_TYPES,
 } from '../lib/schema.js'
 
 // Regression: the loader passes `undefined` when the patch row has no
@@ -35,6 +44,9 @@ test('Config.parse(undefined) resolves to all defaults', () => {
     directiveWorseBy: 0.15,
     bootstrapConcurrency: 1,
     learnFromGood: true,
+    costHistoryDays: 30,
+    costWarnDailyUsd: 0,
+    costWarnMonthlyUsd: 0,
   })
 })
 
@@ -115,4 +127,124 @@ test('a directive may carry the workspace it is scoped to, and a report the conv
   assert.equal(profile.directives[1].workspace, undefined)
   const report = reportSchema.parse({ ok: true, turn: 1, time: 1, model: 'm', problems: [], improvedPrompt: 'p', explanation: 'e', cwd: '/repos/alpha' })
   assert.equal(report.cwd, '/repos/alpha')
+})
+
+// ── Usage ledger schemas ────────────────────────────────────────────────────
+
+test('configPatchSchema keeps the three cost keys', () => {
+  const parsed = configArgSchema.parse({ patch: { costHistoryDays: 90, costWarnDailyUsd: 5, costWarnMonthlyUsd: 50 } })
+  assert.deepEqual(parsed.patch, { costHistoryDays: 90, costWarnDailyUsd: 5, costWarnMonthlyUsd: 50 })
+  // Still an allowlist: a key not in configPatchSchema is silently stripped, never persisted.
+  const withUnknown = configArgSchema.parse({ patch: { costHistoryDays: 10, notAKey: 1 } })
+  assert.deepEqual(withUnknown.patch, { costHistoryDays: 10 })
+})
+
+test('tokenBucketsSchema parses an empty object into five zero counters', () => {
+  assert.deepEqual(tokenBucketsSchema.parse({}), {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    reasoningTokens: 0,
+  })
+})
+
+test('usageAttemptSchema fills defaults around the identity fields', () => {
+  const parsed = usageAttemptSchema.parse({ id: 'u1:0', op: 'analysis', startedAt: 100, status: 'ok' })
+  assert.equal(parsed.id, 'u1:0')
+  assert.equal(parsed.op, 'analysis')
+  assert.equal(parsed.startedAt, 100)
+  assert.equal(parsed.status, 'ok')
+  assert.equal(parsed.durationMs, 0)
+  assert.equal(parsed.model, '')
+  assert.equal(parsed.provider, '')
+  assert.equal(parsed.reasoningEffort, null)
+  assert.equal(parsed.finish, '')
+  assert.equal(parsed.code, '')
+  assert.equal(parsed.sessionId, '')
+  assert.equal(parsed.turn, null)
+  assert.equal(parsed.usage, null)
+  assert.equal(parsed.priced, null)
+  assert.deepEqual(USAGE_OPS, [
+    'analysis',
+    'analysis-repair',
+    'directive-distillation',
+    'style-distillation',
+    'improve',
+    'improve-repair',
+    'enrichment',
+  ])
+  // The sink record fields Task 1 hands over, plus the identity fields the tracker adds.
+  const full = usageAttemptSchema.parse({
+    id: 'u1:0',
+    op: 'analysis',
+    sessionId: 's1',
+    turn: 3,
+    startedAt: 100,
+    durationMs: 50,
+    model: 'deepseek-v4-flash',
+    provider: 'deepseek-official',
+    reasoningEffort: 'low',
+    finish: 'stop',
+    status: 'ok',
+    code: '',
+    usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 },
+    priced: { source: 'bundled', tier: 'offPeak', rates: { cacheHit: 0.007, cacheMiss: 0.22, output: 0.66 }, asOf: '2026-08-22', usd: 0.0001 },
+  })
+  assert.equal(full.priced.source, 'bundled')
+  assert.equal(full.usage.inputTokens, 10)
+  assert.equal(usageAttemptSchema.safeParse({ id: 'u', op: 'not-an-op', startedAt: 1, status: 'ok' }).success, false)
+})
+
+test('usageTotalsSchema defaults every counter to zero', () => {
+  assert.deepEqual(usageTotalsSchema.parse({}), {
+    attempts: 0,
+    billedCalls: 0,
+    unmeteredCalls: 0,
+    unpricedCalls: 0,
+    tokens: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 },
+    usdKnown: 0,
+  })
+})
+
+test('usageRunSchema fills defaults and starts running', () => {
+  const parsed = usageRunSchema.parse({ runId: 'u1', type: 'analysis', startedAt: 100 })
+  assert.equal(parsed.status, 'running')
+  assert.equal(parsed.endedAt, 0)
+  assert.equal(parsed.trigger, '')
+  assert.deepEqual(parsed.results, {})
+  assert.deepEqual(parsed.attempts, [])
+  assert.deepEqual(parsed.totals, usageTotalsSchema.parse({}))
+  assert.deepEqual(USAGE_RUN_TYPES, [
+    'bootstrap',
+    'analysis',
+    'analysis-batch',
+    'improve',
+    'directive-distillation',
+    'style-distillation',
+    'prompt-enrichment',
+  ])
+  assert.equal(usageRunSchema.safeParse({ runId: 'u1', type: 'not-a-type', startedAt: 1 }).success, false)
+})
+
+test('usageDayFileSchema parses a minimal day file', () => {
+  const parsed = usageDayFileSchema.parse({ version: 1, day: '2026-08-30' })
+  assert.deepEqual(parsed.runs, [])
+  assert.equal(usageDayFileSchema.safeParse({ version: 2, day: '2026-08-30' }).success, false)
+})
+
+test('usageSummarySchema parses an old summary without byModel', () => {
+  const parsed = usageSummarySchema.parse({ version: 1, trackingSince: 5 })
+  assert.deepEqual(parsed.byModel, {})
+  assert.deepEqual(parsed.byType, {})
+  assert.deepEqual(parsed.days, {})
+  assert.deepEqual(parsed.lifetime, usageTotalsSchema.parse({}))
+
+  const withDay = usageSummarySchema.parse({
+    version: 1,
+    trackingSince: 5,
+    days: { '2026-08-30': { attempts: 2, usdKnown: 0.01 } },
+  })
+  assert.equal(withDay.days['2026-08-30'].attempts, 2)
+  assert.deepEqual(withDay.days['2026-08-30'].byType, {})
 })
