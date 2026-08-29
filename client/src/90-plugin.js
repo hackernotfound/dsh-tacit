@@ -70,5 +70,7 @@
         closeFeedback,
         fadeFeedback,
         rootStore,
+        toggleSection,
+        setRootNotice,
       },
     }

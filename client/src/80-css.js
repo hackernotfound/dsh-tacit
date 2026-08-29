@@ -58,6 +58,14 @@
       + '.tacit-chip-trial{color:var(--dsw-alias-brand-primary)}.tacit-chip-ok{color:var(--dsw-alias-state-success-primary)}.tacit-chip-scope{color:var(--dsw-alias-brand-primary)}.tacit-select{max-width:11rem}'
       + '.tacit-directive{display:flex;align-items:center;gap:8px}.tacit-directive-text{flex:1;min-width:0}.tacit-directive-off .tacit-directive-text{opacity:.5;text-decoration:line-through}.tacit-directive-input{width:min(420px,100%);flex:1}.tacit-preview summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.tacit-preview pre{margin-top:6px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:8px 10px}'
       + '.tacit-rules-list{display:flex;flex-direction:column;gap:6px}.tacit-rule{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-left:3px solid var(--dsw-alias-brand-primary);border-radius:6px;padding:6px 10px;font-size:12px;line-height:1.55;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}'
+      + '.tacit-card{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1)}'
+      + '.tacit-card-head{width:100%;display:flex;align-items:center;gap:8px;text-align:left;padding:10px 12px;background:none;border:0;cursor:pointer;font:inherit;color:inherit}'
+      + '.tacit-card-head:focus-visible{outline:2px solid var(--dsw-alias-brand-primary)}'
+      + '.tacit-card-title{font-size:13px;font-weight:600}.tacit-card-summary{font-size:11px;color:var(--dsw-alias-label-secondary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      + '.tacit-card-count{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);border-radius:4px;padding:1px 7px;font-size:11px;font-variant-numeric:tabular-nums}'
+      + '.tacit-card-chevron{margin-left:auto;color:var(--dsw-alias-label-secondary);font-size:11px}'
+      + '.tacit-card-body{padding:0 12px 12px}'
+      + '@media (max-width:640px){.tacit-settings-label{min-width:0;flex-basis:100%}.tacit-modal-cols{grid-template-columns:1fr}}'
 
     function injectCss() {
       const tagId = 'dsh-tacit/styles.css'

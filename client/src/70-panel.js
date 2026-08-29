@@ -160,13 +160,41 @@
           ? rootStore.profile.directives.filter((entry) => entry !== null && typeof entry === 'object' && typeof entry.id === 'string' && typeof entry.text === 'string')
           : []
 
+        const sections = rootStore.sections !== null && typeof rootStore.sections === 'object' ? rootStore.sections : {}
+        const notice = rootStore.notice !== null && typeof rootStore.notice === 'object' && typeof rootStore.notice.text === 'string'
+          ? rootStore.notice
+          : null
+        /** Every card is titled by `card.<id>` and driven by `rootStore.sections`. */
+        const card = (id, children, extra) => SectionCard(kit, {
+          id,
+          title: t('card.' + id),
+          open: sections[id] === true,
+          onToggle: () => toggleSection(id),
+          children,
+          ...(extra !== undefined ? extra : {}),
+        })
+
         return h('div', { className: 'tacit-panel' },
-          StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
-          h('div', { className: 'tacit-settings-row' },
-            BootstrapButton(kit, { bootstrap: rootStore.bootstrap, onClick: () => bootstrapAll() }),
-            h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
-          h('div', { className: 'tacit-settings' },
-            h('div', { className: 'tacit-settings-title' }, t('settings.title')),
+          error !== null && typeof error === 'object'
+            ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
+            : null,
+          card('overview', [
+            StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
+            config !== null && typeof config.model === 'string' && config.model.length > 0
+              ? h('div', { className: 'tacit-settings-row' },
+                h('span', { className: 'tacit-chip' }, t('overview.model', { model: config.model })))
+              : null,
+            h('div', { className: 'tacit-settings-row' },
+              BootstrapButton(kit, { bootstrap: rootStore.bootstrap, onClick: () => bootstrapAll(t) }),
+              h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
+            h('p', { className: 'tacit-panel-hint' }, t('bootstrap.estimateDoc')),
+            notice !== null
+              ? h('div', { className: 'tacit-settings-notice', role: 'status' }, notice.text)
+              : null,
+          ]),
+          card('usage', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
+          card('pricing', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
+          card('learning', [
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.model')),
               h('select', {
@@ -192,39 +220,47 @@
                 onChange: (event) => setBudgetText(event.target.value),
               }),
               h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply'))),
+          ]),
+          card('guidance', [
+            h(DirectivesEditorView, {
+              workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering }),
+          ]),
+          card('improve', [
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.live')),
               h('input', { type: 'checkbox', checked: live, onChange: toggleLive })),
+            h('div', { className: 'tacit-panel-section' },
+              h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
+              styleRules.length === 0
+                ? h('div', { className: 'tacit-empty' }, t('panel.styleRulesEmpty'))
+                : h('div', { className: 'tacit-rules-list' },
+                  styleRules.map((entry, index) => h('div', { key: 'rule-' + index, className: 'tacit-rule' }, String(entry.rule))))),
+            h('p', { className: 'tacit-panel-hint' }, t('improve.explain')),
+          ]),
+          card('history', [
+            h('div', { className: 'tacit-panel-section' },
+              h('div', { className: 'tacit-report-title' }, t('panel.coached')),
+              coached.length === 0
+                ? h('div', { className: 'tacit-empty' }, t('panel.coachedEmpty'))
+                : h('div', { className: 'tacit-coached-list' },
+                  coached.map((entry, index) => h('div', { key: 'c' + index, className: 'tacit-coached-row' },
+                    h('div', { className: 'tacit-coached-meta' },
+                      h('span', { className: 'tacit-coached-turn' }, (typeof entry.sessionLabel === 'string' && entry.sessionLabel.length > 0 ? entry.sessionLabel + ' · ' : '') + '# ' + String(entry.turn)),
+                      h('span', { className: 'tacit-coached-time' }, fmtTime(entry.time)),
+                      h('span', { className: 'tacit-chip tacit-coached-trigger' }, t('trigger.' + (entry.trigger === 'auto' || entry.trigger === 'correction' || entry.trigger === 'bootstrap' ? entry.trigger : 'manual')))),
+                    typeof entry.promptExcerpt === 'string' && entry.promptExcerpt.length > 0
+                      ? h('div', { className: 'tacit-coached-excerpt' }, entry.promptExcerpt)
+                      : null,
+                    typeof entry.improvedPrompt === 'string' && entry.improvedPrompt.length > 0
+                      ? h('div', { className: 'tacit-coached-improved' }, entry.improvedPrompt.slice(0, 240) + (entry.improvedPrompt.length > 240 ? '…' : ''))
+                      : null)))),
+            h('p', { className: 'tacit-panel-hint' }, t('panel.hint')),
+          ], { count: coached.length }),
+          card('privacy', [
             h('div', { className: 'tacit-settings-row' },
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => clearAllRoot() }, t('settings.clear')))),
-          error !== null && typeof error === 'object'
-            ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
-            : null,
-          h(DirectivesEditorView, {
-            workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering }),
-          h('div', { className: 'tacit-panel-section' },
-            h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
-            styleRules.length === 0
-              ? h('div', { className: 'tacit-empty' }, t('panel.styleRulesEmpty'))
-              : h('div', { className: 'tacit-rules-list' },
-                styleRules.map((entry, index) => h('div', { key: 'rule-' + index, className: 'tacit-rule' }, String(entry.rule))))),
-          h('div', { className: 'tacit-panel-section' },
-            h('div', { className: 'tacit-report-title' }, t('panel.coached')),
-            coached.length === 0
-              ? h('div', { className: 'tacit-empty' }, t('panel.coachedEmpty'))
-              : h('div', { className: 'tacit-coached-list' },
-                coached.map((entry, index) => h('div', { key: 'c' + index, className: 'tacit-coached-row' },
-                  h('div', { className: 'tacit-coached-meta' },
-                    h('span', { className: 'tacit-coached-turn' }, (typeof entry.sessionLabel === 'string' && entry.sessionLabel.length > 0 ? entry.sessionLabel + ' · ' : '') + '# ' + String(entry.turn)),
-                    h('span', { className: 'tacit-coached-time' }, fmtTime(entry.time)),
-                    h('span', { className: 'tacit-chip tacit-coached-trigger' }, t('trigger.' + (entry.trigger === 'auto' || entry.trigger === 'correction' || entry.trigger === 'bootstrap' ? entry.trigger : 'manual')))),
-                  typeof entry.promptExcerpt === 'string' && entry.promptExcerpt.length > 0
-                    ? h('div', { className: 'tacit-coached-excerpt' }, entry.promptExcerpt)
-                    : null,
-                  typeof entry.improvedPrompt === 'string' && entry.improvedPrompt.length > 0
-                    ? h('div', { className: 'tacit-coached-improved' }, entry.improvedPrompt.slice(0, 240) + (entry.improvedPrompt.length > 240 ? '…' : ''))
-                    : null)))),
-          h('div', { className: 'tacit-panel-hint' }, t('panel.hint')))
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => clearAllRoot() }, t('settings.clear'))),
+            h('p', { className: 'tacit-panel-hint' }, t('privacy.stored')),
+          ]))
       }
     }
 

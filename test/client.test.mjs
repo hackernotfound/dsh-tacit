@@ -588,3 +588,112 @@ test('the settings page marks workspace-scoped directives and offers a scope for
   rootStore.workspaces = []
   rootStore.profile = null
 })
+
+// ── Settings page as accessible collapsible section cards ─────────────────
+
+const SectionComponent = slotEntries.find((e) => e.name === 'settings.section').registration.component
+const CARD_IDS = ['overview', 'usage', 'pricing', 'learning', 'guidance', 'improve', 'history', 'privacy']
+
+/** renderToStaticMarkup escapes `&` in text nodes; card titles may carry one. */
+const escapeHtml = (text) => String(text).replace(/&/g, '&amp;')
+
+function renderSettings() {
+  return renderToStaticMarkup(React.createElement(SectionComponent, {}))
+}
+
+function seedSettings() {
+  const rootStore = testKit.rootStore
+  rootStore.config = { model: 'deepseek-v4-flash', liveSuggestions: true, autoAnalyze: true, autoDailyBudget: 30, steerAgent: true }
+  rootStore.profile = { analyzedCount: 4, patterns: [], styleRules: [], directives: [] }
+  return rootStore
+}
+
+function tagWithId(markup, tag, id) {
+  const match = new RegExp('<' + tag + '[^>]*id="' + id + '"[^>]*>').exec(markup)
+  assert.ok(match, 'expected a <' + tag + '> with id="' + id + '"')
+  return match[0]
+}
+
+test('the settings page renders all eight collapsible section cards', () => {
+  const rootStore = seedSettings()
+  const en = localeDicts['dsh-tacit'].en
+  const markup = renderSettings()
+  for (const id of CARD_IDS) {
+    const title = en['card.' + id]
+    assert.equal(typeof title, 'string', 'card.' + id + ' is translated')
+    assert.ok(markup.includes(escapeHtml(title)), 'card.' + id + ' title renders')
+  }
+  assert.ok(markup.includes(en['usage.pending']), 'the usage/pricing placeholder renders')
+  assert.ok(markup.includes(en['improve.explain']))
+  assert.ok(markup.includes(en['privacy.stored']))
+  assert.ok(markup.includes('Model: deepseek-v4-flash'))
+  rootStore.profile = null
+})
+
+test('overview and usage are open by default, every other card is collapsed', () => {
+  seedSettings()
+  const markup = renderSettings()
+  for (const id of CARD_IDS) {
+    const head = tagWithId(markup, 'button', 'tacit-card-' + id + '-head')
+    const expected = id === 'overview' || id === 'usage' ? 'true' : 'false'
+    assert.ok(head.includes('aria-expanded="' + expected + '"'), id + ' aria-expanded=' + expected + ' — got ' + head)
+  }
+  testKit.rootStore.profile = null
+})
+
+test('each card header controls its own body id', () => {
+  seedSettings()
+  const markup = renderSettings()
+  for (const id of CARD_IDS) {
+    const head = tagWithId(markup, 'button', 'tacit-card-' + id + '-head')
+    assert.ok(head.includes('aria-controls="tacit-card-' + id + '-body"'), id + ' aria-controls')
+    tagWithId(markup, 'div', 'tacit-card-' + id + '-body')
+  }
+  testKit.rootStore.profile = null
+})
+
+test('a collapsed card keeps its body in the DOM behind the hidden attribute', () => {
+  const rootStore = seedSettings()
+  rootStore.coached = [{ turn: 4, time: Date.now(), trigger: 'manual', promptExcerpt: 'a coached prompt excerpt' }]
+
+  const collapsed = renderSettings()
+  assert.ok(tagWithId(collapsed, 'div', 'tacit-card-history-body').includes('hidden'), 'history body is hidden by default')
+  assert.ok(collapsed.includes('a coached prompt excerpt'), 'the body stays in the DOM while collapsed')
+
+  testKit.toggleSection('history')
+  const opened = renderSettings()
+  assert.equal(tagWithId(opened, 'div', 'tacit-card-history-body').includes('hidden'), false, 'the opened body drops hidden')
+  assert.ok(tagWithId(opened, 'button', 'tacit-card-history-head').includes('aria-expanded="true"'))
+  assert.ok(opened.includes('a coached prompt excerpt'))
+
+  testKit.toggleSection('history')
+  assert.ok(tagWithId(renderSettings(), 'div', 'tacit-card-history-body').includes('hidden'), 'toggling back collapses it again')
+  rootStore.coached = []
+  rootStore.profile = null
+})
+
+test('a result notice renders in the overview card as a live status region', () => {
+  const rootStore = seedSettings()
+  rootStore.notice = { text: 'Bootstrap complete · 7 analyzed · 3 skipped' }
+  const markup = renderSettings()
+  const match = /<div[^>]*role="status"[^>]*>([\s\S]*?)<\/div>/.exec(markup)
+  assert.ok(match, 'a [role="status"] region renders')
+  assert.ok(match[1].includes('7 analyzed'))
+  assert.ok(match[1].includes('3 skipped'))
+  rootStore.notice = null
+  assert.equal(/role="status"/.test(renderSettings()), false, 'no empty status region without a notice')
+  rootStore.profile = null
+})
+
+test('the stylesheet carries the narrow-viewport rules', () => {
+  assert.match(String(testKit.css), /@media \(max-width:640px\)/)
+  assert.match(String(testKit.css), /\.tacit-card-head\{[^}]*cursor:pointer/)
+  assert.match(String(testKit.css), /\.tacit-card-head:focus-visible\{outline:2px solid var\(--dsw-alias-brand-primary\)\}/)
+})
+
+test('the bootstrap hint states the real eligibility rule, not the old guess', () => {
+  const en = localeDicts['dsh-tacit'].en
+  assert.doesNotMatch(en['bootstrap.hint'], /went fine on their own/)
+  assert.match(en['bootstrap.hint'], /8 characters/)
+  assert.equal(typeof en['bootstrap.estimateDoc'], 'string')
+})

@@ -64,7 +64,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'settings.learnGood': '也从混乱之后的顺利提示词中学习',
       'bootstrap.btn': '从我最近 20 轮中学习',
       'bootstrap.running': '学习中… {done}/{total}',
-      'bootstrap.hint': '约 $0.02–0.05，一次性。已顺利完成的提示词会被跳过。',
+      'bootstrap.hint': '分析你最近完成的轮次：提示词至少 8 个字符、不是单纯的「继续」类消息（「继续」「好的」…）、且还没有报告——最多 20 条。',
+      'bootstrap.estimateDoc': '使用 deepseek-v4-flash 约 $0.02–0.05，一次性。',
       'steer.enrich': '发送前补充学到的上下文（实验性，每次发送一次小调用）',
       'steer.title': '智能体被告知的关于你的信息',
       'steer.desc': '这些指令会注入每个新会话的系统提示词，让智能体替你补上你通常没说的内容。',
@@ -143,6 +144,21 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'feedback.noted': '已记录，谢谢！',
       'panel.styleRules': '已学习的风格规则',
       'panel.styleRulesEmpty': '还没有学习到风格规则——应用改进后给出 👎 反馈（附一句话原因），累计 3 次即可提炼出规则。',
+      'card.overview': '概览',
+      'card.usage': '用量',
+      'card.pricing': '价格',
+      'card.learning': '学习',
+      'card.guidance': '智能体指令',
+      'card.improve': '改进与反馈',
+      'card.history': '分析历史',
+      'card.privacy': '数据与隐私',
+      'card.expand': '展开这一节',
+      'card.collapse': '收起这一节',
+      'overview.model': '模型：{model}',
+      'usage.pending': '用量与花费数字会在接入用量账本后出现在这里。',
+      'improve.explain': '「改进」会在你发送前重写草稿。给某次重写点 👎 并写一句原因，Tacit 会从中提炼出持久的风格规则。',
+      'privacy.stored': '分析报告、指令和风格规则只保存在本机的 Tacit 数据目录里；清除操作只会删除 Tacit 自己的文件。',
+      'notice.bootstrap': '引导完成 · 已分析 {analyzed} 条 · 跳过 {skipped} 条',
       'err.bad-request': '请求无效。',
       'err.bad-json': '请求体无效。',
       'err.no-session': '当前会话不可用（可能尚未在本进程恢复）。',
@@ -179,7 +195,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'settings.learnGood': 'Also learn from a clean prompt right after a messy turn',
       'bootstrap.btn': 'Learn from my last 20 turns',
       'bootstrap.running': 'Learning… {done}/{total}',
-      'bootstrap.hint': '≈ $0.02–0.05, one time. Skips prompts that already went fine on their own.',
+      'bootstrap.hint': 'Analyzes your newest finished turns whose prompt is at least 8 characters, is not a bare continuation (“continue”, “ok”…), and has no report yet — up to 20.',
+      'bootstrap.estimateDoc': '≈ $0.02–0.05 with deepseek-v4-flash, one time',
       'steer.enrich': 'Add learned context before each send (experimental — one small call per send)',
       'steer.title': 'What the agent is told about you',
       'steer.desc': 'These directives ride every new session\'s system prompt so the agent fills in what you usually leave unsaid.',
@@ -258,6 +275,21 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'feedback.noted': 'Noted — thanks!',
       'panel.styleRules': 'Learned style rules',
       'panel.styleRulesEmpty': 'No style rules yet — apply an improvement and rate it 👎 with a one-line reason; after 3, Tacit distills durable rules from them.',
+      'card.overview': 'Overview',
+      'card.usage': 'Usage',
+      'card.pricing': 'Pricing',
+      'card.learning': 'Learning',
+      'card.guidance': 'Agent guidance',
+      'card.improve': 'Improve & feedback',
+      'card.history': 'Analysis history',
+      'card.privacy': 'Data & privacy',
+      'card.expand': 'Expand this section',
+      'card.collapse': 'Collapse this section',
+      'overview.model': 'Model: {model}',
+      'usage.pending': 'Token and cost figures land here once the usage ledger is wired up.',
+      'improve.explain': 'Improve rewrites your draft before you send it. Rate a rewrite 👎 with a one-line reason and Tacit distills a durable style rule from it.',
+      'privacy.stored': 'Analysis reports, directives, and style rules are stored on this machine only, in Tacit’s own data directory; clearing only ever removes Tacit’s own files.',
+      'notice.bootstrap': 'Bootstrap complete · {analyzed} analyzed · {skipped} skipped',
       'err.bad-request': 'Invalid request.',
       'err.bad-json': 'Invalid request body.',
       'err.no-session': 'The session is not available (it may not be restored in this process).',
@@ -374,6 +406,19 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       trend: null, // measured early-vs-recent trend
       bootstrap: null, // {running, done, total}
       coached: [], // cross-session coached-prompt entries
+      // Which Settings cards are expanded. Open state lives here (not in React
+      // state) so it survives re-renders and is seedable from the SSR suite.
+      sections: {
+        overview: true,
+        usage: true,
+        pricing: false,
+        learning: false,
+        guidance: false,
+        improve: false,
+        history: false,
+        privacy: false,
+      },
+      notice: null, // {text} — a short-lived result line, cleared after 5s
       initStarted: false,
       initDone: false,
       error: null,
@@ -382,6 +427,33 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
 
     function notifyRoot() {
       for (const listener of rootStore.listeners) listener()
+    }
+
+    /** Expand/collapse one Settings card; unknown ids are ignored. */
+    function toggleSection(id) {
+      const key = String(id)
+      if (rootStore.sections === null || typeof rootStore.sections !== 'object'
+        || typeof rootStore.sections[key] !== 'boolean') return
+      rootStore.sections[key] = !rootStore.sections[key]
+      notifyRoot()
+    }
+
+    let noticeTimer = null
+
+    /**
+     * Show one result line (e.g. "Bootstrap complete · 7 analyzed"). It clears
+     * itself after 5s; the timer is skipped where there is no scheduler (SSR).
+     */
+    function setRootNotice(text) {
+      rootStore.notice = typeof text === 'string' && text.length > 0 ? { text } : null
+      notifyRoot()
+      if (typeof setTimeout !== 'function' || rootStore.notice === null) return
+      if (noticeTimer !== null && typeof clearTimeout === 'function') clearTimeout(noticeTimer)
+      noticeTimer = setTimeout(() => {
+        noticeTimer = null
+        rootStore.notice = null
+        notifyRoot()
+      }, 5000)
     }
 
     function useRootVersion() {
@@ -519,10 +591,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       notify(store)
     }
 
-    async function bootstrapAll() {
+    /** `t` is the caller's bound translator, used only for the result notice. */
+    async function bootstrapAll(t) {
       if (rootStore.bootstrap !== null && typeof rootStore.bootstrap === 'object' && rootStore.bootstrap.running) return
       rootStore.bootstrap = { running: true, done: 0, total: 0 }
       rootStore.error = null
+      rootStore.notice = null
       notifyRoot()
       pollBootstrap((state) => {
         if (state !== null && typeof state === 'object' && state.bootstrap !== null && typeof state.bootstrap === 'object') rootStore.bootstrap = state.bootstrap
@@ -530,7 +604,14 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       })
       try {
         const result = await api('/bootstrap', { limit: 20 })
-        if (!(result !== null && typeof result === 'object' && result.ok)) {
+        if (result !== null && typeof result === 'object' && result.ok) {
+          if (typeof t === 'function') {
+            setRootNotice(t('notice.bootstrap', {
+              analyzed: String(typeof result.analyzed === 'number' ? result.analyzed : 0),
+              skipped: String(typeof result.skipped === 'number' ? result.skipped : 0),
+            }))
+          }
+        } else {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed', detail: '' }
         }
       } catch (error) {
@@ -1377,6 +1458,44 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
     }
 
+    // ── Collapsible section card (Settings → Tacit) ────────────────────────
+
+    /**
+     * One accessible collapsible card.
+     *
+     * A `<details>` would be shorter, but its open state lives in the DOM: the
+     * store could not drive it and the SSR suite could not seed it. So this is
+     * the button/`aria-expanded`/`aria-controls` pattern instead, with the body
+     * always in the DOM and only the `hidden` attribute toggled — the content
+     * stays findable (browser find-in-page aside) and nothing remounts.
+     */
+    function SectionCard(kit, { id, title, summary, count, open, onToggle, children }) {
+      const { t } = kit
+      const key = String(id)
+      const isOpen = open === true
+      const bodyId = 'tacit-card-' + key + '-body'
+      const label = isOpen ? t('card.collapse') : t('card.expand')
+      const kids = Array.isArray(children) ? children : (children === undefined || children === null ? [] : [children])
+      return h('div', { className: 'tacit-card' },
+        h('button', {
+          type: 'button',
+          className: 'tacit-card-head',
+          id: 'tacit-card-' + key + '-head',
+          'aria-expanded': isOpen,
+          'aria-controls': bodyId,
+          onClick: onToggle,
+        },
+        h('span', { className: 'tacit-card-title' }, title),
+        typeof summary === 'string' && summary.length > 0
+          ? h('span', { className: 'tacit-card-summary' }, summary)
+          : null,
+        count !== undefined && count !== null
+          ? h('span', { className: 'tacit-card-count' }, String(count))
+          : null,
+        h('span', { className: 'tacit-card-chevron', 'aria-label': label, title: label }, isOpen ? '▾' : '▸')),
+        h('div', { className: 'tacit-card-body', id: bodyId, hidden: !isOpen }, ...kids))
+    }
+
     // ── Global panel (Settings → Tacit section) ────────────────────────────
 
     function DirectivesEditor(kit) {
@@ -1539,13 +1658,41 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           ? rootStore.profile.directives.filter((entry) => entry !== null && typeof entry === 'object' && typeof entry.id === 'string' && typeof entry.text === 'string')
           : []
 
+        const sections = rootStore.sections !== null && typeof rootStore.sections === 'object' ? rootStore.sections : {}
+        const notice = rootStore.notice !== null && typeof rootStore.notice === 'object' && typeof rootStore.notice.text === 'string'
+          ? rootStore.notice
+          : null
+        /** Every card is titled by `card.<id>` and driven by `rootStore.sections`. */
+        const card = (id, children, extra) => SectionCard(kit, {
+          id,
+          title: t('card.' + id),
+          open: sections[id] === true,
+          onToggle: () => toggleSection(id),
+          children,
+          ...(extra !== undefined ? extra : {}),
+        })
+
         return h('div', { className: 'tacit-panel' },
-          StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
-          h('div', { className: 'tacit-settings-row' },
-            BootstrapButton(kit, { bootstrap: rootStore.bootstrap, onClick: () => bootstrapAll() }),
-            h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
-          h('div', { className: 'tacit-settings' },
-            h('div', { className: 'tacit-settings-title' }, t('settings.title')),
+          error !== null && typeof error === 'object'
+            ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
+            : null,
+          card('overview', [
+            StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
+            config !== null && typeof config.model === 'string' && config.model.length > 0
+              ? h('div', { className: 'tacit-settings-row' },
+                h('span', { className: 'tacit-chip' }, t('overview.model', { model: config.model })))
+              : null,
+            h('div', { className: 'tacit-settings-row' },
+              BootstrapButton(kit, { bootstrap: rootStore.bootstrap, onClick: () => bootstrapAll(t) }),
+              h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
+            h('p', { className: 'tacit-panel-hint' }, t('bootstrap.estimateDoc')),
+            notice !== null
+              ? h('div', { className: 'tacit-settings-notice', role: 'status' }, notice.text)
+              : null,
+          ]),
+          card('usage', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
+          card('pricing', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
+          card('learning', [
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.model')),
               h('select', {
@@ -1571,39 +1718,47 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 onChange: (event) => setBudgetText(event.target.value),
               }),
               h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply'))),
+          ]),
+          card('guidance', [
+            h(DirectivesEditorView, {
+              workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering }),
+          ]),
+          card('improve', [
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.live')),
               h('input', { type: 'checkbox', checked: live, onChange: toggleLive })),
+            h('div', { className: 'tacit-panel-section' },
+              h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
+              styleRules.length === 0
+                ? h('div', { className: 'tacit-empty' }, t('panel.styleRulesEmpty'))
+                : h('div', { className: 'tacit-rules-list' },
+                  styleRules.map((entry, index) => h('div', { key: 'rule-' + index, className: 'tacit-rule' }, String(entry.rule))))),
+            h('p', { className: 'tacit-panel-hint' }, t('improve.explain')),
+          ]),
+          card('history', [
+            h('div', { className: 'tacit-panel-section' },
+              h('div', { className: 'tacit-report-title' }, t('panel.coached')),
+              coached.length === 0
+                ? h('div', { className: 'tacit-empty' }, t('panel.coachedEmpty'))
+                : h('div', { className: 'tacit-coached-list' },
+                  coached.map((entry, index) => h('div', { key: 'c' + index, className: 'tacit-coached-row' },
+                    h('div', { className: 'tacit-coached-meta' },
+                      h('span', { className: 'tacit-coached-turn' }, (typeof entry.sessionLabel === 'string' && entry.sessionLabel.length > 0 ? entry.sessionLabel + ' · ' : '') + '# ' + String(entry.turn)),
+                      h('span', { className: 'tacit-coached-time' }, fmtTime(entry.time)),
+                      h('span', { className: 'tacit-chip tacit-coached-trigger' }, t('trigger.' + (entry.trigger === 'auto' || entry.trigger === 'correction' || entry.trigger === 'bootstrap' ? entry.trigger : 'manual')))),
+                    typeof entry.promptExcerpt === 'string' && entry.promptExcerpt.length > 0
+                      ? h('div', { className: 'tacit-coached-excerpt' }, entry.promptExcerpt)
+                      : null,
+                    typeof entry.improvedPrompt === 'string' && entry.improvedPrompt.length > 0
+                      ? h('div', { className: 'tacit-coached-improved' }, entry.improvedPrompt.slice(0, 240) + (entry.improvedPrompt.length > 240 ? '…' : ''))
+                      : null)))),
+            h('p', { className: 'tacit-panel-hint' }, t('panel.hint')),
+          ], { count: coached.length }),
+          card('privacy', [
             h('div', { className: 'tacit-settings-row' },
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => clearAllRoot() }, t('settings.clear')))),
-          error !== null && typeof error === 'object'
-            ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
-            : null,
-          h(DirectivesEditorView, {
-            workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering }),
-          h('div', { className: 'tacit-panel-section' },
-            h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
-            styleRules.length === 0
-              ? h('div', { className: 'tacit-empty' }, t('panel.styleRulesEmpty'))
-              : h('div', { className: 'tacit-rules-list' },
-                styleRules.map((entry, index) => h('div', { key: 'rule-' + index, className: 'tacit-rule' }, String(entry.rule))))),
-          h('div', { className: 'tacit-panel-section' },
-            h('div', { className: 'tacit-report-title' }, t('panel.coached')),
-            coached.length === 0
-              ? h('div', { className: 'tacit-empty' }, t('panel.coachedEmpty'))
-              : h('div', { className: 'tacit-coached-list' },
-                coached.map((entry, index) => h('div', { key: 'c' + index, className: 'tacit-coached-row' },
-                  h('div', { className: 'tacit-coached-meta' },
-                    h('span', { className: 'tacit-coached-turn' }, (typeof entry.sessionLabel === 'string' && entry.sessionLabel.length > 0 ? entry.sessionLabel + ' · ' : '') + '# ' + String(entry.turn)),
-                    h('span', { className: 'tacit-coached-time' }, fmtTime(entry.time)),
-                    h('span', { className: 'tacit-chip tacit-coached-trigger' }, t('trigger.' + (entry.trigger === 'auto' || entry.trigger === 'correction' || entry.trigger === 'bootstrap' ? entry.trigger : 'manual')))),
-                  typeof entry.promptExcerpt === 'string' && entry.promptExcerpt.length > 0
-                    ? h('div', { className: 'tacit-coached-excerpt' }, entry.promptExcerpt)
-                    : null,
-                  typeof entry.improvedPrompt === 'string' && entry.improvedPrompt.length > 0
-                    ? h('div', { className: 'tacit-coached-improved' }, entry.improvedPrompt.slice(0, 240) + (entry.improvedPrompt.length > 240 ? '…' : ''))
-                    : null)))),
-          h('div', { className: 'tacit-panel-hint' }, t('panel.hint')))
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => clearAllRoot() }, t('settings.clear'))),
+            h('p', { className: 'tacit-panel-hint' }, t('privacy.stored')),
+          ]))
       }
     }
 
@@ -1682,6 +1837,14 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-chip-trial{color:var(--dsw-alias-brand-primary)}.tacit-chip-ok{color:var(--dsw-alias-state-success-primary)}.tacit-chip-scope{color:var(--dsw-alias-brand-primary)}.tacit-select{max-width:11rem}'
       + '.tacit-directive{display:flex;align-items:center;gap:8px}.tacit-directive-text{flex:1;min-width:0}.tacit-directive-off .tacit-directive-text{opacity:.5;text-decoration:line-through}.tacit-directive-input{width:min(420px,100%);flex:1}.tacit-preview summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.tacit-preview pre{margin-top:6px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:8px 10px}'
       + '.tacit-rules-list{display:flex;flex-direction:column;gap:6px}.tacit-rule{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-left:3px solid var(--dsw-alias-brand-primary);border-radius:6px;padding:6px 10px;font-size:12px;line-height:1.55;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}'
+      + '.tacit-card{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1)}'
+      + '.tacit-card-head{width:100%;display:flex;align-items:center;gap:8px;text-align:left;padding:10px 12px;background:none;border:0;cursor:pointer;font:inherit;color:inherit}'
+      + '.tacit-card-head:focus-visible{outline:2px solid var(--dsw-alias-brand-primary)}'
+      + '.tacit-card-title{font-size:13px;font-weight:600}.tacit-card-summary{font-size:11px;color:var(--dsw-alias-label-secondary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      + '.tacit-card-count{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);border-radius:4px;padding:1px 7px;font-size:11px;font-variant-numeric:tabular-nums}'
+      + '.tacit-card-chevron{margin-left:auto;color:var(--dsw-alias-label-secondary);font-size:11px}'
+      + '.tacit-card-body{padding:0 12px 12px}'
+      + '@media (max-width:640px){.tacit-settings-label{min-width:0;flex-basis:100%}.tacit-modal-cols{grid-template-columns:1fr}}'
 
     function injectCss() {
       const tagId = 'dsh-tacit/styles.css'
@@ -1766,6 +1929,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         closeFeedback,
         fadeFeedback,
         rootStore,
+        toggleSection,
+        setRootNotice,
       },
     }
   },

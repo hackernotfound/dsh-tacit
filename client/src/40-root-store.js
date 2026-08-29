@@ -9,6 +9,19 @@
       trend: null, // measured early-vs-recent trend
       bootstrap: null, // {running, done, total}
       coached: [], // cross-session coached-prompt entries
+      // Which Settings cards are expanded. Open state lives here (not in React
+      // state) so it survives re-renders and is seedable from the SSR suite.
+      sections: {
+        overview: true,
+        usage: true,
+        pricing: false,
+        learning: false,
+        guidance: false,
+        improve: false,
+        history: false,
+        privacy: false,
+      },
+      notice: null, // {text} — a short-lived result line, cleared after 5s
       initStarted: false,
       initDone: false,
       error: null,
@@ -17,6 +30,33 @@
 
     function notifyRoot() {
       for (const listener of rootStore.listeners) listener()
+    }
+
+    /** Expand/collapse one Settings card; unknown ids are ignored. */
+    function toggleSection(id) {
+      const key = String(id)
+      if (rootStore.sections === null || typeof rootStore.sections !== 'object'
+        || typeof rootStore.sections[key] !== 'boolean') return
+      rootStore.sections[key] = !rootStore.sections[key]
+      notifyRoot()
+    }
+
+    let noticeTimer = null
+
+    /**
+     * Show one result line (e.g. "Bootstrap complete · 7 analyzed"). It clears
+     * itself after 5s; the timer is skipped where there is no scheduler (SSR).
+     */
+    function setRootNotice(text) {
+      rootStore.notice = typeof text === 'string' && text.length > 0 ? { text } : null
+      notifyRoot()
+      if (typeof setTimeout !== 'function' || rootStore.notice === null) return
+      if (noticeTimer !== null && typeof clearTimeout === 'function') clearTimeout(noticeTimer)
+      noticeTimer = setTimeout(() => {
+        noticeTimer = null
+        rootStore.notice = null
+        notifyRoot()
+      }, 5000)
     }
 
     function useRootVersion() {
@@ -154,10 +194,12 @@
       notify(store)
     }
 
-    async function bootstrapAll() {
+    /** `t` is the caller's bound translator, used only for the result notice. */
+    async function bootstrapAll(t) {
       if (rootStore.bootstrap !== null && typeof rootStore.bootstrap === 'object' && rootStore.bootstrap.running) return
       rootStore.bootstrap = { running: true, done: 0, total: 0 }
       rootStore.error = null
+      rootStore.notice = null
       notifyRoot()
       pollBootstrap((state) => {
         if (state !== null && typeof state === 'object' && state.bootstrap !== null && typeof state.bootstrap === 'object') rootStore.bootstrap = state.bootstrap
@@ -165,7 +207,14 @@
       })
       try {
         const result = await api('/bootstrap', { limit: 20 })
-        if (!(result !== null && typeof result === 'object' && result.ok)) {
+        if (result !== null && typeof result === 'object' && result.ok) {
+          if (typeof t === 'function') {
+            setRootNotice(t('notice.bootstrap', {
+              analyzed: String(typeof result.analyzed === 'number' ? result.analyzed : 0),
+              skipped: String(typeof result.skipped === 'number' ? result.skipped : 0),
+            }))
+          }
+        } else {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed', detail: '' }
         }
       } catch (error) {
