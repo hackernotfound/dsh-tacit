@@ -90,8 +90,9 @@ gh pr create        # 或在 github.com 上从你的 fork 发起 PR
 - **绝不添加让 Tacit 读取 API Key 或调用自定义端点的途径。** 所有模型调用都经过
   `ctx.llm.stream`；模型在 `lib/schema.js` 里有白名单。
 - **成本是功能的一部分。** 每次调用必须使用 `reasoningEffort: 'low'` 并带 tool schema，
-  且传入 `sessionId` 以便成本插件归因；新的*自动*调用应当有上限（见 `autoDailyBudget`）。
-  任何新调用都要加进 [docs/privacy-and-cost.md](privacy-and-cost.md#cost) 的成本表。
+  且传入 `sessionId` 以便成本插件归因，并用 `metered()` 包裹调用，使其计入用量台账；
+  新的*自动*调用应当有上限（见 `autoDailyBudget`）。任何新调用都要加进
+  [docs/privacy-and-cost.md](privacy-and-cost.md#cost) 的成本表。
 - **不删用户数据。** 唯一的删除路径是设置里的「清除所有分析报告」。
 
 ## 代码在哪里

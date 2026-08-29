@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Every Tacit model call is now metered (tokens + list-price cost) into a
+  local, content-free usage ledger; new `costHistoryDays`, `costWarnDailyUsd`,
+  `costWarnMonthlyUsd` settings.
 - ✨ Improve converges in one pass: the rewrite is checked against a fixed
   checklist (goal, context, scope, constraints, output format, efficiency) and
   pulls concrete facts from the recent turns, so one click reaches the finished

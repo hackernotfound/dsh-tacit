@@ -35,6 +35,9 @@ winning over YAML until you change it again in the UI (patch keys are never remo
 | `directiveTrialTurns` | `10` | 1–500 | finished turns a candidate directive stays on trial | — |
 | `directiveWorseBy` | `0.15` | 0–1 | retire a candidate when its trial messy-turn rate exceeds the baseline by more than this | — |
 | `bootstrapConcurrency` | `1` | 1–4 | analyses run at once during *Learn from my last 20 turns*; same calls and cost, less waiting | — |
+| `costHistoryDays` | `30` | 7–365 | days of detailed usage runs kept; older day files are deleted | — |
+| `costWarnDailyUsd` | `0` | 0–10000 | visual warning at 80 %/100 % of this daily Tacit spend; `0` disables | — |
+| `costWarnMonthlyUsd` | `0` | 0–10000 | same as `costWarnDailyUsd`, over a calendar month; `0` disables | — |
 | `enrichPrompts` | `false` | boolean | opt-in: one small call before each send appends learned context (never rewrites your words); uncapped | Add learned context before each send |
 | `liveSuggestions` | `true` | boolean | show the ✨ Improve prompt button | Enable the composer Improve button |
 | `maxPatterns` | `12` | 1–50 | mistake patterns kept in the profile and offered to ✨ Improve | — |
@@ -47,8 +50,9 @@ winning over YAML until you change it again in the UI (patch keys are never remo
 ## Good to know
 
 - **Out-of-range numbers are clamped silently** to the allowed range; nothing is logged.
-- **`0` only means zero for `autoDailyBudget`.** For every other numeric key `0`
-  falls back to the default (the code uses `value || default`).
+- **`0` only means zero for `autoDailyBudget`, `costWarnDailyUsd` and
+  `costWarnMonthlyUsd`.** For every other numeric key `0` falls back to the
+  default (the code uses `value || default`).
 - **A `model` outside the allowlist** silently becomes `deepseek-v4-flash` when it
   comes from YAML, and is rejected with `400 bad-request` when set through the UI/API.
 - **`liveSuggestions: false` hides the button** only; the `/api/tacit/improve` route
