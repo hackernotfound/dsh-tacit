@@ -329,7 +329,7 @@ test('computeTrend reports not-enough data below two windows and never divides b
 
 // ── Context-aware analysis / directive hygiene ─────────────────────────────
 
-import { looksLikeContinuation, classifyDirectives } from '../lib/analyze.js'
+import { looksLikeContinuation, classifyDirectives, clipDirective } from '../lib/analyze.js'
 
 test('looksLikeContinuation recognizes bare continuations in en/zh and rejects real prompts', () => {
   for (const text of ['continue', 'Continue.', 'go ahead', 'yes do it', 'ok', 'proceed', 'next', '继续', '好的', 'go ahead make the plan']) {
@@ -376,4 +376,27 @@ test('renderSteeringSection renders candidates and active directives but never r
   assert.ok(text.includes('Active one.'))
   assert.ok(text.includes('Candidate one.'))
   assert.ok(!text.includes('Retired one.'))
+})
+
+test('clipDirective never cuts mid-word: sentence end first, then word boundary with an ellipsis', () => {
+  const short = 'When the user names a feature but no files, grep the repo for it before asking.'
+  assert.equal(clipDirective(short), short)
+  const twoSentences = 'When the user asks to review or check something without naming files, inspect the loaded modules first. Then state the assumption you made and continue without asking for confirmation unless the target is genuinely undiscoverable from the repository.'
+  assert.equal(clipDirective(twoSentences), 'When the user asks to review or check something without naming files, inspect the loaded modules first.')
+  const oneLongSentence = 'When the user continues from a prior turn that ended on a required step such as restarting the server or refreshing the page, assume that step was done and verify the resulting state before proceeding with the next action they asked for.'
+  const clipped = clipDirective(oneLongSentence)
+  assert.ok(clipped.length <= 220)
+  assert.ok(clipped.endsWith('…'))
+  assert.ok(oneLongSentence.startsWith(clipped.slice(0, -1)))
+  assert.ok(oneLongSentence[clipped.length - 1] === ' ', 'cut lands on a word boundary')
+  // Chinese full stop counts as a sentence end.
+  const zh = '用户提到某个功能但没有给出任何文件路径时，先在整个仓库里搜索相关的模块、组件和测试再动手，不要先问用户文件在哪里，也不要假设它在最显眼的目录里，而是根据搜索结果判断最可能的位置。' + '然后把你做的假设说清楚并继续，除非目标确实无法从仓库、对话或用户习惯中找到，否则不要停下来问用户确认，也不要要求用户重复已经说过的内容，直接按最可能的理解执行下去并在结尾简短说明你选择了哪个位置以及原因，方便用户在需要时纠正。'
+  assert.equal(clipDirective(zh), '用户提到某个功能但没有给出任何文件路径时，先在整个仓库里搜索相关的模块、组件和测试再动手，不要先问用户文件在哪里，也不要假设它在最显眼的目录里，而是根据搜索结果判断最可能的位置。')
+})
+
+test('classifyDirectives stores a long model directive clipped at its sentence boundary', () => {
+  const long = 'When the user asks broadly to review, check, or see what is missing without naming files, inspect every loaded module first. Then state the assumptions you made and continue without asking, unless the target is genuinely undiscoverable from the repository.'
+  const { kept } = classifyDirectives(JSON.stringify({ directives: [long] }))
+  assert.equal(kept.length, 1)
+  assert.equal(kept[0], 'When the user asks broadly to review, check, or see what is missing without naming files, inspect every loaded module first.')
 })

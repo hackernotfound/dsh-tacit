@@ -103,6 +103,8 @@ Rules applied to the result:
 - a directive you typed yourself is kept untouched and listed first;
 - a re-emitted directive keeps its identity (state, trial, on/off);
 - a genuinely new one becomes a **candidate**;
+- each directive is one sentence of at most 25 words; a longer one is cut at its
+  last sentence or word boundary, never mid-word;
 - at most 8 directives in total.
 
 ## 6. Trials
