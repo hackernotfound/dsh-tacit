@@ -40,7 +40,7 @@ own `createdAt` so they are not counted twice.
 | `conversation.view` | `tacit` | 30 | Tacit tab |
 | `conversation.input.left` | `tacit-improve` | 100 | ✨ Improve button |
 | `conversation.input.overlay` | `tacit-preview` | 10 | before/after preview |
-| `conversation.composer.dock` | `tacit-feedback` | 10 | 👍/👎 strip |
+| `conversation.input.dock` | `tacit-feedback` | 10 | 👍/👎 strip (the row above the composer; `composer.dock` is hidden by the harness until a conversation has content) |
 | `settings.section` | `tacit` | 32 | Settings → Tacit |
 
 Vanilla `React.createElement` via `window.__ModuleLoader__`; locale namespace

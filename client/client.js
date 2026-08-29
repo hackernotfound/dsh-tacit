@@ -347,7 +347,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       return version
     }
 
-    // ── Root store (sidebar action + settings section + frame overlay) ─────
+    // ── Root store (settings section + bootstrap + directives editor) ──────
 
     const rootStore = {
       config: null,
@@ -1260,7 +1260,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
     }
 
-    // ── Feedback strip (under the composer, Improve enabled only) ───────────
+    // ── Feedback strip (above the composer, Improve enabled only) ───────────
 
     function FeedbackStrip(kit) {
       const { t } = kit
@@ -1330,7 +1330,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
     }
 
-    // ── Global panel (settings section, sidebar action, frame overlay) ─────
+    // ── Global panel (Settings → Tacit section) ────────────────────────────
 
     function DirectivesEditor(kit) {
       const { t } = kit
@@ -1595,7 +1595,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-modal-col-title{font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);margin-bottom:6px}'
       + '.tacit-modal-rationale-text{font-size:12px;color:var(--dsw-alias-label-primary);line-height:1.6}.tacit-modal-savings{color:var(--dsw-alias-state-success-primary);font-size:12px;font-weight:600}'
       + '.tacit-modal-actions{display:flex;gap:8px;justify-content:flex-end}'
-      + '.tacit-feedback{display:flex;justify-content:center;align-items:center;margin:8px 2px 0;font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;gap:8px;transition:opacity .35s ease}.tacit-feedback-fading{opacity:0}'
+      + '.tacit-feedback{display:flex;justify-content:center;align-items:center;margin:0 2px 8px;font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;gap:8px;transition:opacity .35s ease}.tacit-feedback-fading{opacity:0}'
       + '.tacit-feedback-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tacit-feedback-title{color:var(--dsw-alias-label-secondary)}'
       + '.tacit-feedback-vote{font:inherit;font-size:14px;line-height:1;cursor:pointer;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:999px;padding:3px 8px}.tacit-feedback-vote:hover{border-color:var(--dsw-alias-brand-primary)}.tacit-feedback-vote-active{border-color:var(--dsw-alias-state-warn-primary);background:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent)}'
       + '.tacit-feedback-reason{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.tacit-feedback-input{width:260px;max-width:60vw}'
@@ -1651,11 +1651,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         inject: (sessionId) => ({ tacitStore: storeFor(sessionId) }),
       }, (props) => h(PreviewOverlayView, props)))
 
-      // The post-apply 👍/👎 strip lives in the band UNDER the composer card
-      // (composer.dock), only while the Improve button is enabled.
+      // The post-apply 👍/👎 strip lives in the full-width row ABOVE the composer
+      // card (input.dock). Not composer.dock: the harness hides that one until a
+      // conversation has content, which is exactly when a first draft is improved.
       const FeedbackStripView = FeedbackStrip(kit)
-      ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
-        name: 'conversation.composer.dock',
+      ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+        name: 'conversation.input.dock',
         id: 'tacit-feedback',
         order: 10,
         locale: NS,
