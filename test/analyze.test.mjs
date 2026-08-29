@@ -244,7 +244,7 @@ test('buildAnalysisUserText carries the user\'s next message as correction evide
 
 // ── Ambient steering: directives → system-prompt section ───────────────────
 
-import { renderSteeringSection, buildSteeringSection, buildDirectiveUserText, workspaceLabel, STEERING_MAX_CHARS } from '../lib/analyze.js'
+import { renderSteeringSection, buildSteeringSection, buildDirectiveUserText, workspaceLabel, normalizeGoodReport, STEERING_MAX_CHARS } from '../lib/analyze.js'
 
 test('renderSteeringSection is empty without enabled directives and lists enabled ones', () => {
   assert.equal(renderSteeringSection({ directives: [] }), '')
@@ -448,4 +448,19 @@ test('buildDirectiveUserText tags corrections and current directives with worksp
   assert.equal(workspaceLabel('/Users/x/Repositories/dsh-tacit/'), 'dsh-tacit')
   assert.equal(workspaceLabel('C:\\work\\proj'), 'proj')
   assert.equal(workspaceLabel(''), '')
+})
+
+test('normalizeGoodReport keeps the prompt, records strengths and the lesson, and tolerates junk', () => {
+  const report = normalizeGoodReport({ strengths: [{ kind: 'Missing Context', what: 'named the file' }, { what: '' }, 'junk'], lesson: '  Names the file.  ' }, { turn: 3, time: 1, model: 'm', prompt: 'Fix apps/web/login.tsx' })
+  assert.deepEqual(report.problems, [])
+  assert.equal(report.improvedPrompt, 'Fix apps/web/login.tsx')
+  assert.equal(report.lesson, 'Names the file.')
+  assert.equal(report.explanation, 'Names the file.')
+  assert.deepEqual(report.strengths, [{ kind: 'Missing Context', what: 'named the file' }])
+  const empty = normalizeGoodReport(null, { turn: 1, time: 1, model: 'm', prompt: 'x' })
+  assert.equal(empty.lesson, '')
+  assert.deepEqual(empty.strengths, [])
+  const fed = buildDirectiveUserText({ patterns: [], styleRules: [], directives: [] }, [{ promptExcerpt: 'fix login', lesson: 'They name the file.', cwd: '/repos/alpha' }])
+  assert.ok(fed.includes('=== WHAT WORKED'))
+  assert.ok(fed.includes('[workspace: alpha] "fix login": They name the file.'))
 })

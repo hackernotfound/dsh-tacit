@@ -56,13 +56,14 @@ A finished turn is messy when any of these is true:
 | --- | --- | --- |
 | **auto** | the newest turn finished messy, ended after Tacit started, and its prompt is not a bare continuation | that turn |
 | **correction** | you send a new message that is ≤ 300 characters and starts with or contains a correction marker — *no, wrong, I meant, I said, undo, revert, still, again, instead, why did you, that's not, doesn't work, 不对, 不是, 错了, 我是说, 为什么*… | the **previous** turn, with your message attached as evidence |
+| **good** | the newest turn finished clean, right after a messy one in the same conversation, with a real prompt (≥ 8 characters, not a continuation); `learnFromGood` (on by default) | that turn, with the messy one as context — a small "what did the user include this time" call instead of a diagnosis |
 | **manual** | you click *Analyze* in the Tacit tab | that turn (bare continuations return "continuation" without a call) |
 | **bootstrap** | you click *Learn from my last 20 turns* | up to 20 recent turns, one at a time unless `bootstrapConcurrency` is raised, then one forced distillation |
 
 *Bare continuation* means the whole prompt is something like "continue", "go
 ahead", "ok", "yes", "继续", "好的" — up to six words starting with one of those.
 
-Auto and correction analyses are counted against the daily cap
+Auto, correction and good analyses are counted against the daily cap
 (`autoDailyBudget`, 30 by default, local calendar day). Manual and bootstrap are
 not.
 
@@ -93,7 +94,8 @@ prompt — that is the only retry.
 
 After every 3 new analyses (`directiveEvery`) one more call reads your top
 patterns, the last few corrections ("prompt" → "your correction"), your style
-rules and the current directives, and returns the complete new set of **1–4
+rules, the lessons from *good* turns (what you supplied the second time, right
+after a messy turn) and the current directives, and returns the complete new set of **1–4
 directives**: one imperative sentence each, ≤ 220 characters, written for the
 *agent* ("The user often omits which app they mean — check `apps/web` first.").
 Each correction in the evidence is tagged with the name of the workspace it

@@ -27,6 +27,7 @@ winning over YAML until you change it again in the UI (patch keys are never remo
 | --- | --- | --- | --- | --- |
 | `model` | `deepseek-v4-flash` | `deepseek-v4-flash`, `deepseek-v4-pro` | model used for every Tacit call | Analysis model |
 | `autoAnalyze` | `true` | boolean | analyze messy / corrected turns automatically | Auto-analyze messy turns |
+| `learnFromGood` | `true` | boolean | also analyze a clean turn that follows a messy one (what you included the second time); counts against the daily cap | Also learn from a clean prompt right after a messy turn |
 | `autoDailyBudget` | `30` | 0–1000 | cap on **automatic** analyses per local calendar day; `0` disables them | Daily cap on automatic analyses |
 | `autoMinSteps` | `15` | 1–500 | a finished turn with at least this many model steps counts as messy (auto-analysis only) | — |
 | `steerAgent` | `true` | boolean | inject the learned directives into every new conversation's system prompt | Inject learned directives into the system prompt |
