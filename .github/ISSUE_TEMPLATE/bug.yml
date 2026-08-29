@@ -1,0 +1,35 @@
+name: Bug report
+description: Something Tacit did — or failed to do — that looks wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Strip anything private (paths, names, prompt contents you would not post publicly) before pasting.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "`npx @deepseek-ai/dsh --version`, Tacit version (Settings → Plugins or `npm ls dsh-tacit`), Node version"
+      placeholder: "dsh 0.1.1-rc.2 · dsh-tacit 0.2.1 · node 22.14"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you saw. Console or Tacit-tab output is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: directive
+    attributes:
+      label: Directive text (if the bug is about a directive)
+      description: Copy it from Settings → Tacit. Leave empty otherwise.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: I removed anything private from the text above.
+          required: true

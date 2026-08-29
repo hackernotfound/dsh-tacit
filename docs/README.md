@@ -13,9 +13,9 @@ Pick the question you have:
 | Understand what it does, step by step, and what the words mean | [How it works](how-it-works.md) |
 | Know what leaves my machine, what it costs, and what it can't do yet | [Privacy, cost & limitations](privacy-and-cost.md) |
 | Change a setting | [Configuration](configuration.md) |
-| Read or change the code | [Architecture](architecture.md) · [Contributing](../CONTRIBUTING.md) |
+| Read or change the code | [Architecture](architecture.md) · [Contributing](../CONTRIBUTING.md) ([中文](CONTRIBUTING.zh.md)) |
 | See what changed between versions | [Changelog](../CHANGELOG.md) |
 
 Reading order for a newcomer: Getting started → How it works → Privacy & cost.
 
-中文：[README.zh.md](README.zh.md)（仅 README 有中文版）。
+中文：[README.zh.md](README.zh.md) · [贡献指南](CONTRIBUTING.zh.md)（其余文档为英文）。

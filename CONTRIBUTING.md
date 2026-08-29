@@ -1,21 +1,43 @@
 # Contributing to Tacit
 
+*中文版：[docs/CONTRIBUTING.zh.md](docs/CONTRIBUTING.zh.md)*
+
 Thanks for looking. Tacit is a small, zero-build plugin for
 [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/dsh) (`dsh`):
-plain ES modules, no bundler, no TypeScript step.
+plain ES modules, no bundler, no TypeScript step. You do not need push access,
+a signing key or an API key to contribute — the whole test suite runs against
+a stubbed harness.
 
 ## Prerequisites
 
 - Node ≥ 22 and pnpm 11.23.0 (`corepack enable` will honor the pinned
   `packageManager` version)
+- a GitHub account (to fork and open a pull request)
 - a working `dsh` install (`npx @deepseek-ai/dsh web`) with a DeepSeek API key
-  configured in Settings → Models — only needed for the live smoke test
+  configured in Settings → Models — only needed to try your change live or run
+  the smoke test, not for the unit tests
 
-## Set up a development checkout
+## Find something to work on
+
+- [`good first issue`](https://github.com/hackernotfound/dsh-tacit/labels/good%20first%20issue)
+  — small, bounded, with acceptance criteria and a pointer to the code.
+- [`help wanted`](https://github.com/hackernotfound/dsh-tacit/labels/help%20wanted)
+  — bigger pieces where the design is open; comment on the issue first and the
+  maintainer will pair on the approach.
+- Anything else you noticed: open an
+  [issue](https://github.com/hackernotfound/dsh-tacit/issues/new/choose) or ask
+  in [Discussions](https://github.com/hackernotfound/dsh-tacit/discussions).
+
+If a task will take you more than an hour, leave a comment on the issue before
+you start so nobody duplicates the work. Where the code lives is mapped in
+[docs/architecture.md](docs/architecture.md).
+
+## Fork, clone, link
 
 ```bash
-git clone https://github.com/hackernotfound/dsh-tacit
+gh repo fork hackernotfound/dsh-tacit --clone      # or fork on github.com and git clone your fork
 cd dsh-tacit
+git remote add upstream https://github.com/hackernotfound/dsh-tacit   # skip if gh added it already
 pnpm install
 npx @deepseek-ai/dsh plugin --profile web add "$PWD"   # links this folder into ~/.dsh/profiles/web
 ```
@@ -40,9 +62,28 @@ TACIT_BASE=http://127.0.0.1:4000 pnpm smoke   # if your dsh web is not on :3080
 ```
 
 CI runs `pnpm test` on Node 22 and 24 plus the docs and package checks for every
-push and PR. Publishing to npm happens when a `v*` tag is pushed, with npm
-provenance through OIDC trusted publishing and no npm token. Please keep CI
-green.
+push and PR. Please keep CI green.
+
+## Open a pull request
+
+```bash
+git fetch upstream
+git switch -c fix/short-description upstream/main   # feat/, fix/, docs/, chore/, refactor/
+# … make your change …
+pnpm check
+git commit -am "fix: short description"
+git push -u origin fix/short-description
+gh pr create        # or open the PR from your fork on github.com
+```
+
+- One concern per PR. A fix and an unrelated refactor are two PRs.
+- The PR template asks for the essentials: what and why, `pnpm check` green,
+  tests for behaviour changes, `zh`/`en` parity, and a line under
+  `## Unreleased` in `CHANGELOG.md` when the change is release-worthy.
+- You do **not** need to sign commits or keep history tidy; the maintainer
+  squashes or rebases on merge.
+- Reviews are usually within a few days. A request for changes is about the
+  diff, never about you.
 
 ## Ground rules
 
@@ -74,14 +115,17 @@ the prompts, heuristics and model calls, `lib/service.js` is the host service
 
 ## Reporting bugs
 
-Open an issue with the dsh version (`npx @deepseek-ai/dsh --version`), what you
-typed, what the Tacit tab / console showed, and — if it is about a directive —
-the directive text from Settings → Tacit. Please strip anything private from
-prompts before pasting them.
+Use the [bug report form](https://github.com/hackernotfound/dsh-tacit/issues/new/choose).
+It asks for the dsh version (`npx @deepseek-ai/dsh --version`), what you typed,
+what the Tacit tab / console showed, and — if it is about a directive — the
+directive text from Settings → Tacit. Please strip anything private from
+prompts before pasting them. Suspected vulnerabilities go through
+[SECURITY.md](SECURITY.md), not a public issue.
 
-## Release policy
+## Release policy (maintainer only)
 
-Not every merged change needs an npm release:
+Contributors never need to run any of this; it is here so the versioning is
+predictable. Not every merged change needs an npm release:
 
 - Use a **patch** release for fixes, runtime dependency or configuration
   changes, packaged host/client changes, and root `README.md` updates that must
@@ -91,8 +135,9 @@ Not every merged change needs an npm release:
 - Do not release for GitHub-only `docs/` changes, tests, CI, contributor files,
   security files or repository settings.
 
-Add release-worthy notes under `## Unreleased` in `CHANGELOG.md`. To release,
+Release-worthy notes go under `## Unreleased` in `CHANGELOG.md`. To release,
 turn that section into a dated version section, then run `npm version patch` or
 `npm version minor` and push the commit and tag with `git push --follow-tags`.
-Never move an existing release tag; corrections after publication get a new
-patch version.
+Publishing to npm happens when the `v*` tag is pushed, with npm provenance
+through OIDC trusted publishing and no npm token. Never move an existing
+release tag; corrections after publication get a new patch version.
