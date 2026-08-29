@@ -17,6 +17,8 @@ const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-pc-home-'))
 process.env.DSH_HOME = tmpHome
 
 const { apply } = await import('../lib/index.js')
+const { dayKey } = await import('../lib/store.js')
+const { BUNDLED_PRICES, costOf, tierAt } = await import('../lib/pricing.js')
 
 function makeFakeCtx({ llm, sessions, snapshotValue }) {
   const provided = new Map()
@@ -103,6 +105,9 @@ async function callRoute(route, body, headers = {}) {
   return { status: res.statusCode, body: JSON.parse(res.body) }
 }
 
+/** What every fake model call reports back (the harness emits usage once, before finish). */
+const FAKE_USAGE = { inputTokens: 1200, outputTokens: 300, cacheReadTokens: 400, reasoningTokens: 40 }
+
 function fakeLlm(capture) {
   return {
     async *stream(options) {
@@ -130,6 +135,8 @@ function fakeLlm(capture) {
       yield { type: 'text-delta', index: 0, text: payload.slice(0, 20) }
       yield { type: 'text-delta', index: 0, text: payload.slice(20) }
       yield { type: 'block-end', index: 0 }
+      yield { type: 'usage', usage: FAKE_USAGE }
+      yield { type: 'finish', reason: { kind: 'stop' } }
     },
   }
 }
@@ -1418,4 +1425,299 @@ test('good: clean after clean, a bare continuation, or learnFromGood=false never
   await off.service.flushAuto()
   assert.equal(off.captured.filter((c) => typeof c.system === 'string' && c.system.includes('This turn went well')).length, 0)
   assert.equal(off.captured.filter((c) => typeof c.system === 'string' && c.system.includes('prompt-engineering coach')).length, 1, 'the messy turn itself is still analyzed')
+})
+
+// ── Usage / cost ledger (runs, attempts, prices) ───────────────────────────
+
+const usageDir = () => path.join(storageRoot(), 'usage')
+const usageRuns = (day = dayKey()) => {
+  const file = path.join(usageDir(), day + '.json')
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).runs : []
+}
+const runsOf = (sessionId) => usageRuns().filter((run) => run.sessionId === sessionId)
+
+/** A fresh plugin instance on a clean profile/patch, with every call attributed to `sessionId`. */
+function usageHarness({ sessionId, turns = [], llm, config = {} } = {}) {
+  const captured = []
+  const session = { id: sessionId }
+  const listeners = {}
+  seedConfigPatch({})
+  seedProfile(seedDirectives([]))
+  const { ctx, routes, provided, disposers } = makeFakeCtx({
+    llm: llm ?? fakeLlm(captured),
+    sessions: { get: (id) => (id === sessionId ? session : undefined), list: () => [session] },
+    snapshotValue: turns,
+  })
+  ctx.on = (name, listener) => {
+    listeners[name] = listener
+    return () => {}
+  }
+  apply(ctx, { autoAnalyze: false, directiveEvery: 1000, ...config })
+  const byPath = (name) => routes.find((route) => route.path === '/api/tacit' + name)
+  return { byPath, captured, disposers, listeners, service: provided.get('tacit') }
+}
+
+test('usage: /analyze records one priced analysis run and the envelope carries it', async () => {
+  const sessionId = 'usage-analyze'
+  const { byPath } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 2 }] })
+  const result = await callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+  assert.equal(result.body.ok, true)
+
+  const runs = runsOf(sessionId)
+  assert.equal(runs.length, 1)
+  const [run] = runs
+  assert.equal(run.type, 'analysis')
+  assert.equal(run.trigger, 'manual')
+  assert.equal(run.status, 'success')
+  assert.equal(run.model, 'deepseek-v4-flash')
+  assert.equal(run.provider, 'deepseek-official')
+  assert.equal(run.turn, 2)
+  assert.deepEqual(run.results, { ok: 1 })
+  assert.equal(run.attempts.length, 1)
+
+  const [attempt] = run.attempts
+  assert.equal(attempt.op, 'analysis')
+  assert.equal(attempt.status, 'ok')
+  assert.equal(attempt.finish, 'stop')
+  assert.equal(attempt.model, 'deepseek-v4-flash')
+  assert.deepEqual(attempt.usage, { ...FAKE_USAGE, cacheWriteTokens: 0 })
+  assert.equal(attempt.priced.source, 'bundled')
+  assert.equal(attempt.priced.usd, costOf(attempt.usage, BUNDLED_PRICES['deepseek-v4-flash'][tierAt(attempt.startedAt)]))
+  assert.ok(attempt.priced.usd > 0)
+
+  assert.equal(result.body.run.runId, run.runId)
+  assert.equal(result.body.run.type, 'analysis')
+  assert.equal(result.body.run.billedCalls, 1)
+  assert.equal(result.body.run.unmeteredCalls, 0)
+  assert.equal(result.body.run.usdKnown, attempt.priced.usd)
+})
+
+test('usage: a soft refusal (continuation) starts no run at all', async () => {
+  const sessionId = 'usage-refusal'
+  const { byPath } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 1, prompt: 'Build the thing.' }, { ...sampleTurn, turn: 2, prompt: 'continue' }] })
+  const result = await callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+  assert.equal(result.body.code, 'continuation')
+  assert.equal(result.body.run, null)
+  assert.equal(runsOf(sessionId).length, 0)
+})
+
+test('usage: a prose answer plus its JSON repair are two attempts of ONE analysis run', async () => {
+  const sessionId = 'usage-repair'
+  let calls = 0
+  const proseThenJsonLlm = {
+    async *stream() {
+      calls += 1
+      const payload = calls === 1
+        ? 'Sure! Here is my coaching analysis as friendly prose, with no JSON at all.'
+        : JSON.stringify({
+          problems: [{ kind: 'ambiguous-goal', severity: 'high', what: 'unclear scope', why: 'agent wandered' }],
+          improvedPrompt: 'Repaired rewrite.',
+          explanation: 'Scope clarified on the retry.',
+        })
+      yield { type: 'text-delta', index: 0, text: payload }
+      yield { type: 'block-end', index: 0 }
+      yield { type: 'usage', usage: FAKE_USAGE }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+  }
+  const { byPath } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 4 }], llm: proseThenJsonLlm })
+  const result = await callRoute(byPath('/analyze'), { sessionId, turn: 4 })
+  assert.equal(result.body.ok, true)
+  const runs = runsOf(sessionId)
+  assert.equal(runs.length, 1)
+  assert.deepEqual(runs[0].attempts.map((attempt) => attempt.op), ['analysis', 'analysis-repair'])
+  assert.equal(runs[0].totals.billedCalls, 2)
+})
+
+test('usage: /improve records an improve run', async () => {
+  const sessionId = 'usage-improve'
+  const { byPath } = usageHarness({ sessionId, turns: [sampleTurn] })
+  const result = await callRoute(byPath('/improve'), { sessionId, draft: 'make the app better' })
+  assert.equal(result.body.ok, true)
+  const runs = runsOf(sessionId)
+  assert.equal(runs.length, 1)
+  assert.equal(runs[0].type, 'improve')
+  assert.deepEqual(runs[0].attempts.map((attempt) => attempt.op), ['improve'])
+  assert.equal(result.body.run.runId, runs[0].runId)
+  assert.ok(result.body.run.usdKnown > 0)
+})
+
+test('usage: three 👎 reasons record a style-distillation run', async () => {
+  const sessionId = 'usage-style'
+  const { byPath } = usageHarness({ sessionId, turns: [sampleTurn] })
+  seedProfile({ ...seedDirectives([]), analyzedCount: 5, patterns: [{ kind: 'ambiguous-goal', count: 2, lastExample: 'be specific' }] })
+  for (const reason of ['lost my intent', 'too vague', 'too wordy']) {
+    const rewrite = await callRoute(byPath('/improve'), { sessionId, draft: 'draft for ' + reason })
+    const ok = await callRoute(byPath('/feedback'), { rewriteId: rewrite.body.rewriteId, verdict: 'down', reason })
+    assert.equal(ok.body.ok, true)
+  }
+  const distillations = runsOf(sessionId).filter((run) => run.type === 'style-distillation')
+  assert.equal(distillations.length, 1)
+  assert.deepEqual(distillations[0].attempts.map((attempt) => attempt.op), ['style-distillation'])
+  assert.ok(distillations[0].totals.usdKnown > 0)
+})
+
+test('usage: the every-N directive distillation gets its own run', async () => {
+  const sessionId = 'usage-directives'
+  const { byPath, service } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 2 }], config: { directiveEvery: 1 } })
+  const result = await callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+  assert.equal(result.body.ok, true)
+  await service.flushAuto()
+  const runs = runsOf(sessionId)
+  assert.deepEqual(runs.map((run) => run.type).sort(), ['analysis', 'directive-distillation'])
+  const distillation = runs.find((run) => run.type === 'directive-distillation')
+  assert.deepEqual(distillation.attempts.map((attempt) => attempt.op), ['directive-distillation'])
+})
+
+test('usage: opted-in pre-send enrichment records a prompt-enrichment run', async () => {
+  const sessionId = 'usage-enrich'
+  const enrichLlm = {
+    async *stream() {
+      yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'c', name: 'context', arguments: JSON.stringify({ note: 'The user usually means apps/web; check its routes first.' }) } }
+      yield { type: 'usage', usage: FAKE_USAGE }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+  }
+  const { listeners } = usageHarness({ sessionId, turns: [sampleTurn], llm: enrichLlm, config: { enrichPrompts: true } })
+  const userMessage = { role: 'user', content: [{ type: 'text', text: 'make the login page better' }], source: { kind: 'user' } }
+  const payload = { agent: { id: sessionId, session: { id: sessionId } }, messages: [userMessage], turn: 3, step: 1 }
+  const decision = await listeners['agent/pre-step'](payload, async () => ({ kind: 'enter', messages: payload.messages }))
+  assert.equal(decision.messages.length, 2)
+  const runs = runsOf(sessionId)
+  assert.equal(runs.length, 1)
+  assert.equal(runs[0].type, 'prompt-enrichment')
+  assert.equal(runs[0].trigger, 'send')
+  assert.deepEqual(runs[0].attempts.map((attempt) => attempt.op), ['enrichment'])
+})
+
+test('usage: a bootstrap batch is ONE run covering every analysis and the forced distillation', async () => {
+  const sessionId = 'usage-bootstrap'
+  const mk = (turn, prompt) => ({ ...sampleTurn, turn, prompt, endedAt: turn * 1000, retries: 0, steps: 2, endReason: 'success' })
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  let calls = 0
+  const gatedLlm = {
+    async *stream(options) {
+      calls += 1
+      // The first two analyses complete; everything after waits, so /state is
+      // polled while the run is live and already carries priced attempts.
+      if (calls > 2) await gate
+      yield* fakeLlm().stream(options)
+    },
+  }
+  const { byPath } = usageHarness({
+    sessionId,
+    turns: [mk(1, 'First real prompt here.'), mk(2, 'Second real prompt here.'), mk(3, 'Third real prompt here.')],
+    llm: gatedLlm,
+    config: { bootstrapConcurrency: 2, directiveEvery: 1000 },
+  })
+  const pending = callRoute(byPath('/bootstrap'), { sessionId, limit: 20 })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  const midRun = await callRoute(byPath('/state'), {})
+  release()
+  const done = await pending
+  assert.equal(midRun.body.bootstrap.running, true)
+  assert.ok(String(midRun.body.bootstrap.runId).length > 0, 'the live bootstrap run is addressable')
+  assert.ok(midRun.body.bootstrap.usdKnown > 0, 'money already spent shows up mid-run')
+  assert.ok(midRun.body.bootstrap.billedCalls >= 2)
+  assert.ok(midRun.body.bootstrap.tokens >= 2 * (FAKE_USAGE.inputTokens + FAKE_USAGE.outputTokens + FAKE_USAGE.cacheReadTokens))
+  assert.equal(done.body.ok, true)
+  assert.equal(done.body.analyzed, 3)
+
+  const runs = runsOf(sessionId)
+  assert.equal(runs.length, 1, 'the batch is one run, not one per analysis')
+  const [run] = runs
+  assert.equal(run.type, 'bootstrap')
+  assert.equal(run.trigger, 'bootstrap')
+  assert.equal(run.attempts.length, 4, '3 analyses + 1 forced distillation')
+  assert.equal(run.attempts.filter((attempt) => attempt.op === 'analysis').length, 3)
+  assert.equal(run.attempts.filter((attempt) => attempt.op === 'directive-distillation').length, 1)
+  assert.equal(run.results.requested, 20)
+  assert.equal(run.results.eligible, 3)
+  assert.equal(run.results.analyzed, 3)
+  assert.equal(run.results.skipped, 0)
+  assert.ok(run.results.directives >= 1)
+  assert.equal(done.body.run.runId, run.runId)
+  assert.equal(done.body.run.attempts, 4)
+})
+
+test('usage: a failed call that was already billed is recorded as a failed attempt with a price', async () => {
+  const sessionId = 'usage-failed'
+  const rateLimitedLlm = {
+    async *stream() {
+      yield { type: 'usage', usage: FAKE_USAGE }
+      yield { type: 'finish', reason: { kind: 'error', failure: { code: 'rate-limited', message: 'slow down' } } }
+    },
+  }
+  const { byPath } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 2 }], llm: rateLimitedLlm })
+  const result = await callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+  assert.equal(result.body.ok, false)
+  assert.equal(result.body.code, 'rate-limited')
+  const runs = runsOf(sessionId)
+  assert.equal(runs.length, 1)
+  assert.equal(runs[0].status, 'failed')
+  assert.deepEqual(runs[0].results, { ok: 0 })
+  const [attempt] = runs[0].attempts
+  assert.equal(attempt.status, 'failed')
+  assert.equal(attempt.code, 'rate-limited')
+  assert.equal(attempt.finish, 'error')
+  assert.ok(attempt.priced.usd > 0, 'a failed call that consumed tokens is still billed')
+})
+
+test('usage: a call that reports no usage is unmetered, never $0.00', async () => {
+  const sessionId = 'usage-unmetered'
+  const { byPath } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 2 }], llm: { async *stream() {} } })
+  const result = await callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+  assert.equal(result.body.code, 'empty-response')
+  const runs = runsOf(sessionId)
+  assert.equal(runs.length, 1)
+  const [attempt] = runs[0].attempts
+  assert.equal(attempt.status, 'unmetered')
+  assert.equal(attempt.usage, null)
+  assert.equal(attempt.priced, null)
+  assert.equal(runs[0].totals.unmeteredCalls, 1)
+  assert.equal(runs[0].totals.billedCalls, 0)
+  assert.equal(runs[0].totals.usdKnown, 0)
+})
+
+test('usage: a proxy provider is billed but unpriced (no invented price)', async () => {
+  const sessionId = 'usage-proxy'
+  const { byPath } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 2, provider: 'my-proxy' }] })
+  const result = await callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+  assert.equal(result.body.ok, true)
+  const [run] = runsOf(sessionId)
+  assert.equal(run.provider, 'my-proxy')
+  assert.equal(run.attempts[0].priced, null)
+  assert.equal(run.totals.billedCalls, 1)
+  assert.equal(run.totals.unpricedCalls, 1)
+  assert.equal(run.totals.usdKnown, 0)
+})
+
+test('usage: the ledger is content-free — no prompt text ever reaches usage/', async () => {
+  const sessionId = 'usage-sentinel'
+  const { byPath } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 2, prompt: 'Refactor the parser SENTINEL-9f3a and keep every test green.' }] })
+  const result = await callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+  assert.equal(result.body.ok, true)
+  const files = fs.readdirSync(usageDir())
+  assert.ok(files.length > 0)
+  for (const name of files) {
+    const text = fs.readFileSync(path.join(usageDir(), name), 'utf8')
+    assert.ok(!text.includes('SENTINEL-9f3a'), name + ' leaked prompt text')
+  }
+})
+
+test('usage: the plugin dispose flushes a still-live run to disk', async () => {
+  const sessionId = 'usage-dispose'
+  const { disposers, service } = usageHarness({ sessionId })
+  const runId = service.usage.beginRun({ type: 'analysis', trigger: 'manual', sessionId, model: 'deepseek-v4-flash', provider: 'deepseek-official' })
+  service.usage.attemptSink(runId, { op: 'analysis', sessionId })({
+    startedAt: Date.now(), durationMs: 12, model: 'deepseek-v4-flash', provider: 'deepseek-official',
+    reasoningEffort: 'low', finish: 'stop', status: 'ok', code: '', usage: FAKE_USAGE,
+  })
+  assert.equal(runsOf(sessionId).length, 0, 'nothing is written before the debounced flush')
+  for (const dispose of disposers) dispose()
+  const runs = runsOf(sessionId)
+  assert.equal(runs.length, 1)
+  assert.equal(runs[0].status, 'running')
+  assert.equal(runs[0].attempts.length, 1)
 })
