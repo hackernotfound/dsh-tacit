@@ -33,11 +33,12 @@
         inject: (sessionId) => ({ tacitStore: storeFor(sessionId) }),
       }, (props) => h(PreviewOverlayView, props)))
 
-      // The post-apply 👍/👎 strip lives in the band UNDER the composer card
-      // (composer.dock), only while the Improve button is enabled.
+      // The post-apply 👍/👎 strip lives in the full-width row ABOVE the composer
+      // card (input.dock). Not composer.dock: the harness hides that one until a
+      // conversation has content, which is exactly when a first draft is improved.
       const FeedbackStripView = FeedbackStrip(kit)
-      ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
-        name: 'conversation.composer.dock',
+      ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+        name: 'conversation.input.dock',
         id: 'tacit-feedback',
         order: 10,
         locale: NS,
