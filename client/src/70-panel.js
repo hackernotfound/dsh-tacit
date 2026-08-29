@@ -113,6 +113,7 @@
         const [model, setModel] = useState(config !== null && typeof config.model === 'string' ? config.model : 'deepseek-v4-flash')
         const [budgetText, setBudgetText] = useState(config !== null && typeof config.autoDailyBudget === 'number' ? String(config.autoDailyBudget) : '30')
         const [auto, setAuto] = useState(config !== null && config.autoAnalyze !== false)
+        const [learnGood, setLearnGood] = useState(config !== null && config.learnFromGood !== false)
         const [live, setLive] = useState(config !== null && config.liveSuggestions !== false)
 
         useEffect(() => {
@@ -120,6 +121,7 @@
             if (typeof config.model === 'string') setModel(config.model)
             if (typeof config.autoDailyBudget === 'number') setBudgetText(String(config.autoDailyBudget))
             if (typeof config.autoAnalyze === 'boolean') setAuto(config.autoAnalyze)
+            if (typeof config.learnFromGood === 'boolean') setLearnGood(config.learnFromGood)
             if (typeof config.liveSuggestions === 'boolean') setLive(config.liveSuggestions)
           }
         }, [config])
@@ -132,6 +134,11 @@
           const number = Math.max(0, Math.min(1000, Math.round(Number(budgetText) || 0)))
           setBudgetText(String(number))
           updateRootConfig({ autoDailyBudget: number })
+        }
+        const toggleLearnGood = () => {
+          const next = !learnGood
+          setLearnGood(next)
+          updateRootConfig({ learnFromGood: next })
         }
         const toggleAuto = () => {
           const next = !auto
@@ -172,6 +179,9 @@
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.auto')),
               h('input', { type: 'checkbox', checked: auto, onChange: toggleAuto })),
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label' }, t('settings.learnGood')),
+              h('input', { type: 'checkbox', checked: learnGood, onChange: toggleLearnGood })),
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.budget')),
               h('input', {

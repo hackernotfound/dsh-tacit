@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Tacit also learns from a clean prompt that follows a messy one — what you
+  included the second time feeds the directives. Automatic, capped like the
+  other automatic analyses; off with `learnFromGood: false`.
 - Directives can be scoped to a workspace: the distiller scopes a habit that only
   shows up in one project, the add form offers *Everywhere* or a workspace, and
   each conversation gets its own workspace's directives first.

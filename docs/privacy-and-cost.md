@@ -66,6 +66,7 @@ shows the real spend next to the conversation.
 | Call | When | Max output tokens | Counts against the daily cap | Tagged with session | Est. cost, `deepseek-v4-flash`\* |
 | --- | --- | --- | --- | --- | --- |
 | Analysis — auto / correction | messy turn or correction | 3000 | **yes** (30/day) | yes | ≈ $0.001 off-peak · $0.002–0.003 peak |
+| Analysis — good (`learnFromGood`) | a clean turn right after a messy one | 3000 | **yes** (same 30/day) | yes | ≈ $0.001–0.002 (shorter answer than a diagnosis) |
 | Analysis — manual / bootstrap | you click | 3000 | no | yes | same; bootstrap (20 + 1 distillation) ≈ $0.02–0.05 |
 | Repair retry | analysis or Improve returned unparseable JSON (rare) | same as the call | no | yes | doubles that one call |
 | Directive distillation | every 3 analyses | 1500 | no | yes | ≈ $0.0005–0.001 |
@@ -110,7 +111,7 @@ Honest list — these are v0.2 behaviours, not hidden surprises:
 - **Bootstrap runs serially** and ignores the daily cap.
 - The distiller sees workspace **names** (the last path segment, e.g. `dsh-tacit`),
   never full paths; full paths stay in the local reports and profile.
-- Learning from *good* prompts and a weekly digest are not implemented yet.
+- A weekly digest is not implemented yet.
 
 ---
 
