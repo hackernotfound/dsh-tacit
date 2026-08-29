@@ -59,7 +59,7 @@ keys, session ids, anything outside the clips above.
 ## Cost
 
 Tacit keeps no ledger of its own. Every call is made with low reasoning effort
-and a tool schema (no prose to parse), and most are tagged with the session id so
+and a tool schema (no prose to parse), and every one is tagged with the session id so
 a cost plugin such as [`dsh-cost-meter`](https://www.npmjs.com/package/dsh-cost-meter)
 shows the real spend next to the conversation.
 
@@ -69,7 +69,7 @@ shows the real spend next to the conversation.
 | Analysis — manual / bootstrap | you click | 3000 | no | yes | same; bootstrap (20 + 1 distillation) ≈ $0.02–0.05 |
 | Repair retry | analysis or Improve returned unparseable JSON (rare) | same as the call | no | yes | doubles that one call |
 | Directive distillation | every 3 analyses | 1500 | no | yes | ≈ $0.0005–0.001 |
-| Style-rule distillation | every 3 👎 with a reason | 1000 | no | **no** — a cost meter will not attribute it | < $0.001 |
+| Style-rule distillation | every 3 👎 with a reason | 1000 | no | yes | < $0.001 |
 | ✨ Improve | you click | 1500 | no | yes | ≈ $0.001–0.002 |
 | Pre-send context (opt-in) | **every** send with an 8–1500-char draft | 1000 | no | yes | < $0.001 each, but on every send |
 
@@ -104,8 +104,6 @@ Honest list — these are v0.2 behaviours, not hidden surprises:
   never held against a directive).
 - **Only automatic analyses are capped.** Manual, bootstrap, ✨ Improve, both
   distillations and pre-send context run outside `autoDailyBudget`.
-- **The style-rule distillation call is not tagged with a session**, so a cost
-  meter will not attribute it.
 - **The trend only sees loaded conversations**, and only turns within
   `maxKeptTurns`; it needs 40 finished turns to show.
 - **Bootstrap runs serially** and ignores the daily cap.
