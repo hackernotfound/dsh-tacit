@@ -29,7 +29,7 @@
   },
   "files": [
     "lib",
-    "client",
+    "client/client.js",
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
@@ -37,7 +37,9 @@
   ],
   "scripts": {
     "test": "node --test",
-    "check": "pnpm test && pnpm check:docs && pnpm check:package",
+    "build:client": "node scripts/build-client.mjs",
+    "check": "pnpm test && pnpm check:client && pnpm check:docs && pnpm check:package",
+    "check:client": "node scripts/build-client.mjs --check",
     "check:docs": "node scripts/check-doc-links.mjs",
     "check:package": "node scripts/check-package.mjs",
     "smoke": "node scripts/smoke.mjs"

@@ -15,7 +15,7 @@ modules — no bundler, no TypeScript step.*
 | `lib/routes.js` | ~150 | `/api/tacit/*` on the harness web server, JSON body limit, cross-site guard, status mapping | `test/integration.test.mjs` |
 | `lib/schema.js` | ~300 | zod schemas: config, digest, report, profile, route argument codecs, model allowlist | `test/schema.test.mjs` |
 | `lib/store.js` | ~220 | `~/.dsh/storages/tacit/` — atomic JSON writes, reports, profile, ledger, clear | `test/store.test.mjs` |
-| `client/client.js` | ~1700 | the whole browser UI: five slots, zh/en dictionaries, CSS, API client | `test/client.test.mjs` (SSR render) |
+| `client/src/*.js` | ~1700 | the whole browser UI, one file per section (`10-i18n`, `20-api`, `30-session-store`, `40-root-store`, `50-format`, `60-components`, `65-feedback-strip`, `70-panel`, `80-css`, `90-plugin`); `scripts/build-client.mjs` concatenates them into the shipped `client/client.js` (one classic script per plugin is all the harness loads) | `test/client.test.mjs` (SSR render of the built file), `pnpm check:client` |
 | `scripts/smoke.mjs` | — | live HTTP smoke against a running `dsh web` | — |
 
 ## Harness hooks (host side)
@@ -33,7 +33,7 @@ Fork guard: a forked session's log starts with events copied from the parent,
 carrying the parent's timestamps. The fold skips events older than the session's
 own `createdAt` so they are not counted twice.
 
-## Browser slots (`client/client.js`)
+## Browser slots (`client/src/90-plugin.js`)
 
 | Slot | id | order | Component |
 | --- | --- | --- | --- |

@@ -46,4 +46,5 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - run: npm install --global npm@11.19.0
+      - run: node scripts/build-client.mjs --check
       - run: node scripts/check-package.mjs

@@ -45,17 +45,23 @@ npx @deepseek-ai/dsh plugin --profile web add "$PWD"   # links this folder into 
 Then start (or restart) `npx @deepseek-ai/dsh web` and refresh the harness page.
 
 **Restart vs refresh:** anything under `lib/` runs in the host process — restart
-`npx @deepseek-ai/dsh web` after changing it. `client/client.js` runs in the
-browser — a page refresh is enough. Reinstall only when `package.json`
+`npx @deepseek-ai/dsh web` after changing it. The browser side is edited under
+`client/src/` (one file per section, no imports — the harness loads a single
+classic script per plugin) and rebuilt into `client/client.js` with
+`pnpm build:client`; then a page refresh is enough. Never edit
+`client/client.js` by hand — `pnpm check:client` (also run in CI) rejects a
+bundle that differs from its sources. Reinstall only when `package.json`
 dependencies change.
 
 ## Tests
 
 ```bash
 pnpm test                 # node --test: fold, calls, analysis, trust, schema, store, host integration, client SSR
+pnpm build:client         # regenerate client/client.js from client/src/
+pnpm check:client         # the committed client/client.js matches client/src/
 pnpm check:docs           # local Markdown links and anchors
 pnpm check:package        # npm tarball contents and English root README
-pnpm check                # all three checks above
+pnpm check                # all four checks above
 pnpm smoke                # HTTP end-to-end against a running dsh web (no model calls, free)
 TACIT_SMOKE_SESSION=<id> pnpm smoke           # also exercises ✨ Improve: one real model call, ≈ $0.001
 TACIT_BASE=http://127.0.0.1:4000 pnpm smoke   # if your dsh web is not on :3080
@@ -111,7 +117,8 @@ routes and storage: [docs/architecture.md](docs/architecture.md). Short version:
 `lib/fold.js` turns session events into turn digests, `lib/analyze.js` holds
 the prompts, heuristics and model calls, `lib/service.js` is the host service
 (auto triggers, trials, bootstrap, steering), `lib/routes.js` the JSON API,
-`client/client.js` the whole UI.
+`client/src/*.js` the whole UI (i18n, API client, stores, components, panel,
+CSS, plugin body — concatenated into the shipped `client/client.js`).
 
 ## Reporting bugs
 
