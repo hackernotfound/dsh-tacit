@@ -68,11 +68,11 @@ Tacit 从不接触你的 API Key（所有调用都经过 harness 自己的模型
 完整的数据流与成本表、以及坦白的限制清单（英文）：
 [Privacy, cost & limitations](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/privacy-and-cost.md)。
 
-## 文档（均为英文）
+## 文档（除标注外均为英文）
 
 | | |
 | --- | --- |
-| [Getting started](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/getting-started.md) | 安装、确认已启用、快速起步、界面各处在哪、排障 |
+| [快速开始](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/getting-started.zh.md)（[English](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/getting-started.md)） | 安装、确认已启用、快速起步、界面各处在哪、排障 |
 | [How it works](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/how-it-works.md) | 逐步流程，带图和术语表 |
 | [Privacy, cost & limitations](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/privacy-and-cost.md) | 什么留在本地、什么会发出去、每次调用的花费、目前做不到的事 |
 | [Configuration](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/configuration.md) | 所有设置项、默认值和取值范围 |

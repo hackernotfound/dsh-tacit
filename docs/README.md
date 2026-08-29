@@ -9,7 +9,7 @@ Pick the question you have:
 
 | I want to… | Read |
 | --- | --- |
-| Install it and see it working in five minutes | [Getting started](getting-started.md) |
+| Install it and see it working in five minutes | [Getting started](getting-started.md) ([中文](getting-started.zh.md)) |
 | Understand what it does, step by step, and what the words mean | [How it works](how-it-works.md) |
 | Know what leaves my machine, what it costs, and what it can't do yet | [Privacy, cost & limitations](privacy-and-cost.md) |
 | Change a setting | [Configuration](configuration.md) |
@@ -18,4 +18,4 @@ Pick the question you have:
 
 Reading order for a newcomer: Getting started → How it works → Privacy & cost.
 
-中文：[README.zh.md](README.zh.md) · [贡献指南](CONTRIBUTING.zh.md)（其余文档为英文）。
+中文：[README.zh.md](README.zh.md) · [快速开始](getting-started.zh.md) · [贡献指南](CONTRIBUTING.zh.md)（其余文档为英文）。
