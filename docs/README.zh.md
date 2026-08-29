@@ -77,6 +77,7 @@ Tacit 从不接触你的 API Key（所有调用都经过 harness 自己的模型
 | [Privacy, cost & limitations](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/privacy-and-cost.md) | 什么留在本地、什么会发出去、每次调用的花费、目前做不到的事 |
 | [Configuration](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/configuration.md) | 所有设置项、默认值和取值范围 |
 | [Architecture](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/architecture.md) | 面向贡献者：模块、钩子、路由、存储 |
-| [Contributing](https://github.com/hackernotfound/dsh-tacit/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/hackernotfound/dsh-tacit/blob/main/CHANGELOG.md) | |
+| [贡献指南](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/CONTRIBUTING.zh.md)（[English](https://github.com/hackernotfound/dsh-tacit/blob/main/CONTRIBUTING.md)） | fork → 分支 → PR 的流程、测试、基本规则；欢迎提 issue 和 PR |
+| [Changelog](https://github.com/hackernotfound/dsh-tacit/blob/main/CHANGELOG.md) | 各版本的变更 |
 
 MIT © hackernotfound

@@ -85,6 +85,27 @@ reports. Dollar figures are estimates at list price; a cost plugin such as
 the honest list of limitations:
 [Privacy, cost & limitations](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/privacy-and-cost.md).
 
+## Help shape Tacit
+
+Tacit works and I use it every day — but so far it has learned from one
+person's prompts. It gets better with more of them.
+
+- **Try it and say what feels wrong.** A directive that misfires, a cost that
+  surprised you, a label that reads oddly:
+  [open an issue](https://github.com/hackernotfound/dsh-tacit/issues/new/choose).
+  Two minutes of your time beats a week of my guessing.
+- **Pick up a task.** Issues tagged
+  [`good first issue`](https://github.com/hackernotfound/dsh-tacit/labels/good%20first%20issue)
+  are small and come with acceptance criteria;
+  [`help wanted`](https://github.com/hackernotfound/dsh-tacit/labels/help%20wanted)
+  ones are bigger and I will pair on the design.
+- **Ask anything** in
+  [Discussions](https://github.com/hackernotfound/dsh-tacit/discussions).
+
+PRs are welcome — the fork → branch → PR walkthrough is in
+[CONTRIBUTING.md](https://github.com/hackernotfound/dsh-tacit/blob/main/CONTRIBUTING.md).
+No API key is needed to run the tests.
+
 ## Documentation
 
 | | |

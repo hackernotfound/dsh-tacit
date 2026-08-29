@@ -5,6 +5,9 @@
 - Directive trials count only turns from conversations whose system prompt
   actually contained the candidate; conversations started earlier no longer
   move its counters.
+- README: new *Help shape Tacit* section pointing to issues, labels and
+  Discussions.
+
 ## 0.2.2 — 2026-08-29
 
 - Fixed the Improve preview so the first click immediately shows its pending

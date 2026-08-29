@@ -1,0 +1,31 @@
+name: Feature request
+description: Something Tacit should learn, inject, show or stop doing.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is awkward or missing today? A concrete example of a prompt or turn helps.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: What should Tacit do instead? UI, config, or steering — whatever you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: cost
+    attributes:
+      label: Cost impact
+      description: Does this add a model call? If so, when does it fire and should it count against `autoDailyBudget`? (Every call is listed in docs/privacy-and-cost.md.)
+  - type: dropdown
+    id: implement
+    attributes:
+      label: Would you like to implement it?
+      options:
+        - "Yes, I'd like to open a PR"
+        - "Maybe, with some pointers"
+        - "No, just proposing"
