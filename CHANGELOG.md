@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- Added a sanitized Settings → Tacit screenshot and a short install, learning
-  and editable-directive demo to the GitHub README. Include them on npm with
-  the next natural patch release.
+- Added a sanitized Settings → Tacit screenshot and a short demo covering the
+  universal `npx` install command, the Tacit conversation tab, learning and an
+  editable directive. Include them on npm with the next natural patch release.
 
 ## 0.2.1 — 2026-08-27
 

@@ -17,14 +17,15 @@ plain ES modules, no bundler, no TypeScript step.
 git clone https://github.com/hackernotfound/dsh-tacit
 cd dsh-tacit
 pnpm install
-dsh plugin --profile web add "$PWD"   # links this folder into ~/.dsh/profiles/web
+npx @deepseek-ai/dsh plugin --profile web add "$PWD"   # links this folder into ~/.dsh/profiles/web
 ```
 
-Then start (or restart) `dsh web` and refresh the harness page.
+Then start (or restart) `npx @deepseek-ai/dsh web` and refresh the harness page.
 
 **Restart vs refresh:** anything under `lib/` runs in the host process — restart
-`dsh web` after changing it. `client/client.js` runs in the browser — a page
-refresh is enough. Reinstall only when `package.json` dependencies change.
+`npx @deepseek-ai/dsh web` after changing it. `client/client.js` runs in the
+browser — a page refresh is enough. Reinstall only when `package.json`
+dependencies change.
 
 ## Tests
 

@@ -13,19 +13,23 @@
 ## Install
 
 ```bash
-dsh plugin --profile web add dsh-tacit
+npx @deepseek-ai/dsh plugin --profile web add dsh-tacit
 ```
 
-Then **restart `dsh web`** and **refresh the browser page**. Tacit has two halves:
-one runs inside the `dsh` process (needs the restart), one runs in the browser
-(needs the refresh).
+If the CLI is already installed globally, you can use the shorter
+`dsh plugin --profile web add dsh-tacit` form instead.
+
+Then **start (or restart) `npx @deepseek-ai/dsh web`** and **refresh the browser
+page**. Tacit has two halves: one runs inside the `dsh` process (needs the
+restart), one runs in the browser (needs the refresh).
 
 ## Check that it is on
 
 - In any conversation there is a **Tacit** tab next to *Chat / Trajectory / Context*.
 - **Settings → Tacit** shows *Learned from 0 prompt(s)* and *Auto-learning on · 0/30 today*.
 
-If the tab is missing, restart `dsh web` once more and check the version above.
+If the tab is missing, restart `npx @deepseek-ai/dsh web` once more and check the
+version above.
 
 ## Optional: learn from what you already did (bootstrap)
 
