@@ -1220,8 +1220,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     function PreviewOverlay(kit) {
       const { t } = kit
       return function PreviewOverlayView(props) {
-        const hooks = props.hooks !== null && typeof props.hooks === 'object' ? props.hooks : null
-        const store = hooks !== null ? hooks.tacitStore : null
+        const store = props.tacitStore !== null && typeof props.tacitStore === 'object'
+          ? props.tacitStore
+          : null
         useStoreVersion(store)
         if (store === null || !store.preview.open) return null
 
@@ -1646,7 +1647,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         id: 'tacit-preview',
         order: 10,
         locale: NS,
-        inject: (sessionId) => ({ hooks: { tacitStore: storeFor(sessionId) } }),
+        inject: (sessionId) => ({ tacitStore: storeFor(sessionId) }),
       }, (props) => h(PreviewOverlayView, props)))
 
       // The post-apply 👍/👎 strip lives in the band UNDER the composer card
@@ -1681,6 +1682,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       __test: {
         css,
         applyImproved,
+        closePreview,
         closeFeedback,
         fadeFeedback,
         rootStore,

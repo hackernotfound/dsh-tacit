@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+## 0.2.2 — 2026-08-29
+
+- Fixed the Improve preview so the first click immediately shows its pending
+  state, followed by the rewrite or an in-modal error. DSH reserves the slot
+  `hooks` property, so Tacit now injects its subscribed store as a normal prop.
 - Added a sanitized Settings → Tacit screenshot and a short demo covering the
   universal `npx` install command, the Tacit conversation tab, learning and an
-  editable directive. Include them on npm with the next natural patch release.
+  editable directive.
 - The style-rule distillation call now carries the session id, so cost meters
   attribute it like every other call.
 - The bootstrap hint in Settings shows the documented $0.02–0.05 range.
