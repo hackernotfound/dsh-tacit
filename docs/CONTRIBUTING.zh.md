@@ -40,16 +40,21 @@ npx @deepseek-ai/dsh plugin --profile web add "$PWD"   # 把这个目录链接�
 然后启动（或重启）`npx @deepseek-ai/dsh web`，刷新 harness 页面。
 
 **重启 vs 刷新：** `lib/` 下的代码运行在宿主进程里——改了之后要重启
-`npx @deepseek-ai/dsh web`。`client/client.js` 运行在浏览器里——刷新页面即可。
+`npx @deepseek-ai/dsh web`。浏览器端的源码在 `client/src/`（每个部分一个文件，
+没有 import——harness 每个插件只加载一个普通 script），用 `pnpm build:client`
+重新生成 `client/client.js`，然后刷新页面即可。不要手改 `client/client.js`——
+`pnpm check:client`（CI 也会跑）会拒绝与源码不一致的产物。
 只有 `package.json` 的依赖变化时才需要重新安装。
 
 ## 测试
 
 ```bash
 pnpm test                 # node --test：fold、calls、analysis、trust、schema、store、宿主集成、客户端 SSR
+pnpm build:client         # 从 client/src/ 重新生成 client/client.js
+pnpm check:client         # 提交的 client/client.js 与 client/src/ 一致
 pnpm check:docs           # 本地 Markdown 链接和锚点
 pnpm check:package        # npm 包内容和英文根 README
-pnpm check                # 以上三项全部
+pnpm check                # 以上四项全部
 pnpm smoke                # 对运行中的 dsh web 做 HTTP 端到端测试（不调用模型，免费）
 TACIT_SMOKE_SESSION=<id> pnpm smoke           # 额外测试 ✨ 改进：一次真实模型调用，约 $0.001
 TACIT_BASE=http://127.0.0.1:4000 pnpm smoke   # 如果你的 dsh web 不在 :3080
@@ -95,7 +100,8 @@ gh pr create        # 或在 github.com 上从你的 fork 发起 PR
 [docs/architecture.md](architecture.md)。简版：`lib/fold.js` 把会话事件折叠成每轮摘要，
 `lib/analyze.js` 放提示词、启发式规则和模型调用，`lib/service.js` 是宿主服务
 （自动触发、试用、快速起步、steering），`lib/routes.js` 是 JSON API，
-`client/client.js` 是全部 UI。
+`client/src/*.js` 是全部 UI（i18n、API 客户端、store、组件、面板、CSS、插件主体——
+拼接成发布的 `client/client.js`）。
 
 ## 报告 bug
 

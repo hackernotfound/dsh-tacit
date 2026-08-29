@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The browser bundle is now generated from `client/src/` (one file per
+  section); `client/client.js` itself is unchanged apart from a header line.
 - Bootstrap can run several analyses at once (`bootstrapConcurrency`, 1–4;
   default 1 keeps today's one-at-a-time behaviour).
 - README: new *Help shape Tacit* section pointing to issues, labels and
