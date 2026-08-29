@@ -81,6 +81,14 @@ to `tacit` if the new one does not exist (nothing is deleted; safe to drop after
 
 ## Development
 
+Official `@deepseek-ai/*` packages are **peer dependencies**: an installed Tacit
+uses the copies the running harness provides (dsh links them into
+`~/.dsh/profiles/node_modules` when it boots), never a private nested copy, so the objects it
+hands to the host are built by the host's own version. They are also
+`devDependencies` so a checkout can run the tests without a harness.
+`scripts/check-install.mjs <profile dir>` asserts this against a real install;
+the weekly `compatibility.yml` runs it against `@deepseek-ai/dsh@latest`.
+
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the checkout/link workflow, the
 restart-vs-refresh rule, tests, smoke and the ground rules.
 

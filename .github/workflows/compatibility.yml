@@ -31,3 +31,14 @@ jobs:
           compatibility_tarball=$(node -e "const p=require(process.env.RUNNER_TEMP+'/dsh-tacit-pack.json'); process.stdout.write(p[0].filename)")
           npx --yes @deepseek-ai/dsh@latest --version
           npx --yes @deepseek-ai/dsh@latest plugin --profile web add "./${compatibility_tarball}"
+      - name: Verify the installed plugin loads and uses the harness's own @deepseek-ai packages
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-tacit-compat-home
+        run: |
+          # The harness links its own @deepseek-ai packages into profiles/node_modules on boot.
+          npx --yes @deepseek-ai/dsh@latest web --port 0 > "${RUNNER_TEMP}/dsh-web.log" 2>&1 &
+          web_pid=$!
+          for _ in $(seq 1 60); do [ -d "${DSH_HOME}/profiles/node_modules/@deepseek-ai" ] && break; sleep 1; done
+          node scripts/check-install.mjs "${DSH_HOME}/profiles/web"; status=$?
+          kill "${web_pid}" 2>/dev/null || true
+          exit "${status}"

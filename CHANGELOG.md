@@ -4,6 +4,8 @@
 
 - The browser bundle is now generated from `client/src/` (one file per
   section); `client/client.js` itself is unchanged apart from a header line.
+- Official `@deepseek-ai/*` packages are peer dependencies: Tacit now uses the
+  harness's own copies instead of bundling private ones.
 - Directive trials count only turns from conversations whose system prompt
   actually contained the candidate; conversations started earlier no longer
   move its counters.
