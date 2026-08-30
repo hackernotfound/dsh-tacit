@@ -64,6 +64,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'settings.learnGood': '也从混乱之后的顺利提示词中学习',
       'bootstrap.btn': '从我最近 20 轮中学习',
       'bootstrap.running': '学习中… {done}/{total}',
+      'bootstrap.runningUsd': '学习中… {done}/{total} · {usd}',
       'bootstrap.hint': '分析你最近完成的轮次：提示词至少 8 个字符、不是单纯的「继续」类消息（「继续」「好的」…）、且还没有报告——最多 20 条。',
       'bootstrap.estimateDoc': '使用 deepseek-v4-flash 约 $0.02–0.05，一次性。',
       'steer.enrich': '发送前补充学到的上下文（实验性，每次发送一次小调用）',
@@ -155,7 +156,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'card.expand': '展开这一节',
       'card.collapse': '收起这一节',
       'overview.model': '模型：{model}',
-      'usage.pending': '用量与花费数字会在接入用量账本后出现在这里。',
       'usage.empty': '还没有计费调用——用量从 {since} 开始记录。',
       'usage.today': '今日',
       'usage.month': '本月',
@@ -226,7 +226,36 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'warn.monthly': '本月 {spent} / 每月上限 {limit}（{pct}%）',
       'improve.explain': '「改进」会在你发送前重写草稿。给某次重写点 👎 并写一句原因，Tacit 会从中提炼出持久的风格规则。',
       'privacy.stored': '分析报告、指令和风格规则只保存在本机的 Tacit 数据目录里；清除操作只会删除 Tacit 自己的文件。',
-      'notice.bootstrap': '引导完成 · 已分析 {analyzed} 条 · 跳过 {skipped} 条',
+      'pricing.title': '每 100 万 tokens 的目录价',
+      'pricing.summary': '{model} {tier} {rates} / 100 万 · {source}（{asOf}）',
+      'pricing.rateTable': '每 100 万 tokens 的目录价',
+      'pricing.model': '模型',
+      'pricing.tier': '时段',
+      'pricing.cacheHit': '缓存命中输入',
+      'pricing.cacheMiss': '输入',
+      'pricing.output': '输出',
+      'pricing.reasoning': '推理',
+      'pricing.reasoningSameAsOutput': '按输出计费',
+      'pricing.peak': '高峰',
+      'pricing.offPeak': '非高峰',
+      'pricing.tierNow': '当前时段：{tier}',
+      'pricing.schedule': '高峰时段为 UTC 01:00–04:00 与 06:00–10:00，其余时间均为非高峰；时段按调用开始的时刻判定。',
+      'pricing.weekendRule': '自 2026-08-22 16:00 UTC 起，北京日历的周末（UTC+8 的周六与周日）全天按非高峰计费。',
+      'pricing.source': '价目来源',
+      'pricing.sourceBundled': '内置价目表',
+      'pricing.sourceCostMeter': 'cost-meter 服务',
+      'pricing.refreshedAt': '刷新于 {time}',
+      'pricing.never': '从未刷新',
+      'pricing.formula': '费用 =（输入 × 输入价 + 缓存命中输入 × 缓存价 + 输出 × 输出价）÷ 1,000,000',
+      'pricing.accuracy': '目录价；以服务商账单为准',
+      'pricing.refresh': '刷新价目',
+      'pricing.refreshing': '刷新中…',
+      'pricing.error': '无法读取价目来源：{error}',
+      'notice.bootstrap': '引导完成 · 已分析 {analyzed} 条 · 跳过 {skipped} 条 · {calls} 次计费调用 · {tokens} tokens · 目录价 {usd}',
+      'notice.analyze': '已分析 #{turn} · {calls} 次调用 · {tokens} tokens · {usd}',
+      'notice.improve': '已改进草稿 · {calls} 次调用 · {tokens} tokens · {usd}',
+      'notice.pricingRefreshed': '价目已刷新 · {source}（{asOf}）',
+      'notice.unpriced': ' · {n} 次无价目',
       'err.bad-request': '请求无效。',
       'err.bad-json': '请求体无效。',
       'err.no-session': '当前会话不可用（可能尚未在本进程恢复）。',
@@ -263,6 +292,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'settings.learnGood': 'Also learn from a clean prompt right after a messy turn',
       'bootstrap.btn': 'Learn from my last 20 turns',
       'bootstrap.running': 'Learning… {done}/{total}',
+      'bootstrap.runningUsd': 'Learning… {done}/{total} · {usd}',
       'bootstrap.hint': 'Analyzes your newest finished turns whose prompt is at least 8 characters, is not a bare continuation (“continue”, “ok”…), and has no report yet — up to 20.',
       'bootstrap.estimateDoc': '≈ $0.02–0.05 with deepseek-v4-flash, one time',
       'steer.enrich': 'Add learned context before each send (experimental — one small call per send)',
@@ -354,7 +384,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'card.expand': 'Expand this section',
       'card.collapse': 'Collapse this section',
       'overview.model': 'Model: {model}',
-      'usage.pending': 'Token and cost figures land here once the usage ledger is wired up.',
       'usage.empty': 'No billed calls yet — usage has been tracked since {since}.',
       'usage.today': 'Today',
       'usage.month': 'This month',
@@ -425,7 +454,36 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'warn.monthly': 'This month {spent} of the {limit} monthly cap ({pct}%)',
       'improve.explain': 'Improve rewrites your draft before you send it. Rate a rewrite 👎 with a one-line reason and Tacit distills a durable style rule from it.',
       'privacy.stored': 'Analysis reports, directives, and style rules are stored on this machine only, in Tacit’s own data directory; clearing only ever removes Tacit’s own files.',
-      'notice.bootstrap': 'Bootstrap complete · {analyzed} analyzed · {skipped} skipped',
+      'pricing.title': 'List price per 1M tokens',
+      'pricing.summary': '{model} {tier} {rates} per 1M · {source} ({asOf})',
+      'pricing.rateTable': 'List price per 1M tokens',
+      'pricing.model': 'Model',
+      'pricing.tier': 'Tier',
+      'pricing.cacheHit': 'Cached input',
+      'pricing.cacheMiss': 'Input',
+      'pricing.output': 'Output',
+      'pricing.reasoning': 'Reasoning',
+      'pricing.reasoningSameAsOutput': 'billed as output',
+      'pricing.peak': 'peak',
+      'pricing.offPeak': 'off-peak',
+      'pricing.tierNow': 'Right now: {tier}',
+      'pricing.schedule': 'Peak is 01:00–04:00 and 06:00–10:00 UTC; every other hour is off-peak. The tier is decided when a call starts.',
+      'pricing.weekendRule': 'Beijing-calendar weekends (Saturday and Sunday in UTC+8) are off-peak all day, from 2026-08-22 16:00 UTC.',
+      'pricing.source': 'Price source',
+      'pricing.sourceBundled': 'bundled table',
+      'pricing.sourceCostMeter': 'cost-meter service',
+      'pricing.refreshedAt': 'refreshed {time}',
+      'pricing.never': 'never refreshed',
+      'pricing.formula': 'Cost = (input × input rate + cached input × cached rate + output × output rate) ÷ 1,000,000',
+      'pricing.accuracy': 'List price; your provider invoice is the billing authority',
+      'pricing.refresh': 'Refresh prices',
+      'pricing.refreshing': 'Refreshing…',
+      'pricing.error': 'Could not read the price source: {error}',
+      'notice.bootstrap': 'Bootstrap complete · {analyzed} analyzed · {skipped} skipped · {calls} billed calls · {tokens} tokens · {usd} list price',
+      'notice.analyze': 'Analyzed #{turn} · {calls} call(s) · {tokens} tokens · {usd}',
+      'notice.improve': 'Improved your draft · {calls} call(s) · {tokens} tokens · {usd}',
+      'notice.pricingRefreshed': 'Prices refreshed · {source} ({asOf})',
+      'notice.unpriced': ' · {n} unpriced',
       'err.bad-request': 'Invalid request.',
       'err.bad-json': 'Invalid request body.',
       'err.no-session': 'The session is not available (it may not be restored in this process).',
@@ -561,6 +619,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       usageExpanded: new Set(), // runIds whose attempt rows are open
       usageLoading: false,
       usageSeries: '30', // '7' | '30' — which sparkline the strip shows
+      pricingRefreshing: false, // a /pricing-refresh call is in flight
       initStarted: false,
       initDone: false,
       error: null,
@@ -606,6 +665,52 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
      */
     function unrefTimer(handle) {
       if (handle !== null && typeof handle === 'object' && typeof handle.unref === 'function') handle.unref()
+    }
+
+    /**
+     * The bound translator, captured once when the plugin applies.
+     *
+     * A notice states what a call actually cost, so it is written where those
+     * figures land — inside the store actions. Those run far from any `kit`
+     * (a click in the conversation tab, a poll), and there is exactly one
+     * translator per plugin instance, so it is held here rather than threaded
+     * through every call site.
+     */
+    let translate = null
+
+    function setTranslator(fn) {
+      translate = typeof fn === 'function' ? fn : null
+    }
+
+    /**
+     * A result line with the run's measured figures: billed calls, total
+     * tokens and list-price cost. A run that priced nothing says so instead of
+     * claiming `$0.0000`, and the count of unpriced calls rides as a suffix —
+     * an unmetered call has no price, not a price of zero.
+     */
+    function runNotice(t, key, vars, run) {
+      const source = run !== null && typeof run === 'object' ? run : {}
+      const count = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
+      const totals = {
+        billedCalls: count(source.billedCalls),
+        unpricedCalls: count(source.unpricedCalls),
+        usdKnown: count(source.usdKnown),
+      }
+      const text = t(key, {
+        ...(vars === null || typeof vars !== 'object' ? {} : vars),
+        calls: fmtTokens(totals.billedCalls),
+        tokens: fmtTokens(tokensTotal(source.tokens)),
+        usd: usageSpend({ t }, totals),
+      })
+      return totals.unpricedCalls > 0 ? text + t('notice.unpriced', { n: String(totals.unpricedCalls) }) : text
+    }
+
+    /** Show `runNotice` where a translator exists; a notice is never load-bearing. */
+    function setRunNotice(key, vars, run) {
+      if (translate === null) return ''
+      const text = runNotice(translate, key, vars, run)
+      setRootNotice(text)
+      return text
     }
 
     // ── Usage ledger (the Settings → Usage card) ───────────────────────────
@@ -670,6 +775,36 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         // The row keeps its loading line; closing and reopening retries.
       }
       notifyRoot()
+    }
+
+    /**
+     * Re-read the prices from the cost-meter service. The card renders the
+     * rates the `/usage` envelope carries, so the refreshed table only shows
+     * once that envelope has been re-fetched.
+     */
+    async function refreshPricing(t) {
+      if (rootStore.pricingRefreshing) return
+      rootStore.pricingRefreshing = true
+      rootStore.error = null
+      notifyRoot()
+      try {
+        const result = await api('/pricing-refresh', {})
+        if (result !== null && typeof result === 'object' && result.ok === true) {
+          const pricing = result.pricing !== null && typeof result.pricing === 'object' ? result.pricing : {}
+          if (typeof t === 'function') {
+            setRootNotice(t('notice.pricingRefreshed', {
+              source: t(pricing.source === 'costMeter' ? 'pricing.sourceCostMeter' : 'pricing.sourceBundled'),
+              asOf: typeof pricing.asOf === 'string' && pricing.asOf.length > 0 ? pricing.asOf : '—',
+            }))
+          }
+        } else {
+          rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed', detail: '' }
+        }
+      } catch (error) {
+        rootStore.error = errorOf(error)
+      }
+      rootStore.pricingRefreshing = false
+      await fetchUsage()
     }
 
     /** Which sparkline the bar strip shows; anything unknown means 30 days. */
@@ -855,10 +990,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         const result = await api('/bootstrap', { limit: 20 })
         if (result !== null && typeof result === 'object' && result.ok) {
           if (typeof t === 'function') {
-            setRootNotice(t('notice.bootstrap', {
+            setRootNotice(runNotice(t, 'notice.bootstrap', {
               analyzed: String(typeof result.analyzed === 'number' ? result.analyzed : 0),
               skipped: String(typeof result.skipped === 'number' ? result.skipped : 0),
-            }))
+            }, result.run))
           }
         } else {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed', detail: '' }
@@ -868,8 +1003,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
       rootStore.initStarted = false
       rootStore.initDone = false
-      // `initRootStore` refetches the ledger itself; a second call here would
-      // only duplicate the request a bootstrap batch just made worth making.
+      // `initRootStore` refetches the ledger itself, so there is no `fetchUsage`
+      // here: a second call would only duplicate the one the batch already
+      // makes worth issuing.
       await initRootStore()
     }
 
@@ -924,6 +1060,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           if (result !== null && typeof result === 'object' && result.ok && result.report !== null && typeof result.report === 'object') {
             store.reports[String(turn)] = result.report
             store.error = null
+            // What that one analysis cost, from the envelope's own run record.
+            const text = setRunNotice('notice.analyze', { turn: String(turn) }, result.run)
+            if (text.length > 0) store.notice = { code: 'notice.analyze', text }
           } else {
             store.error = {
               code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
@@ -1013,6 +1152,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         .then((result) => {
           if (result !== null && typeof result === 'object' && result.ok && typeof result.improved === 'string' && result.improved.trim().length > 0) {
             store.preview = { ...store.preview, pending: false, data: result }
+            const text = setRunNotice('notice.improve', {}, result.run)
+            if (text.length > 0) store.notice = { code: 'notice.improve', text }
           } else {
             store.preview = {
               ...store.preview,
@@ -1238,6 +1379,20 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       return '$' + value.toFixed(4)
     }
 
+    /**
+     * A published rate, per 1M tokens. Rates are quoted, not measured, so they
+     * read as they are quoted: three decimals at most and no trailing zeros —
+     * `$0.007`, `$0.22`, `$1.32`. `fmtUsd`'s four fixed decimals belong to
+     * spend, where every hundredth of a cent is a real figure.
+     */
+    function fmtRate(n) {
+      const value = Number(n)
+      if (!Number.isFinite(value) || value < 0) return '—'
+      const trimmed = value.toFixed(3).replace(/\.?0+$/, '')
+      if (value > 0 && Number(trimmed) === 0) return '< $0.001'
+      return '$' + trimmed
+    }
+
     /** Thousands-separated token counts, grouped here so no locale data is needed. */
     function fmtTokens(n) {
       const value = Number(n)
@@ -1386,10 +1541,22 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     }
 
     /** "Learned from N prompts · Auto-learning on · x/y today" status card. */
-    /** "Learn from my last 20 turns" — spinner label while a bootstrap runs. */
+    /**
+     * "Learn from my last 20 turns" — while a bootstrap runs the label counts
+     * the turns and, once `/state` has reported a figure, what the batch has
+     * cost so far. No `usdKnown` yet means no number: an invented `$0.0000`
+     * would read as "free" rather than "not measured yet".
+     */
     function BootstrapButton(kit, { bootstrap, onClick }) {
       const { t } = kit
       const running = bootstrap !== null && bootstrap !== undefined && typeof bootstrap === 'object' && bootstrap.running === true
+      const progress = running
+        ? {
+          done: String(typeof bootstrap.done === 'number' ? bootstrap.done : 0),
+          total: String(typeof bootstrap.total === 'number' ? bootstrap.total : 0),
+        }
+        : null
+      const priced = running && typeof bootstrap.usdKnown === 'number' && Number.isFinite(bootstrap.usdKnown)
       return h('span', { className: 'tacit-bootstrap' },
         h('button', {
           type: 'button',
@@ -1397,9 +1564,11 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           disabled: running,
           title: t('bootstrap.hint'),
           onClick,
-        }, running
-          ? t('bootstrap.running', { done: String(typeof bootstrap.done === 'number' ? bootstrap.done : 0), total: String(typeof bootstrap.total === 'number' ? bootstrap.total : 0) })
-          : t('bootstrap.btn')))
+        }, !running
+          ? t('bootstrap.btn')
+          : (priced
+            ? t('bootstrap.runningUsd', { ...progress, usd: fmtUsd(bootstrap.usdKnown) })
+            : t('bootstrap.running', progress))))
     }
 
     function pct(value) {
@@ -2071,6 +2240,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         const notice = rootStore.notice !== null && typeof rootStore.notice === 'object' && typeof rootStore.notice.text === 'string'
           ? rootStore.notice
           : null
+        // Rates ride the /usage envelope, so the Pricing card reads them there
+        // rather than calling a route of its own on every render.
+        const usageReport = usageOf(rootStore.usage)
+        const usagePricing = usageReport === null ? null : usageReport.pricing
         /** Every card is titled by `card.<id>` and driven by `rootStore.sections`. */
         const card = (id, children, extra) => SectionCard(kit, {
           id,
@@ -2085,6 +2258,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           error !== null && typeof error === 'object'
             ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
             : null,
+          // Above the cards, and always mounted: a live region that appears
+          // together with its text is missed by screen readers, and one nested
+          // in the Overview body would be silent while that card is collapsed.
+          h('div', { className: 'tacit-settings-notice', role: 'status' }, notice === null ? '' : notice.text),
           card('overview', [
             StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
             config !== null && typeof config.model === 'string' && config.model.length > 0
@@ -2095,9 +2272,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               BootstrapButton(kit, { bootstrap: rootStore.bootstrap, onClick: () => bootstrapAll(t) }),
               h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
             h('p', { className: 'tacit-panel-hint' }, t('bootstrap.estimateDoc')),
-            notice !== null
-              ? h('div', { className: 'tacit-settings-notice', role: 'status' }, notice.text)
-              : null,
           ]),
           card('usage', [
             UsageCard(kit, {
@@ -2112,7 +2286,14 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               onSeries: (value) => setUsageSeries(value),
             }),
           ]),
-          card('pricing', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
+          card('pricing', [
+            PricingCard(kit, {
+              pricing: usagePricing,
+              open: sections.pricing === true,
+              refreshing: rootStore.pricingRefreshing === true,
+              onRefresh: () => refreshPricing(t),
+            }),
+          ], { summary: pricingSummary(kit, usagePricing) }),
           card('learning', [
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.model')),
@@ -2536,6 +2717,133 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           onFilter: props.onFilter,
         }))
     }
+
+    // ── Pricing card (Settings → Pricing) ──────────────────────────────────
+
+    /** The two tiers and the three quoted rates, in the order the table lists them. */
+    const PRICING_TIERS = ['offPeak', 'peak']
+    const PRICING_COLUMNS = ['model', 'tier', 'cacheHit', 'cacheMiss', 'output', 'reasoning']
+
+    /**
+     * The `usage.pricing` block, narrowed. Rates are copied per model and tier
+     * so a missing or malformed triple renders an em dash instead of a number
+     * the provider never quoted.
+     */
+    function pricingOf(value) {
+      const source = value !== null && typeof value === 'object' ? value : {}
+      const text = (key) => (typeof source[key] === 'string' ? source[key] : '')
+      const rates = source.rates !== null && typeof source.rates === 'object' ? source.rates : {}
+      const models = {}
+      for (const [model, tiers] of Object.entries(rates)) {
+        if (tiers === null || typeof tiers !== 'object') continue
+        const entry = {}
+        for (const tier of PRICING_TIERS) {
+          const triple = tiers[tier] !== null && typeof tiers[tier] === 'object' ? tiers[tier] : {}
+          entry[tier] = { cacheHit: triple.cacheHit, cacheMiss: triple.cacheMiss, output: triple.output }
+        }
+        models[model] = entry
+      }
+      return {
+        source: source.source === 'costMeter' ? 'costMeter' : 'bundled',
+        asOf: text('asOf'),
+        refreshedAt: typeof source.refreshedAt === 'number' && source.refreshedAt > 0 ? source.refreshedAt : 0,
+        tierNow: source.tierNow === 'peak' ? 'peak' : 'offPeak',
+        error: text('error'),
+        models,
+      }
+    }
+
+    /** `deepseek-v4-flash` → `flash`, for the one-line header summary. */
+    function shortModel(model) {
+      const parts = String(model).split('-').filter((part) => part.length > 0)
+      return parts.length > 0 ? parts[parts.length - 1] : String(model)
+    }
+
+    /** Which price source this table came from, as a phrase. */
+    function pricingSourceLabel(kit, priced) {
+      return kit.t(priced.source === 'costMeter' ? 'pricing.sourceCostMeter' : 'pricing.sourceBundled')
+    }
+
+    /**
+     * The line the collapsed card shows in its header: the flash model — the
+     * default coach model — at the tier in force right now, so the headline
+     * figure is the one a call started this minute would actually be billed at.
+     */
+    function pricingSummary(kit, pricing) {
+      const { t } = kit
+      const priced = pricingOf(pricing)
+      const models = Object.keys(priced.models).sort()
+      const model = models.find((name) => name.endsWith('flash'))
+      const pick = model !== undefined ? model : models[0]
+      if (pick === undefined) return ''
+      const triple = priced.models[pick][priced.tierNow]
+      return t('pricing.summary', {
+        model: shortModel(pick),
+        tier: t('pricing.' + priced.tierNow),
+        rates: fmtRate(triple.cacheHit) + ' / ' + fmtRate(triple.cacheMiss) + ' / ' + fmtRate(triple.output),
+        source: pricingSourceLabel(kit, priced),
+        asOf: priced.asOf.length > 0 ? priced.asOf : '—',
+      })
+    }
+
+    /** One model at one tier. Reasoning is prose: it is billed as output, never quoted apart. */
+    function PricingRow(kit, model, tier, triple) {
+      const { t } = kit
+      const cell = (key, child) => h('span', { key, className: 'tacit-pricing-cell', role: 'cell' }, child)
+      return h('div', { key: model + '-' + tier, className: 'tacit-pricing-row', role: 'row' },
+        h('span', { className: 'tacit-pricing-cell tacit-pricing-model', role: 'rowheader' }, model),
+        cell('tier', t('pricing.' + tier)),
+        cell('cacheHit', fmtRate(triple.cacheHit)),
+        cell('cacheMiss', fmtRate(triple.cacheMiss)),
+        cell('output', fmtRate(triple.output)),
+        cell('reasoning', t('pricing.reasoningSameAsOutput')))
+    }
+
+    /**
+     * The Pricing card body. Like `UsageCard` a plain renderer, not a
+     * component: it owns no hooks and no state. It builds nothing at all while
+     * collapsed — the header summary already carries the headline rate, and
+     * this page re-renders on every 10s usage poll.
+     */
+    function PricingCard(kit, { pricing, open, onRefresh, refreshing }) {
+      const { t, fmtTime } = kit
+      if (open !== true) return null
+      const priced = pricingOf(pricing)
+      const models = Object.keys(priced.models).sort()
+      const when = priced.refreshedAt > 0
+        ? t('pricing.refreshedAt', { time: fmtDay(priced.refreshedAt) + ' ' + fmtTime(priced.refreshedAt) })
+        : t('pricing.never')
+      const asOf = priced.asOf.length > 0 ? priced.asOf : '—'
+      return h('div', { className: 'tacit-pricing' },
+        h('div', { className: 'tacit-report-title' }, t('pricing.title')),
+        models.length === 0
+          ? h('p', { className: 'tacit-panel-hint' }, t('usage.priceUnavailable'))
+          : h('div', { className: 'tacit-pricing-table', role: 'table', 'aria-label': t('pricing.rateTable') },
+            h('div', { className: 'tacit-pricing-row tacit-pricing-head', role: 'row' },
+              PRICING_COLUMNS.map((column) => h('span', {
+                key: column,
+                className: 'tacit-pricing-cell',
+                role: 'columnheader',
+              }, t('pricing.' + column)))),
+            models.map((model) => PRICING_TIERS.map((tier) => PricingRow(kit, model, tier, priced.models[model][tier])))),
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.tierNow', { tier: t('pricing.' + priced.tierNow) })),
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.schedule')),
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.weekendRule')),
+        h('p', { className: 'tacit-panel-hint' },
+          t('pricing.source') + ': ' + pricingSourceLabel(kit, priced) + ' (' + asOf + ') · ' + when),
+        priced.error.length > 0
+          ? h('p', { className: 'tacit-pricing-error' }, t('pricing.error', { error: priced.error }))
+          : null,
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.formula')),
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.accuracy')),
+        h('div', { className: 'tacit-settings-row' },
+          h('button', {
+            type: 'button',
+            className: 'tacit-btn tacit-btn-sm tacit-pricing-refresh',
+            disabled: refreshing === true,
+            onClick: onRefresh,
+          }, refreshing === true ? t('pricing.refreshing') : t('pricing.refresh'))))
+    }
     // ── CSS (injected once) ────────────────────────────────────────────────
 
     const css = '.tacit-root{box-sizing:border-box;height:100%;color:var(--dsw-alias-label-primary);padding:16px 20px 32px;font-size:13px;overflow-y:auto}'
@@ -2629,7 +2937,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-attempt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-primary)}.tacit-attempt-meta,.tacit-attempt-tokens{color:var(--dsw-alias-label-secondary)}.tacit-attempt-usd{margin-left:auto;font-variant-numeric:tabular-nums}'
       + '.tacit-status-success,.tacit-status-ok{color:var(--dsw-alias-state-success-primary)}.tacit-status-partial,.tacit-status-unmetered{color:var(--dsw-alias-state-warn-primary)}.tacit-status-failed{color:var(--dsw-alias-state-error-primary)}'
       + '.tacit-pager{display:flex;align-items:center;gap:8px}.tacit-pager-label{font-size:11px;color:var(--dsw-alias-label-secondary)}'
-      + '@media (max-width:640px){.tacit-settings-label{min-width:0;flex-basis:100%}.tacit-modal-cols{grid-template-columns:1fr}.tacit-usage-row{display:flex;flex-direction:column}.tacit-usage-cell{white-space:normal}.tacit-tile{flex-basis:45%}.tacit-breakdown-row{grid-template-columns:minmax(0,1fr) 4rem 5rem}}'
+      + '.tacit-pricing{display:flex;flex-direction:column;gap:8px}'
+      + '.tacit-pricing-table{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden}'
+      + '.tacit-pricing-row{display:grid;grid-template-columns:minmax(120px,1.6fr) 6rem repeat(3,5rem) minmax(90px,1fr);gap:6px;align-items:center;padding:5px 8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;font-variant-numeric:tabular-nums}'
+      + '.tacit-pricing-table>.tacit-pricing-row:first-child{border-top:0}.tacit-pricing-head{color:var(--dsw-alias-label-secondary);font-weight:600;background:var(--dsw-alias-bg-layer-2)}'
+      + '.tacit-pricing-cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tacit-pricing-model{font-weight:600}'
+      + '.tacit-pricing-error{font-size:11px;color:var(--dsw-alias-state-warn-primary);line-height:1.5}'
+      + '@media (max-width:640px){.tacit-settings-label{min-width:0;flex-basis:100%}.tacit-modal-cols{grid-template-columns:1fr}.tacit-usage-row{display:flex;flex-direction:column}.tacit-usage-cell{white-space:normal}.tacit-pricing-row{display:flex;flex-direction:column}.tacit-pricing-cell{white-space:normal}.tacit-tile{flex-basis:45%}.tacit-breakdown-row{grid-template-columns:minmax(0,1fr) 4rem 5rem}}'
 
     function injectCss() {
       const tagId = 'dsh-tacit/styles.css'
@@ -2647,6 +2961,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { zh: DICT_ZH, en: DICT_EN }), 'dsh-tacit: dictionaries')
       const t = ctx.locale.bind(NS)
+      // Store actions write result notices themselves — they hold the measured
+      // figures — so the one bound translator is handed to them here.
+      setTranslator(t)
       const kit = makeKit(t)
       injectCss()
 
@@ -2722,7 +3039,11 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         startUsagePolling,
         stopUsagePolling,
         setUsageSeries,
+        refreshPricing,
+        runNotice,
+        fmtRate,
         UsageCard,
+        PricingCard,
       },
     }
   },

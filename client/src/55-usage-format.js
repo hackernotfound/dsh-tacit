@@ -14,6 +14,20 @@
       return '$' + value.toFixed(4)
     }
 
+    /**
+     * A published rate, per 1M tokens. Rates are quoted, not measured, so they
+     * read as they are quoted: three decimals at most and no trailing zeros —
+     * `$0.007`, `$0.22`, `$1.32`. `fmtUsd`'s four fixed decimals belong to
+     * spend, where every hundredth of a cent is a real figure.
+     */
+    function fmtRate(n) {
+      const value = Number(n)
+      if (!Number.isFinite(value) || value < 0) return '—'
+      const trimmed = value.toFixed(3).replace(/\.?0+$/, '')
+      if (value > 0 && Number(trimmed) === 0) return '< $0.001'
+      return '$' + trimmed
+    }
+
     /** Thousands-separated token counts, grouped here so no locale data is needed. */
     function fmtTokens(n) {
       const value = Number(n)

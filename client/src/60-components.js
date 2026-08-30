@@ -5,10 +5,22 @@
     }
 
     /** "Learned from N prompts · Auto-learning on · x/y today" status card. */
-    /** "Learn from my last 20 turns" — spinner label while a bootstrap runs. */
+    /**
+     * "Learn from my last 20 turns" — while a bootstrap runs the label counts
+     * the turns and, once `/state` has reported a figure, what the batch has
+     * cost so far. No `usdKnown` yet means no number: an invented `$0.0000`
+     * would read as "free" rather than "not measured yet".
+     */
     function BootstrapButton(kit, { bootstrap, onClick }) {
       const { t } = kit
       const running = bootstrap !== null && bootstrap !== undefined && typeof bootstrap === 'object' && bootstrap.running === true
+      const progress = running
+        ? {
+          done: String(typeof bootstrap.done === 'number' ? bootstrap.done : 0),
+          total: String(typeof bootstrap.total === 'number' ? bootstrap.total : 0),
+        }
+        : null
+      const priced = running && typeof bootstrap.usdKnown === 'number' && Number.isFinite(bootstrap.usdKnown)
       return h('span', { className: 'tacit-bootstrap' },
         h('button', {
           type: 'button',
@@ -16,9 +28,11 @@
           disabled: running,
           title: t('bootstrap.hint'),
           onClick,
-        }, running
-          ? t('bootstrap.running', { done: String(typeof bootstrap.done === 'number' ? bootstrap.done : 0), total: String(typeof bootstrap.total === 'number' ? bootstrap.total : 0) })
-          : t('bootstrap.btn')))
+        }, !running
+          ? t('bootstrap.btn')
+          : (priced
+            ? t('bootstrap.runningUsd', { ...progress, usd: fmtUsd(bootstrap.usdKnown) })
+            : t('bootstrap.running', progress))))
     }
 
     function pct(value) {

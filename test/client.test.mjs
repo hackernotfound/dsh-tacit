@@ -623,7 +623,6 @@ test('the settings page renders all eight collapsible section cards', () => {
     assert.equal(typeof title, 'string', 'card.' + id + ' is translated')
     assert.ok(markup.includes(escapeHtml(title)), 'card.' + id + ' title renders')
   }
-  assert.ok(markup.includes(en['usage.pending']), 'the usage/pricing placeholder renders')
   assert.ok(markup.includes(en['improve.explain']))
   assert.ok(markup.includes(en['privacy.stored']))
   assert.ok(markup.includes('Model: deepseek-v4-flash'))
@@ -672,7 +671,7 @@ test('a collapsed card keeps its body in the DOM behind the hidden attribute', (
   rootStore.profile = null
 })
 
-test('a result notice renders in the overview card as a live status region', () => {
+test('a result notice renders above the cards in an always-present live region', () => {
   const rootStore = seedSettings()
   rootStore.notice = { text: 'Bootstrap complete · 7 analyzed · 3 skipped' }
   const markup = renderSettings()
@@ -680,8 +679,16 @@ test('a result notice renders in the overview card as a live status region', () 
   assert.ok(match, 'a [role="status"] region renders')
   assert.ok(match[1].includes('7 analyzed'))
   assert.ok(match[1].includes('3 skipped'))
+  // Outside every card body: a notice must be announced even with Overview collapsed.
+  assert.ok(match.index < markup.indexOf('tacit-card-overview-head'), 'the notice sits above the first card')
+
   rootStore.notice = null
-  assert.equal(/role="status"/.test(renderSettings()), false, 'no empty status region without a notice')
+  const empty = renderSettings()
+  const idle = /<div[^>]*role="status"[^>]*>([\s\S]*?)<\/div>/.exec(empty)
+  // A live region mounted together with its text is missed by screen readers,
+  // so the container is always in the DOM — empty while there is no notice.
+  assert.ok(idle, 'the live region stays mounted with no notice')
+  assert.equal(idle[1], '', 'and is empty')
   rootStore.profile = null
 })
 
@@ -753,11 +760,23 @@ const sampleRun = {
   results: {},
 }
 
+/** The bundled list prices (USD per 1M), exactly as the service reports them. */
+const bundledRates = () => ({
+  'deepseek-v4-flash': {
+    offPeak: { cacheHit: 0.007, cacheMiss: 0.22, output: 0.66 },
+    peak: { cacheHit: 0.014, cacheMiss: 0.44, output: 1.32 },
+  },
+  'deepseek-v4-pro': {
+    offPeak: { cacheHit: 0.022, cacheMiss: 0.66, output: 1.98 },
+    peak: { cacheHit: 0.044, cacheMiss: 1.32, output: 3.96 },
+  },
+})
+
 function usageEnvelope(over) {
   return {
     ok: true,
     trackingSince: 1785585600000,
-    pricing: { source: 'bundled', asOf: '2026-08-22', refreshedAt: 0, tierNow: 'off-peak', error: '', rates: {}, label: 'Measured usage · list-price cost' },
+    pricing: { source: 'bundled', asOf: '2026-08-22', refreshedAt: 0, tierNow: 'offPeak', error: '', rates: bundledRates(), label: 'Measured usage · list-price cost' },
     today: period({ attempts: 4, billedCalls: 4, usdKnown: 0.0196, cachedInputRate: 0.25 }),
     month: period({ attempts: 40, billedCalls: 38, unpricedCalls: 2, usdKnown: 0.3812 }),
     last7: period({ attempts: 12, billedCalls: 12, usdKnown: 0.1234 }),
@@ -1088,8 +1107,179 @@ test('the free-text filters patch the store keys the server actually reads', () 
   resetUsage()
 })
 
+// ── Pricing card ──────────────────────────────────────────────────────────
+
+const pricingBlock = (over) => ({
+  source: 'bundled',
+  asOf: '2026-08-22',
+  refreshedAt: 0,
+  tierNow: 'offPeak',
+  error: '',
+  rates: bundledRates(),
+  label: 'Measured usage · list-price cost',
+  ...(over === undefined ? {} : over),
+})
+
+function seedPricing(over, open) {
+  const rootStore = seedUsage({ pricing: pricingBlock(over) })
+  rootStore.sections.pricing = open === true
+  rootStore.pricingRefreshing = false
+  return rootStore
+}
+
+function resetPricing() {
+  testKit.rootStore.sections.pricing = false
+  testKit.rootStore.pricingRefreshing = false
+  resetUsage()
+}
+
+const cardSummary = (markup) => {
+  const match = /<span class="tacit-card-summary">([\s\S]*?)<\/span>/.exec(markup)
+  assert.ok(match, 'a card summary renders')
+  return match[1]
+}
+
+test('the collapsed pricing card summarises the flash rates in its header', () => {
+  seedPricing(undefined, false)
+  const markup = renderSettings()
+  const summary = cardSummary(markup)
+  assert.ok(summary.includes('flash'), 'the headline model — got ' + summary)
+  assert.ok(summary.includes(EN()['pricing.offPeak']), 'at the tier in force right now')
+  assert.ok(summary.includes('$0.007 / $0.22 / $0.66'), 'trimmed per-1M rates — got ' + summary)
+  assert.ok(summary.includes('per 1M'))
+  assert.ok(summary.includes(EN()['pricing.sourceBundled']))
+  assert.ok(summary.includes('2026-08-22'), 'and the as-of day')
+  assert.ok(!markup.includes('$3.96'), 'a collapsed card builds no rate table')
+  resetPricing()
+})
+
+test('the expanded pricing card tables both models at both tiers', () => {
+  seedPricing(undefined, true)
+  const markup = renderSettings()
+  assert.ok(markup.includes('deepseek-v4-flash'))
+  assert.ok(markup.includes('deepseek-v4-pro'))
+  for (const rate of ['$0.007', '$0.22', '$0.66', '$0.014', '$0.44', '$1.32', '$0.022', '$1.98', '$0.044', '$3.96']) {
+    assert.ok(markup.includes(rate), 'rate cell ' + rate)
+  }
+  assert.ok(!markup.includes('$0.2200'), 'rate cells trim to at most three decimals')
+  for (const key of ['pricing.rateTable', 'pricing.model', 'pricing.tier', 'pricing.cacheHit', 'pricing.cacheMiss', 'pricing.output', 'pricing.reasoning']) {
+    assert.ok(markup.includes(escapeHtml(EN()[key])), key + ' renders')
+  }
+  const reasoning = markup.split(EN()['pricing.reasoningSameAsOutput']).length - 1
+  assert.equal(reasoning, 4, 'the reasoning column is prose on all four rows, never a number')
+  resetPricing()
+})
+
+test('the expanded pricing card states the schedule, the weekend rule and the source', () => {
+  seedPricing(undefined, true)
+  const bundled = renderSettings()
+  assert.ok(bundled.includes(escapeHtml(EN()['pricing.schedule'])))
+  assert.ok(EN()['pricing.schedule'].includes('UTC'), 'the windows are stated in UTC')
+  assert.ok(/01:00/.test(EN()['pricing.schedule']) && /06:00/.test(EN()['pricing.schedule']), 'both peak windows')
+  assert.ok(bundled.includes(escapeHtml(EN()['pricing.weekendRule'])))
+  assert.ok(/UTC\+8|Beijing/.test(EN()['pricing.weekendRule']), 'the weekend rule names the Beijing calendar')
+  assert.ok(bundled.includes(tr('pricing.tierNow', { tier: EN()['pricing.offPeak'] })))
+  assert.ok(bundled.includes(escapeHtml(EN()['pricing.formula'])))
+  assert.ok(bundled.includes(escapeHtml(EN()['pricing.accuracy'])))
+  assert.equal(EN()['pricing.accuracy'], 'List price; your provider invoice is the billing authority')
+  assert.ok(bundled.includes(EN()['pricing.sourceBundled']))
+  assert.ok(!bundled.includes(EN()['pricing.sourceCostMeter']))
+  assert.ok(bundled.includes(EN()['pricing.never']), 'a never-refreshed source says so')
+
+  seedPricing({ source: 'costMeter', refreshedAt: 1756500000000 }, true)
+  const metered = renderSettings()
+  assert.ok(metered.includes(EN()['pricing.sourceCostMeter']))
+  assert.ok(!metered.includes(EN()['pricing.sourceBundled']))
+  assert.ok(!metered.includes(EN()['pricing.never']), 'a refreshed source shows when')
+
+  seedPricing({ error: 'the costMeter service is not available' }, true)
+  const failed = renderSettings()
+  assert.ok(failed.includes(tr('pricing.error', { error: 'the costMeter service is not available' })))
+  resetPricing()
+})
+
+test('the pricing refresh button is disabled while a refresh is in flight', () => {
+  const rootStore = seedPricing(undefined, true)
+  const idle = renderSettings()
+  const button = (markup) => {
+    const match = /<button[^>]*class="[^"]*tacit-pricing-refresh[^"]*"[^>]*>([\s\S]*?)<\/button>/.exec(markup)
+    assert.ok(match, 'the refresh button renders')
+    return match
+  }
+  assert.equal(button(idle)[1], EN()['pricing.refresh'])
+  assert.equal(button(idle)[0].includes('disabled'), false, 'enabled while idle')
+
+  rootStore.pricingRefreshing = true
+  const busy = button(renderSettings())
+  assert.equal(busy[1], EN()['pricing.refreshing'])
+  assert.ok(busy[0].includes('disabled'), 'and disabled while the refresh is in flight')
+  resetPricing()
+})
+
+test('a result notice carries the measured figures of its run', () => {
+  const run = {
+    runId: 'run-9',
+    billedCalls: 9,
+    unmeteredCalls: 0,
+    unpricedCalls: 0,
+    tokens: { inputTokens: 40000, outputTokens: 10000, cacheReadTokens: 4230, cacheWriteTokens: 0, reasoningTokens: 900 },
+    usdKnown: 0.0196,
+  }
+  const text = testKit.runNotice(tr, 'notice.bootstrap', { analyzed: 7, skipped: 3 }, run)
+  assert.equal(text, tr('notice.bootstrap', { analyzed: 7, skipped: 3, calls: '9', tokens: '54,230', usd: '$0.0196' }))
+  assert.ok(text.includes('7 analyzed') && text.includes('3 skipped'), 'the counts stay — got ' + text)
+  assert.ok(text.includes('54,230'), 'grouped token total')
+  assert.ok(text.includes('$0.0196'), 'four-decimal list price')
+  assert.ok(!text.includes('unpriced'), 'no suffix when everything was priced')
+
+  const some = testKit.runNotice(tr, 'notice.bootstrap', { analyzed: 7, skipped: 3 }, { ...run, unpricedCalls: 2 })
+  assert.ok(some.endsWith(tr('notice.unpriced', { n: 2 })), 'the unpriced count rides as a suffix — got ' + some)
+
+  const none = testKit.runNotice(tr, 'notice.analyze', { turn: 7 }, { ...run, unpricedCalls: 9, usdKnown: 0 })
+  assert.ok(none.includes(EN()['usage.priceUnavailable']), 'an entirely unpriced run says so')
+  assert.ok(!none.includes('$0.00'), 'and never claims it was free')
+
+  const rootStore = seedSettings()
+  rootStore.notice = { text }
+  assert.ok(renderSettings().includes('54,230'), 'the notice renders with its figures')
+  rootStore.notice = null
+  rootStore.profile = null
+})
+
+test('the bootstrap button shows the running list-price cost', () => {
+  const rootStore = seedSettings()
+  rootStore.bootstrap = { running: true, done: 3, total: 20, billedCalls: 3, unpricedCalls: 0, usdKnown: 0.0123, tokens: 4000 }
+  assert.ok(renderSettings().includes(tr('bootstrap.runningUsd', { done: 3, total: 20, usd: '$0.0123' })))
+
+  rootStore.bootstrap = { running: true, done: 3, total: 20 }
+  const noFigure = renderSettings()
+  assert.ok(noFigure.includes(tr('bootstrap.running', { done: 3, total: 20 })), 'no cost yet keeps the plain label')
+  assert.ok(!noFigure.includes('$0.0000'), 'and never invents a zero')
+  rootStore.bootstrap = null
+  rootStore.profile = null
+})
+
+test('every pricing and notice dictionary key exists in both dictionaries', () => {
+  const dicts = localeDicts['dsh-tacit']
+  const keys = [
+    'pricing.title', 'pricing.summary', 'pricing.rateTable', 'pricing.model', 'pricing.tier',
+    'pricing.cacheHit', 'pricing.cacheMiss', 'pricing.output', 'pricing.reasoning', 'pricing.reasoningSameAsOutput',
+    'pricing.peak', 'pricing.offPeak', 'pricing.tierNow', 'pricing.schedule', 'pricing.weekendRule',
+    'pricing.source', 'pricing.sourceBundled', 'pricing.sourceCostMeter', 'pricing.refreshedAt', 'pricing.never',
+    'pricing.formula', 'pricing.accuracy', 'pricing.refresh', 'pricing.refreshing', 'pricing.error',
+    'notice.bootstrap', 'notice.analyze', 'notice.improve', 'notice.pricingRefreshed', 'notice.unpriced',
+    'bootstrap.running', 'bootstrap.runningUsd',
+  ]
+  for (const key of keys) {
+    assert.equal(typeof dicts.en[key], 'string', 'en ' + key)
+    assert.equal(typeof dicts.zh[key], 'string', 'zh ' + key)
+  }
+  assert.equal(Object.keys(dicts.en).length, Object.keys(dicts.zh).length, 'the two dictionaries stay the same size')
+})
+
 test('the stylesheet carries the usage dashboard rules', () => {
   const sheet = String(testKit.css)
+  assert.match(sheet, /\.tacit-pricing-row\{display:grid;grid-template-columns:/)
   assert.match(sheet, /\.tacit-tiles\{display:flex;flex-wrap:wrap;gap:8px\}/)
   assert.match(sheet, /\.tacit-tile\{flex:1 1 140px/)
   assert.match(sheet, /\.tacit-bars\{width:100%;height:48px\}/)

@@ -3,6 +3,9 @@
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { zh: DICT_ZH, en: DICT_EN }), 'dsh-tacit: dictionaries')
       const t = ctx.locale.bind(NS)
+      // Store actions write result notices themselves — they hold the measured
+      // figures — so the one bound translator is handed to them here.
+      setTranslator(t)
       const kit = makeKit(t)
       injectCss()
 
@@ -78,6 +81,10 @@
         startUsagePolling,
         stopUsagePolling,
         setUsageSeries,
+        refreshPricing,
+        runNotice,
+        fmtRate,
         UsageCard,
+        PricingCard,
       },
     }

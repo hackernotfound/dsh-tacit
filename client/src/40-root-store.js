@@ -28,6 +28,7 @@
       usageExpanded: new Set(), // runIds whose attempt rows are open
       usageLoading: false,
       usageSeries: '30', // '7' | '30' — which sparkline the strip shows
+      pricingRefreshing: false, // a /pricing-refresh call is in flight
       initStarted: false,
       initDone: false,
       error: null,
@@ -73,6 +74,52 @@
      */
     function unrefTimer(handle) {
       if (handle !== null && typeof handle === 'object' && typeof handle.unref === 'function') handle.unref()
+    }
+
+    /**
+     * The bound translator, captured once when the plugin applies.
+     *
+     * A notice states what a call actually cost, so it is written where those
+     * figures land — inside the store actions. Those run far from any `kit`
+     * (a click in the conversation tab, a poll), and there is exactly one
+     * translator per plugin instance, so it is held here rather than threaded
+     * through every call site.
+     */
+    let translate = null
+
+    function setTranslator(fn) {
+      translate = typeof fn === 'function' ? fn : null
+    }
+
+    /**
+     * A result line with the run's measured figures: billed calls, total
+     * tokens and list-price cost. A run that priced nothing says so instead of
+     * claiming `$0.0000`, and the count of unpriced calls rides as a suffix —
+     * an unmetered call has no price, not a price of zero.
+     */
+    function runNotice(t, key, vars, run) {
+      const source = run !== null && typeof run === 'object' ? run : {}
+      const count = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
+      const totals = {
+        billedCalls: count(source.billedCalls),
+        unpricedCalls: count(source.unpricedCalls),
+        usdKnown: count(source.usdKnown),
+      }
+      const text = t(key, {
+        ...(vars === null || typeof vars !== 'object' ? {} : vars),
+        calls: fmtTokens(totals.billedCalls),
+        tokens: fmtTokens(tokensTotal(source.tokens)),
+        usd: usageSpend({ t }, totals),
+      })
+      return totals.unpricedCalls > 0 ? text + t('notice.unpriced', { n: String(totals.unpricedCalls) }) : text
+    }
+
+    /** Show `runNotice` where a translator exists; a notice is never load-bearing. */
+    function setRunNotice(key, vars, run) {
+      if (translate === null) return ''
+      const text = runNotice(translate, key, vars, run)
+      setRootNotice(text)
+      return text
     }
 
     // ── Usage ledger (the Settings → Usage card) ───────────────────────────
@@ -137,6 +184,36 @@
         // The row keeps its loading line; closing and reopening retries.
       }
       notifyRoot()
+    }
+
+    /**
+     * Re-read the prices from the cost-meter service. The card renders the
+     * rates the `/usage` envelope carries, so the refreshed table only shows
+     * once that envelope has been re-fetched.
+     */
+    async function refreshPricing(t) {
+      if (rootStore.pricingRefreshing) return
+      rootStore.pricingRefreshing = true
+      rootStore.error = null
+      notifyRoot()
+      try {
+        const result = await api('/pricing-refresh', {})
+        if (result !== null && typeof result === 'object' && result.ok === true) {
+          const pricing = result.pricing !== null && typeof result.pricing === 'object' ? result.pricing : {}
+          if (typeof t === 'function') {
+            setRootNotice(t('notice.pricingRefreshed', {
+              source: t(pricing.source === 'costMeter' ? 'pricing.sourceCostMeter' : 'pricing.sourceBundled'),
+              asOf: typeof pricing.asOf === 'string' && pricing.asOf.length > 0 ? pricing.asOf : '—',
+            }))
+          }
+        } else {
+          rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed', detail: '' }
+        }
+      } catch (error) {
+        rootStore.error = errorOf(error)
+      }
+      rootStore.pricingRefreshing = false
+      await fetchUsage()
     }
 
     /** Which sparkline the bar strip shows; anything unknown means 30 days. */
@@ -322,10 +399,10 @@
         const result = await api('/bootstrap', { limit: 20 })
         if (result !== null && typeof result === 'object' && result.ok) {
           if (typeof t === 'function') {
-            setRootNotice(t('notice.bootstrap', {
+            setRootNotice(runNotice(t, 'notice.bootstrap', {
               analyzed: String(typeof result.analyzed === 'number' ? result.analyzed : 0),
               skipped: String(typeof result.skipped === 'number' ? result.skipped : 0),
-            }))
+            }, result.run))
           }
         } else {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed', detail: '' }
@@ -335,8 +412,9 @@
       }
       rootStore.initStarted = false
       rootStore.initDone = false
-      // `initRootStore` refetches the ledger itself; a second call here would
-      // only duplicate the request a bootstrap batch just made worth making.
+      // `initRootStore` refetches the ledger itself, so there is no `fetchUsage`
+      // here: a second call would only duplicate the one the batch already
+      // makes worth issuing.
       await initRootStore()
     }
 
@@ -391,6 +469,9 @@
           if (result !== null && typeof result === 'object' && result.ok && result.report !== null && typeof result.report === 'object') {
             store.reports[String(turn)] = result.report
             store.error = null
+            // What that one analysis cost, from the envelope's own run record.
+            const text = setRunNotice('notice.analyze', { turn: String(turn) }, result.run)
+            if (text.length > 0) store.notice = { code: 'notice.analyze', text }
           } else {
             store.error = {
               code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
@@ -480,6 +561,8 @@
         .then((result) => {
           if (result !== null && typeof result === 'object' && result.ok && typeof result.improved === 'string' && result.improved.trim().length > 0) {
             store.preview = { ...store.preview, pending: false, data: result }
+            const text = setRunNotice('notice.improve', {}, result.run)
+            if (text.length > 0) store.notice = { code: 'notice.improve', text }
           } else {
             store.preview = {
               ...store.preview,

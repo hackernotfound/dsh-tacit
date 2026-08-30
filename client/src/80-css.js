@@ -91,7 +91,13 @@
       + '.tacit-attempt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-primary)}.tacit-attempt-meta,.tacit-attempt-tokens{color:var(--dsw-alias-label-secondary)}.tacit-attempt-usd{margin-left:auto;font-variant-numeric:tabular-nums}'
       + '.tacit-status-success,.tacit-status-ok{color:var(--dsw-alias-state-success-primary)}.tacit-status-partial,.tacit-status-unmetered{color:var(--dsw-alias-state-warn-primary)}.tacit-status-failed{color:var(--dsw-alias-state-error-primary)}'
       + '.tacit-pager{display:flex;align-items:center;gap:8px}.tacit-pager-label{font-size:11px;color:var(--dsw-alias-label-secondary)}'
-      + '@media (max-width:640px){.tacit-settings-label{min-width:0;flex-basis:100%}.tacit-modal-cols{grid-template-columns:1fr}.tacit-usage-row{display:flex;flex-direction:column}.tacit-usage-cell{white-space:normal}.tacit-tile{flex-basis:45%}.tacit-breakdown-row{grid-template-columns:minmax(0,1fr) 4rem 5rem}}'
+      + '.tacit-pricing{display:flex;flex-direction:column;gap:8px}'
+      + '.tacit-pricing-table{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden}'
+      + '.tacit-pricing-row{display:grid;grid-template-columns:minmax(120px,1.6fr) 6rem repeat(3,5rem) minmax(90px,1fr);gap:6px;align-items:center;padding:5px 8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;font-variant-numeric:tabular-nums}'
+      + '.tacit-pricing-table>.tacit-pricing-row:first-child{border-top:0}.tacit-pricing-head{color:var(--dsw-alias-label-secondary);font-weight:600;background:var(--dsw-alias-bg-layer-2)}'
+      + '.tacit-pricing-cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tacit-pricing-model{font-weight:600}'
+      + '.tacit-pricing-error{font-size:11px;color:var(--dsw-alias-state-warn-primary);line-height:1.5}'
+      + '@media (max-width:640px){.tacit-settings-label{min-width:0;flex-basis:100%}.tacit-modal-cols{grid-template-columns:1fr}.tacit-usage-row{display:flex;flex-direction:column}.tacit-usage-cell{white-space:normal}.tacit-pricing-row{display:flex;flex-direction:column}.tacit-pricing-cell{white-space:normal}.tacit-tile{flex-basis:45%}.tacit-breakdown-row{grid-template-columns:minmax(0,1fr) 4rem 5rem}}'
 
     function injectCss() {
       const tagId = 'dsh-tacit/styles.css'

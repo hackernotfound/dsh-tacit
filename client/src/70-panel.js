@@ -164,6 +164,10 @@
         const notice = rootStore.notice !== null && typeof rootStore.notice === 'object' && typeof rootStore.notice.text === 'string'
           ? rootStore.notice
           : null
+        // Rates ride the /usage envelope, so the Pricing card reads them there
+        // rather than calling a route of its own on every render.
+        const usageReport = usageOf(rootStore.usage)
+        const usagePricing = usageReport === null ? null : usageReport.pricing
         /** Every card is titled by `card.<id>` and driven by `rootStore.sections`. */
         const card = (id, children, extra) => SectionCard(kit, {
           id,
@@ -178,6 +182,10 @@
           error !== null && typeof error === 'object'
             ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
             : null,
+          // Above the cards, and always mounted: a live region that appears
+          // together with its text is missed by screen readers, and one nested
+          // in the Overview body would be silent while that card is collapsed.
+          h('div', { className: 'tacit-settings-notice', role: 'status' }, notice === null ? '' : notice.text),
           card('overview', [
             StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
             config !== null && typeof config.model === 'string' && config.model.length > 0
@@ -188,9 +196,6 @@
               BootstrapButton(kit, { bootstrap: rootStore.bootstrap, onClick: () => bootstrapAll(t) }),
               h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
             h('p', { className: 'tacit-panel-hint' }, t('bootstrap.estimateDoc')),
-            notice !== null
-              ? h('div', { className: 'tacit-settings-notice', role: 'status' }, notice.text)
-              : null,
           ]),
           card('usage', [
             UsageCard(kit, {
@@ -205,7 +210,14 @@
               onSeries: (value) => setUsageSeries(value),
             }),
           ]),
-          card('pricing', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
+          card('pricing', [
+            PricingCard(kit, {
+              pricing: usagePricing,
+              open: sections.pricing === true,
+              refreshing: rootStore.pricingRefreshing === true,
+              onRefresh: () => refreshPricing(t),
+            }),
+          ], { summary: pricingSummary(kit, usagePricing) }),
           card('learning', [
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.model')),

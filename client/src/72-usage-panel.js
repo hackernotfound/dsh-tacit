@@ -333,3 +333,130 @@
           onFilter: props.onFilter,
         }))
     }
+
+    // ── Pricing card (Settings → Pricing) ──────────────────────────────────
+
+    /** The two tiers and the three quoted rates, in the order the table lists them. */
+    const PRICING_TIERS = ['offPeak', 'peak']
+    const PRICING_COLUMNS = ['model', 'tier', 'cacheHit', 'cacheMiss', 'output', 'reasoning']
+
+    /**
+     * The `usage.pricing` block, narrowed. Rates are copied per model and tier
+     * so a missing or malformed triple renders an em dash instead of a number
+     * the provider never quoted.
+     */
+    function pricingOf(value) {
+      const source = value !== null && typeof value === 'object' ? value : {}
+      const text = (key) => (typeof source[key] === 'string' ? source[key] : '')
+      const rates = source.rates !== null && typeof source.rates === 'object' ? source.rates : {}
+      const models = {}
+      for (const [model, tiers] of Object.entries(rates)) {
+        if (tiers === null || typeof tiers !== 'object') continue
+        const entry = {}
+        for (const tier of PRICING_TIERS) {
+          const triple = tiers[tier] !== null && typeof tiers[tier] === 'object' ? tiers[tier] : {}
+          entry[tier] = { cacheHit: triple.cacheHit, cacheMiss: triple.cacheMiss, output: triple.output }
+        }
+        models[model] = entry
+      }
+      return {
+        source: source.source === 'costMeter' ? 'costMeter' : 'bundled',
+        asOf: text('asOf'),
+        refreshedAt: typeof source.refreshedAt === 'number' && source.refreshedAt > 0 ? source.refreshedAt : 0,
+        tierNow: source.tierNow === 'peak' ? 'peak' : 'offPeak',
+        error: text('error'),
+        models,
+      }
+    }
+
+    /** `deepseek-v4-flash` → `flash`, for the one-line header summary. */
+    function shortModel(model) {
+      const parts = String(model).split('-').filter((part) => part.length > 0)
+      return parts.length > 0 ? parts[parts.length - 1] : String(model)
+    }
+
+    /** Which price source this table came from, as a phrase. */
+    function pricingSourceLabel(kit, priced) {
+      return kit.t(priced.source === 'costMeter' ? 'pricing.sourceCostMeter' : 'pricing.sourceBundled')
+    }
+
+    /**
+     * The line the collapsed card shows in its header: the flash model — the
+     * default coach model — at the tier in force right now, so the headline
+     * figure is the one a call started this minute would actually be billed at.
+     */
+    function pricingSummary(kit, pricing) {
+      const { t } = kit
+      const priced = pricingOf(pricing)
+      const models = Object.keys(priced.models).sort()
+      const model = models.find((name) => name.endsWith('flash'))
+      const pick = model !== undefined ? model : models[0]
+      if (pick === undefined) return ''
+      const triple = priced.models[pick][priced.tierNow]
+      return t('pricing.summary', {
+        model: shortModel(pick),
+        tier: t('pricing.' + priced.tierNow),
+        rates: fmtRate(triple.cacheHit) + ' / ' + fmtRate(triple.cacheMiss) + ' / ' + fmtRate(triple.output),
+        source: pricingSourceLabel(kit, priced),
+        asOf: priced.asOf.length > 0 ? priced.asOf : '—',
+      })
+    }
+
+    /** One model at one tier. Reasoning is prose: it is billed as output, never quoted apart. */
+    function PricingRow(kit, model, tier, triple) {
+      const { t } = kit
+      const cell = (key, child) => h('span', { key, className: 'tacit-pricing-cell', role: 'cell' }, child)
+      return h('div', { key: model + '-' + tier, className: 'tacit-pricing-row', role: 'row' },
+        h('span', { className: 'tacit-pricing-cell tacit-pricing-model', role: 'rowheader' }, model),
+        cell('tier', t('pricing.' + tier)),
+        cell('cacheHit', fmtRate(triple.cacheHit)),
+        cell('cacheMiss', fmtRate(triple.cacheMiss)),
+        cell('output', fmtRate(triple.output)),
+        cell('reasoning', t('pricing.reasoningSameAsOutput')))
+    }
+
+    /**
+     * The Pricing card body. Like `UsageCard` a plain renderer, not a
+     * component: it owns no hooks and no state. It builds nothing at all while
+     * collapsed — the header summary already carries the headline rate, and
+     * this page re-renders on every 10s usage poll.
+     */
+    function PricingCard(kit, { pricing, open, onRefresh, refreshing }) {
+      const { t, fmtTime } = kit
+      if (open !== true) return null
+      const priced = pricingOf(pricing)
+      const models = Object.keys(priced.models).sort()
+      const when = priced.refreshedAt > 0
+        ? t('pricing.refreshedAt', { time: fmtDay(priced.refreshedAt) + ' ' + fmtTime(priced.refreshedAt) })
+        : t('pricing.never')
+      const asOf = priced.asOf.length > 0 ? priced.asOf : '—'
+      return h('div', { className: 'tacit-pricing' },
+        h('div', { className: 'tacit-report-title' }, t('pricing.title')),
+        models.length === 0
+          ? h('p', { className: 'tacit-panel-hint' }, t('usage.priceUnavailable'))
+          : h('div', { className: 'tacit-pricing-table', role: 'table', 'aria-label': t('pricing.rateTable') },
+            h('div', { className: 'tacit-pricing-row tacit-pricing-head', role: 'row' },
+              PRICING_COLUMNS.map((column) => h('span', {
+                key: column,
+                className: 'tacit-pricing-cell',
+                role: 'columnheader',
+              }, t('pricing.' + column)))),
+            models.map((model) => PRICING_TIERS.map((tier) => PricingRow(kit, model, tier, priced.models[model][tier])))),
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.tierNow', { tier: t('pricing.' + priced.tierNow) })),
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.schedule')),
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.weekendRule')),
+        h('p', { className: 'tacit-panel-hint' },
+          t('pricing.source') + ': ' + pricingSourceLabel(kit, priced) + ' (' + asOf + ') · ' + when),
+        priced.error.length > 0
+          ? h('p', { className: 'tacit-pricing-error' }, t('pricing.error', { error: priced.error }))
+          : null,
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.formula')),
+        h('p', { className: 'tacit-panel-hint' }, t('pricing.accuracy')),
+        h('div', { className: 'tacit-settings-row' },
+          h('button', {
+            type: 'button',
+            className: 'tacit-btn tacit-btn-sm tacit-pricing-refresh',
+            disabled: refreshing === true,
+            onClick: onRefresh,
+          }, refreshing === true ? t('pricing.refreshing') : t('pricing.refresh'))))
+    }
