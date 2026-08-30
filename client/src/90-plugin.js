@@ -89,6 +89,7 @@
         clearUsageHistory,
         runNotice,
         fmtRate,
+        ConfirmDialog,
         UsageCard,
         PricingCard,
       },

@@ -858,7 +858,7 @@ test('the usage card falls back to an empty state before anything is metered', (
   rootStore.usage = usageEnvelope({ lifetime: period({}) })
   const zeroed = renderSettings()
   assert.ok(zeroed.includes(tr('usage.empty', { since: '2026-08-01' })), 'a zero-billed lifetime renders the empty hint')
-  assert.equal(/role="table"/.test(zeroed), false, 'no runs table in the empty state')
+  assert.equal(/class="tacit-usage-table"/.test(zeroed), false, 'no runs table in the empty state')
   resetUsage()
 })
 
@@ -937,12 +937,23 @@ test('the usage filters render the six controls with the active values selected'
   resetUsage()
 })
 
+test('the runs status filter offers running, which flushed live runs report as', () => {
+  const rootStore = seedUsage()
+  rootStore.usageFilters = { ...rootStore.usageFilters, status: 'running' }
+  const markup = renderSettings()
+  assert.ok(markup.includes('<option value="running" selected="">' + EN()['status.running'] + '</option>'),
+    'the filter takes running and reports it back translated')
+  const statuses = [...markup.matchAll(/<option value="(running|success|partial|failed)"/g)].map((match) => match[1])
+  assert.deepEqual(statuses, ['running', 'success', 'partial', 'failed'], 'in the lifecycle order the run record uses')
+  resetUsage()
+})
+
 test('the runs table is a role=table with an expandable first cell and a pager', () => {
   const rootStore = seedUsage()
   rootStore.usage.runs = { items: [sampleRun], page: 2, pageSize: 20, total: 45 }
   const markup = renderSettings()
   assert.ok(markup.includes('role="table"'))
-  assert.equal((markup.match(/role="columnheader"/g) || []).length, 8, 'eight column headers')
+  assert.equal((markup.match(/class="tacit-usage-cell" role="columnheader"/g) || []).length, 8, 'eight column headers')
   assert.ok(markup.includes(EN()['usage.col.time']))
   assert.ok(markup.includes(EN()['usage.col.cost']))
   assert.ok(markup.includes('aria-controls="tacit-run-run-1"'), 'the toggle points at its detail row')
@@ -1023,6 +1034,44 @@ test('an expanded run lists its attempts; a not-yet-fetched run says so', () => 
   assert.ok(markup.includes('800'), 'the token buckets are listed')
   assert.ok(!markup.includes(EN()['usage.loading']), 'the loading line is gone once the run is present')
   resetUsage()
+})
+
+test('the expanded attempts cell spans all eight columns of the runs table', () => {
+  const rootStore = seedUsage()
+  rootStore.usage.runs = { items: [sampleRun], page: 1, pageSize: 20, total: 1 }
+  rootStore.usageExpanded = new Set(['run-1'])
+  const markup = renderSettings()
+  const cell = /<div class="tacit-usage-cell tacit-usage-attempts-cell"([^>]*)>/.exec(markup)
+  assert.ok(cell, 'the attempts cell renders')
+  assert.ok(cell[1].includes('aria-colspan="8"'), 'and claims the whole row — got ' + cell[1])
+  resetUsage()
+})
+
+test('a bootstrap run names the scope it really had instead of a dash', () => {
+  const rootStore = seedUsage()
+  const bootstrap = { ...sampleRun, runId: 'run-boot', type: 'bootstrap', workspace: '', turn: null }
+  const unscoped = { ...sampleRun, runId: 'run-plain', type: 'analysis', workspace: '', turn: null }
+  rootStore.usage.runs = { items: [bootstrap, unscoped], page: 1, pageSize: 20, total: 2 }
+  const tree = testKit.UsageCard({ t: tr, fmt: (n) => String(n), fmtTime: () => '00:00:00' }, {
+    usage: rootStore.usage,
+    config: rootStore.config,
+    filters: rootStore.usageFilters,
+    series: '30',
+    expanded: new Set(),
+    runs: {},
+    onFilter: () => {},
+    onToggleRun: () => {},
+    onSeries: () => {},
+  })
+  const scopes = collectElements(tree, (node) => node.key === 'scope' && node.props.role === 'cell').map((node) => node.props.children)
+  assert.deepEqual(scopes, [EN()['usage.scopeAll'], '—'],
+    'an empty workspace means every session for a bootstrap and nothing at all for the rest')
+  resetUsage()
+})
+
+test('the root store keeps no loading flag the runs table never renders', () => {
+  assert.equal(Object.prototype.hasOwnProperty.call(testKit.rootStore, 'usageLoading'), false,
+    'a field nothing reads is not state')
 })
 
 test('usage polling is reference-counted and never holds a runner open', () => {
@@ -1162,7 +1211,10 @@ test('the collapsed pricing card summarises the flash rates in its header', () =
   assert.ok(summary.includes('per 1M'))
   assert.ok(summary.includes(EN()['pricing.sourceBundled']))
   assert.ok(summary.includes('2026-08-22'), 'and the as-of day')
-  assert.ok(!markup.includes('$3.96'), 'a collapsed card builds no rate table')
+  const body = /<div class="tacit-card-body"[^>]*id="tacit-card-pricing-body"([^>]*)>/.exec(markup)
+  assert.ok(body, 'the pricing body renders')
+  assert.ok(body[1].includes('hidden'), 'a collapsed card hides its body instead of unmounting it')
+  assert.ok(markup.includes('$3.96'), 'so find-in-page still reaches the rate table')
   resetPricing()
 })
 
@@ -1439,6 +1491,47 @@ test('the retention select is bound to the configured costHistoryDays', () => {
   }
 })
 
+test('a retention value outside the offered days gets an option of its own', () => {
+  try {
+    seedPrivacy({ costHistoryDays: 45 })
+    const markup = renderSettings()
+    assert.match(markup, /<option[^>]*value="45"[^>]*selected=""/, 'the YAML-set 45 is what the select reports')
+    assert.equal(/<option[^>]*value="30"[^>]*selected=""/.test(markup), false, 'not the 30 it used to fall back to')
+    const options = [...markup.matchAll(/<option[^>]*value="(\d+)"/g)].map((match) => match[1])
+    assert.deepEqual(options, ['7', '14', '30', '45', '90', '180', '365'], 'and it sorts into place')
+  } finally {
+    resetPrivacy()
+  }
+})
+
+test('the idle live region stays mounted without claiming a row of its own', () => {
+  try {
+    seedPrivacy()
+    const markup = renderSettings()
+    assert.ok(markup.includes('<div class="tacit-settings-notice" role="status"></div>'),
+      'the region is mounted and carries no whitespace, so :empty matches it')
+    assert.match(String(testKit.css), /\.tacit-panel>\.tacit-settings-notice:empty\{margin-block:-5px\}/)
+  } finally {
+    resetPrivacy()
+  }
+})
+
+test('the two Apply buttons name their threshold through a locale-aware separator', () => {
+  const dicts = localeDicts['dsh-tacit']
+  try {
+    seedPrivacy()
+    const markup = renderSettings()
+    for (const field of ['warnDaily', 'warnMonthly']) {
+      const label = tr('privacy.applyTo', { action: EN()['privacy.apply'], field: EN()['privacy.' + field] })
+      assert.ok(markup.includes('aria-label="' + escapeHtml(label) + '"'), field + ' names its own row')
+    }
+    assert.equal(dicts.zh['privacy.applyTo'].includes(':'), false, 'zh never separates with a half-width colon')
+    assert.ok(dicts.zh['privacy.applyTo'].includes('：'), 'it uses the full-width one the rest of the block uses')
+  } finally {
+    resetPrivacy()
+  }
+})
+
 test('the two USD threshold rows carry the configured amounts and the 80 % hint', () => {
   try {
     seedPrivacy()
@@ -1613,6 +1706,81 @@ test('the stylesheet carries the destructive-action rules', () => {
   const sheet = String(testKit.css)
   assert.match(sheet, /\.tacit-btn-danger\{[^}]*--dsw-alias-state-error-primary/)
   assert.match(sheet, /\.tacit-confirm-actions\{display:flex/)
+})
+
+/**
+ * `ConfirmDialog` owns a hook, so it is rendered through a throwaway component
+ * to give it a dispatcher; the returned tree keeps the handlers that
+ * `renderToStaticMarkup` throws away.
+ */
+function confirmTree(props) {
+  let tree = null
+  const Probe = () => {
+    tree = testKit.ConfirmDialog({ t: tr }, props)
+    return tree
+  }
+  renderToStaticMarkup(React.createElement(Probe))
+  return tree
+}
+
+test('Tab cycles between the two buttons instead of walking out of the confirm dialog', () => {
+  const tree = confirmTree({
+    open: true,
+    title: tr('confirm.usageTitle'),
+    body: tr('confirm.usageBody'),
+    confirmLabel: tr('confirm.clear'),
+    onConfirm: () => {},
+    onCancel: () => {},
+  })
+  const buttons = collectElements(tree, (node) => node.type === 'button')
+  assert.deepEqual(buttons.map((button) => button.props.id), ['tacit-confirm-cancel', 'tacit-confirm-accept'],
+    'both stops are addressable without a ref')
+
+  const focused = []
+  const prevented = []
+  const stops = {
+    'tacit-confirm-cancel': { focus: () => focused.push('cancel') },
+    'tacit-confirm-accept': { focus: () => focused.push('accept') },
+  }
+  globalThis.document = {
+    activeElement: stops['tacit-confirm-cancel'],
+    getElementById: (id) => (stops[id] === undefined ? null : stops[id]),
+  }
+  try {
+    const press = (key, shiftKey) => tree.props.onKeyDown({
+      key,
+      shiftKey,
+      preventDefault: () => prevented.push(key),
+    })
+    press('Tab', false)
+    assert.deepEqual(focused, ['accept'], 'Tab off Cancel reaches the danger button')
+    globalThis.document.activeElement = stops['tacit-confirm-accept']
+    press('Tab', false)
+    assert.deepEqual(focused, ['accept', 'cancel'], 'and wraps back rather than escaping the dialog')
+    press('Tab', true)
+    assert.deepEqual(focused, ['accept', 'cancel', 'cancel'], 'Shift+Tab off the danger button also stays inside')
+    assert.deepEqual(prevented, ['Tab', 'Tab', 'Tab'], 'the browser is never left to move focus as well')
+    press('Enter', false)
+    assert.equal(focused.length, 3, 'and any other key is left alone')
+  } finally {
+    delete globalThis.document
+  }
+})
+
+test('Escape cancels the confirm dialog without closing the settings page around it', () => {
+  let cancelled = 0
+  const tree = confirmTree({
+    open: true,
+    title: tr('confirm.usageTitle'),
+    body: tr('confirm.usageBody'),
+    confirmLabel: tr('confirm.clear'),
+    onConfirm: () => {},
+    onCancel: () => { cancelled += 1 },
+  })
+  let stopped = 0
+  tree.props.onKeyDown({ key: 'Escape', stopPropagation: () => { stopped += 1 }, preventDefault: () => {} })
+  assert.equal(cancelled, 1, 'Escape cancels')
+  assert.equal(stopped, 1, 'and the keydown never reaches the host modal, which closes on Escape too')
 })
 
 /**

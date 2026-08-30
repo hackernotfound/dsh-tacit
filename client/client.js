@@ -185,6 +185,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'usage.col.time': '时间',
       'usage.col.op': '操作',
       'usage.col.scope': '范围',
+      'usage.scopeAll': '全部会话',
       'usage.col.model': '模型',
       'usage.col.status': '状态',
       'usage.col.calls': '计费调用',
@@ -236,6 +237,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'privacy.warnHint': '填 0 表示关闭提醒。达到阈值的 80% 时开始提醒，超过阈值后标记为已超出。',
       'privacy.clearUsage': '清除用量记录',
       'privacy.apply': '应用',
+      'privacy.applyTo': '{action}：{field}',
       'confirm.reportsTitle': '清除所有分析报告？',
       'confirm.reportsBody': '这会删除 Tacit 为所有会话写下的全部分析报告。指令、风格规则和用量记录会保留。此操作无法撤销。',
       'confirm.usageTitle': '清除用量记录？',
@@ -280,6 +282,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'err.busy': '该轮次的分析已在运行中。',
       'err.no-llm': '无法访问模型服务。',
       'err.no-api-key': 'DeepSeek API Key 缺失或无效（请在 设置 → 模型 中配置）。',
+      'err.no-credit': '模型服务商余额或配额已耗尽。',
       'err.rate-limited': '请求被限流，请稍后重试。',
       'err.timeout': '模型调用超时，请重试。',
       'err.empty-response': '模型没有返回内容，请重试。',
@@ -430,6 +433,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'usage.col.time': 'Time',
       'usage.col.op': 'Operation',
       'usage.col.scope': 'Scope',
+      'usage.scopeAll': 'all sessions',
       'usage.col.model': 'Model',
       'usage.col.status': 'Status',
       'usage.col.calls': 'Billed calls',
@@ -481,6 +485,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'privacy.warnHint': '0 turns the warning off. Tacit warns at 80 % of the amount and marks it exceeded above it.',
       'privacy.clearUsage': 'Clear usage history',
       'privacy.apply': 'Apply',
+      'privacy.applyTo': '{action}: {field}',
       'confirm.reportsTitle': 'Clear all analysis reports?',
       'confirm.reportsBody': 'This deletes every analysis report Tacit has written, for every session. Your directives, style rules and usage history are kept. This cannot be undone.',
       'confirm.usageTitle': 'Clear usage history?',
@@ -525,6 +530,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'err.busy': 'An analysis for this turn is already running.',
       'err.no-llm': 'The model service is unavailable.',
       'err.no-api-key': 'The DeepSeek API key is missing or invalid (configure it in Settings → Models).',
+      'err.no-credit': 'Your provider balance or quota is exhausted.',
       'err.rate-limited': 'The request was rate-limited; try again shortly.',
       'err.timeout': 'The model call timed out; please retry.',
       'err.empty-response': 'The model returned no content; please retry.',
@@ -655,7 +661,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       usageFilters: { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 },
       usageRuns: {}, // runId → the full run (attempts included), fetched on first expand
       usageExpanded: new Set(), // runIds whose attempt rows are open
-      usageLoading: false,
       usageSeries: '30', // '7' | '30' — which sparkline the strip shows
       pricingRefreshing: false, // a /pricing-refresh call is in flight
       initStarted: false,
@@ -775,14 +780,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
 
     /** Read the whole cost panel in one call; a failure keeps the last envelope. */
     async function fetchUsage() {
-      rootStore.usageLoading = true
       try {
         const result = await api('/usage', usageQuery())
         if (result !== null && typeof result === 'object' && result.ok === true) rootStore.usage = result
       } catch {
         // A stale panel beats a blank one; the next poll tries again.
       }
-      rootStore.usageLoading = false
       notifyRoot()
     }
 
@@ -2253,6 +2256,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
      */
     let confirmOpener = null
 
+    /**
+     * The two focus stops of the dialog, addressed by id rather than by ref:
+     * refs would add hooks to a component whose hook count must not move.
+     */
+    const CONFIRM_CANCEL_ID = 'tacit-confirm-cancel'
+    const CONFIRM_ACCEPT_ID = 'tacit-confirm-accept'
+
     function captureConfirmOpener() {
       confirmOpener = typeof document !== 'undefined' && document !== null ? document.activeElement : null
     }
@@ -2281,10 +2291,25 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       return h('div', {
         className: 'tacit-modal-backdrop',
         onClick: cancel,
-        // Escape cancels from anywhere inside: keydown from either button
-        // bubbles here.
+        // Escape and Tab are both handled here: a keydown from either button
+        // bubbles to the backdrop. With exactly two stops in the dialog,
+        // forward and backward tabbing both land on the other button, so
+        // `shiftKey` needs no branch of its own.
         onKeyDown: (event) => {
-          if (event.key === 'Escape') cancel()
+          if (event.key === 'Escape') {
+            // Stopped here: the host's Settings modal also closes on Escape, and
+            // cancelling a confirm must not take the whole settings page with it.
+            if (typeof event.stopPropagation === 'function') event.stopPropagation()
+            cancel()
+            return
+          }
+          if (event.key !== 'Tab' || typeof document === 'undefined' || document === null) return
+          const cancelButton = document.getElementById(CONFIRM_CANCEL_ID)
+          const acceptButton = document.getElementById(CONFIRM_ACCEPT_ID)
+          if (cancelButton === null || acceptButton === null) return
+          const next = document.activeElement === acceptButton ? cancelButton : acceptButton
+          event.preventDefault()
+          if (typeof next.focus === 'function') next.focus()
         },
       },
       h('div', {
@@ -2298,8 +2323,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       h('h3', { className: 'tacit-modal-title', id: 'tacit-confirm-title' }, title),
       h('p', { className: 'tacit-confirm-body' }, body),
       h('div', { className: 'tacit-confirm-actions' },
-        h('button', { type: 'button', className: 'tacit-btn', autoFocus: true, onClick: cancel }, t('confirm.cancel')),
-        h('button', { type: 'button', className: 'tacit-btn tacit-btn-danger', onClick: onConfirm }, confirmLabel))))
+        h('button', { type: 'button', id: CONFIRM_CANCEL_ID, className: 'tacit-btn', autoFocus: true, onClick: cancel }, t('confirm.cancel')),
+        h('button', { type: 'button', id: CONFIRM_ACCEPT_ID, className: 'tacit-btn tacit-btn-danger', onClick: onConfirm }, confirmLabel))))
     }
 
     // ── Global panel (Settings → Tacit section) ────────────────────────────
@@ -2515,9 +2540,15 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         const confirm = rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'usage'
           ? 'usage'
           : (rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'reports' ? 'reports' : null)
-        const retention = config !== null && typeof config.costHistoryDays === 'number' && RETENTION_DAYS.includes(config.costHistoryDays)
+        const retention = config !== null && typeof config.costHistoryDays === 'number' && Number.isFinite(config.costHistoryDays) && config.costHistoryDays > 0
           ? config.costHistoryDays
           : 30
+        // A value set by hand in the YAML need not be one of the offered days.
+        // It gets an option of its own, in place, rather than being displayed
+        // as a neighbour it is not.
+        const retentionDays = RETENTION_DAYS.includes(retention)
+          ? RETENTION_DAYS
+          : [...RETENTION_DAYS, retention].sort((a, b) => a - b)
         /** Every card is titled by `card.<id>` and driven by `rootStore.sections`. */
         const card = (id, children, extra) => SectionCard(kit, {
           id,
@@ -2584,7 +2615,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           card('pricing', [
             PricingCard(kit, {
               pricing: usagePricing,
-              open: sections.pricing === true,
               refreshing: rootStore.pricingRefreshing === true,
               onRefresh: () => refreshPricing(t),
             }),
@@ -2661,7 +2691,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 value: String(retention),
                 onChange: (event) => updateRootConfig({ costHistoryDays: Number(event.target.value) }),
               },
-              ...RETENTION_DAYS.map((days) => h('option', { key: days, value: String(days) }, String(days))))),
+              ...retentionDays.map((days) => h('option', { key: days, value: String(days) }, String(days))))),
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-daily' }, t('privacy.warnDaily')),
               h('input', {
@@ -2678,7 +2708,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
-                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnDaily'),
+                'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnDaily') }),
                 onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
               }, t('privacy.apply'))),
             h('div', { className: 'tacit-settings-row' },
@@ -2697,7 +2727,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
-                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnMonthly'),
+                'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnMonthly') }),
                 onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
               }, t('privacy.apply'))),
             h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),
@@ -2744,7 +2774,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     /** Every run type and op the ledger can tag, in the order the filters list them. */
     const USAGE_RUN_TYPES = ['bootstrap', 'analysis', 'analysis-batch', 'improve', 'directive-distillation', 'style-distillation', 'prompt-enrichment']
     const USAGE_RANGES = ['today', '7d', '30d', 'month', 'all']
-    const USAGE_STATUSES = ['success', 'partial', 'failed']
+    const USAGE_STATUSES = ['running', 'success', 'partial', 'failed']
     const USAGE_COLUMNS = ['time', 'op', 'scope', 'model', 'status', 'calls', 'tokens', 'cost']
 
     /** One label/value tile; `note` is the small "n unpriced" line under the value. */
@@ -2942,7 +2972,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         ? run.attempts.filter((attempt) => attempt !== null && typeof attempt === 'object')
         : null
       return h('div', { className: 'tacit-usage-attempts', id: 'tacit-run-' + runId, role: 'row' },
-        h('div', { className: 'tacit-usage-cell tacit-usage-attempts-cell', role: 'cell' },
+        h('div', { className: 'tacit-usage-cell tacit-usage-attempts-cell', role: 'cell', 'aria-colspan': USAGE_COLUMNS.length },
           attempts === null
             ? h('p', { className: 'tacit-panel-hint' }, t('usage.loading'))
             : attempts.map((attempt) => AttemptRow(kit, attempt))))
@@ -2951,9 +2981,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     /** One run row; the first cell is the disclosure button for its attempts. */
     function RunRow(kit, { item, open, onToggleRun }) {
       const { t, fmtTime } = kit
+      // A bootstrap run carries no workspace because it covers every session,
+      // which is worth saying; any other run type missing the field is simply
+      // a row with nothing to scope by.
+      const unscoped = item.type === 'bootstrap' ? t('usage.scopeAll') : '—'
       const scope = item.workspace.length > 0 && item.turn !== null
         ? item.workspace + ' · #' + String(item.turn)
-        : (item.workspace.length > 0 ? item.workspace : (item.turn !== null ? '#' + String(item.turn) : '—'))
+        : (item.workspace.length > 0 ? item.workspace : (item.turn !== null ? '#' + String(item.turn) : unscoped))
       const cell = (key, child) => h('span', { key, className: 'tacit-usage-cell', role: 'cell' }, child)
       return h('div', { className: 'tacit-usage-row', role: 'row' },
         cell('time', h('button', {
@@ -3149,13 +3183,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
 
     /**
      * The Pricing card body. Like `UsageCard` a plain renderer, not a
-     * component: it owns no hooks and no state. It builds nothing at all while
-     * collapsed — the header summary already carries the headline rate, and
-     * this page re-renders on every 10s usage poll.
+     * component: it owns no hooks and no state. It renders whether or not its
+     * card is open, because the `SectionCard` around it hides a collapsed body
+     * rather than unmounting it, which is what keeps find-in-page working over
+     * the rate table.
      */
-    function PricingCard(kit, { pricing, open, onRefresh, refreshing }) {
+    function PricingCard(kit, { pricing, onRefresh, refreshing }) {
       const { t, fmtTime } = kit
-      if (open !== true) return null
       const priced = pricingOf(pricing)
       const models = Object.keys(priced.models).sort()
       const when = priced.refreshedAt > 0
@@ -3224,6 +3258,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-settings{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px}'
       + '.tacit-settings-title{font-size:12px;font-weight:600}.tacit-settings-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tacit-settings-label{font-size:12px;color:var(--dsw-alias-label-secondary);min-width:150px}'
       + '.tacit-settings-notice{font-size:11px;color:var(--dsw-alias-state-success-primary)}'
+      // The idle live region has to stay mounted to announce, but as an empty
+      // flex item it still claims one of the panel's 10px gaps; -5px a side
+      // gives that back.
+      + '.tacit-panel>.tacit-settings-notice:empty{margin-block:-5px}'
       + '.tacit-select,.tacit-input{font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:3px 8px}.tacit-input{width:90px}'
       + '.tacit-improve-btn{font:inherit;font-size:13px;font-weight:500;line-height:20px;color:var(--dsw-alias-label-secondary);background:transparent;border:0;border-radius:24px;cursor:pointer;height:28px;padding:0 8px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}.tacit-improve-btn:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}'
       + '.tacit-check{width:14px;height:14px;accent-color:var(--dsw-alias-brand-primary);flex:none;margin:2px 4px 0 0}'
@@ -3398,6 +3436,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         clearUsageHistory,
         runNotice,
         fmtRate,
+        ConfirmDialog,
         UsageCard,
         PricingCard,
       },

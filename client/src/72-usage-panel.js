@@ -3,7 +3,7 @@
     /** Every run type and op the ledger can tag, in the order the filters list them. */
     const USAGE_RUN_TYPES = ['bootstrap', 'analysis', 'analysis-batch', 'improve', 'directive-distillation', 'style-distillation', 'prompt-enrichment']
     const USAGE_RANGES = ['today', '7d', '30d', 'month', 'all']
-    const USAGE_STATUSES = ['success', 'partial', 'failed']
+    const USAGE_STATUSES = ['running', 'success', 'partial', 'failed']
     const USAGE_COLUMNS = ['time', 'op', 'scope', 'model', 'status', 'calls', 'tokens', 'cost']
 
     /** One label/value tile; `note` is the small "n unpriced" line under the value. */
@@ -201,7 +201,7 @@
         ? run.attempts.filter((attempt) => attempt !== null && typeof attempt === 'object')
         : null
       return h('div', { className: 'tacit-usage-attempts', id: 'tacit-run-' + runId, role: 'row' },
-        h('div', { className: 'tacit-usage-cell tacit-usage-attempts-cell', role: 'cell' },
+        h('div', { className: 'tacit-usage-cell tacit-usage-attempts-cell', role: 'cell', 'aria-colspan': USAGE_COLUMNS.length },
           attempts === null
             ? h('p', { className: 'tacit-panel-hint' }, t('usage.loading'))
             : attempts.map((attempt) => AttemptRow(kit, attempt))))
@@ -210,9 +210,13 @@
     /** One run row; the first cell is the disclosure button for its attempts. */
     function RunRow(kit, { item, open, onToggleRun }) {
       const { t, fmtTime } = kit
+      // A bootstrap run carries no workspace because it covers every session,
+      // which is worth saying; any other run type missing the field is simply
+      // a row with nothing to scope by.
+      const unscoped = item.type === 'bootstrap' ? t('usage.scopeAll') : '—'
       const scope = item.workspace.length > 0 && item.turn !== null
         ? item.workspace + ' · #' + String(item.turn)
-        : (item.workspace.length > 0 ? item.workspace : (item.turn !== null ? '#' + String(item.turn) : '—'))
+        : (item.workspace.length > 0 ? item.workspace : (item.turn !== null ? '#' + String(item.turn) : unscoped))
       const cell = (key, child) => h('span', { key, className: 'tacit-usage-cell', role: 'cell' }, child)
       return h('div', { className: 'tacit-usage-row', role: 'row' },
         cell('time', h('button', {
@@ -408,13 +412,13 @@
 
     /**
      * The Pricing card body. Like `UsageCard` a plain renderer, not a
-     * component: it owns no hooks and no state. It builds nothing at all while
-     * collapsed — the header summary already carries the headline rate, and
-     * this page re-renders on every 10s usage poll.
+     * component: it owns no hooks and no state. It renders whether or not its
+     * card is open, because the `SectionCard` around it hides a collapsed body
+     * rather than unmounting it, which is what keeps find-in-page working over
+     * the rate table.
      */
-    function PricingCard(kit, { pricing, open, onRefresh, refreshing }) {
+    function PricingCard(kit, { pricing, onRefresh, refreshing }) {
       const { t, fmtTime } = kit
-      if (open !== true) return null
       const priced = pricingOf(pricing)
       const models = Object.keys(priced.models).sort()
       const when = priced.refreshedAt > 0

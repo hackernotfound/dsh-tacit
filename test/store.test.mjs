@@ -274,7 +274,7 @@ test('readUsageSummary defaults an absent summary without warning', () => {
   const { store } = tempStore()
   let summary
   const warnings = captureWarn(() => {
-    summary = store.readUsageSummary()
+    summary = store.readUsageSummary().summary
   })
   assert.equal(warnings.length, 0)
   assert.equal(summary.version, 1)
@@ -292,8 +292,8 @@ test('a corrupt usage summary falls back to a fresh object with a single warning
 
   let first, second
   const warnings = captureWarn(() => {
-    first = store.readUsageSummary()
-    second = store.readUsageSummary()
+    first = store.readUsageSummary().summary
+    second = store.readUsageSummary().summary
   })
   assert.equal(first.version, 1)
   assert.equal(second.version, 1)
@@ -303,7 +303,7 @@ test('a corrupt usage summary falls back to a fresh object with a single warning
 test('writeUsageSummary round-trips', () => {
   const { store } = tempStore()
   store.writeUsageSummary({ version: 1, trackingSince: 5, lifetime: {}, byType: {}, byModel: {}, days: {} })
-  const read = store.readUsageSummary()
+  const read = store.readUsageSummary().summary
   assert.equal(read.trackingSince, 5)
 })
 
@@ -325,7 +325,7 @@ test('clearUsage removes only matching day files, writes a fresh summary, and ne
   assert.equal(store.report('s1', 1).turn, 1)
   assert.equal(store.profile().analyzedCount, 1)
   assert.ok(fs.existsSync(path.join(dir, 'reports')))
-  const summary = store.readUsageSummary()
+  const summary = store.readUsageSummary().summary
   assert.ok(summary.trackingSince >= before)
 })
 
@@ -379,4 +379,60 @@ test('pruneUsageDays keeps its calendar cutoff across a fall-back too', () => {
   assert.deepEqual(fall.seeded, ['2026-10-26', '2026-10-25'])
   assert.equal(fall.removed, 1)
   assert.deepEqual(fall.left, ['2026-10-26'], 'only the 8-days-ago file goes')
+})
+
+test('readUsageDay serves an unchanged day file from memory and re-reads after any change', () => {
+  const { store, dir } = tempStore()
+  const file = path.join(dir, 'usage', '2026-08-30.json')
+  store.writeUsageDay('2026-08-30', { version: 1, day: '2026-08-30', runs: [] })
+
+  const realReadFileSync = fs.readFileSync
+  let reads = 0
+  fs.readFileSync = (target, ...rest) => {
+    if (target === file) reads += 1
+    return realReadFileSync(target, ...rest)
+  }
+  try {
+    const first = store.readUsageDay('2026-08-30')
+    const second = store.readUsageDay('2026-08-30')
+    assert.equal(reads, 1)
+    assert.equal(second, first)
+
+    store.writeUsageDay('2026-08-30', { version: 1, day: '2026-08-30', runs: [{ runId: 'u1', type: 'analysis', startedAt: 1000 }] })
+    assert.equal(store.readUsageDay('2026-08-30').runs.length, 1)
+    assert.equal(reads, 2)
+
+    fs.writeFileSync(file, JSON.stringify({ version: 1, day: '2026-08-30', runs: [] }))
+    assert.equal(store.readUsageDay('2026-08-30').runs.length, 0)
+    assert.equal(reads, 3)
+  } finally {
+    fs.readFileSync = realReadFileSync
+  }
+})
+
+test('a pruned or cleared day file is not served from the memo afterwards', () => {
+  const { store } = tempStore()
+  store.writeUsageDay('2026-08-30', { version: 1, day: '2026-08-30', runs: [{ runId: 'u1', type: 'analysis', startedAt: 1000 }] })
+  assert.equal(store.readUsageDay('2026-08-30').runs.length, 1)
+  store.clearUsage()
+  assert.equal(store.readUsageDay('2026-08-30').runs.length, 0)
+
+  store.writeUsageDay('2026-08-30', { version: 1, day: '2026-08-30', runs: [{ runId: 'u2', type: 'analysis', startedAt: 1000 }] })
+  assert.equal(store.readUsageDay('2026-08-30').runs.length, 1)
+  store.pruneUsageDays(0, '2026-09-30')
+  assert.equal(store.readUsageDay('2026-08-30').runs.length, 0)
+})
+
+test('a rewrite the stat cannot distinguish still invalidates the memo', () => {
+  const { store } = tempStore()
+  const realStatSync = fs.statSync
+  fs.statSync = () => ({ mtimeMs: 1, size: 1 })
+  try {
+    store.writeUsageDay('2026-08-30', { version: 1, day: '2026-08-30', runs: [{ runId: 'u1', type: 'analysis', startedAt: 1000 }] })
+    assert.equal(store.readUsageDay('2026-08-30').runs[0].runId, 'u1')
+    store.writeUsageDay('2026-08-30', { version: 1, day: '2026-08-30', runs: [{ runId: 'u2', type: 'analysis', startedAt: 1000 }] })
+    assert.equal(store.readUsageDay('2026-08-30').runs[0].runId, 'u2')
+  } finally {
+    fs.statSync = realStatSync
+  }
 })
