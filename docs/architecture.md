@@ -11,11 +11,11 @@ modules — no bundler, no TypeScript step.*
 | `lib/index.js` | ~90 | plugin entry: legacy storage rename, service + store wiring, registers projection, system-prompt section, `agent/pre-step` listener and routes | `test/integration.test.mjs` |
 | `lib/fold.js` | ~300 | the `tacitTimeline` projection: session events → per-turn digests (pure fold, bounded, `stateVersion: 3`) | `test/fold.test.mjs` |
 | `lib/analyze.js` | ~900 | prompts, tool schemas, heuristics (messy / correction / continuation), report normalisation, trust score, steering renderer, the single `callCoachModel` transport | `test/analyze.test.mjs`, `calls`, `trust` |
-| `lib/service.js` | ~1300 | the host service: auto triggers, trials, verification, bootstrap, distillations, steering freeze, pre-send, every route handler | `test/integration.test.mjs` (stubbed harness) |
+| `lib/service.js` | ~1450 | the host service: auto triggers, trials, verification, bootstrap, distillations, steering freeze, pre-send, every route handler | `test/integration.test.mjs` (stubbed harness) |
 | `lib/routes.js` | ~150 | `/api/tacit/*` on the harness web server, JSON body limit, cross-site guard, status mapping | `test/integration.test.mjs` |
 | `lib/schema.js` | ~460 | zod schemas: config, digest, report, profile, usage ledger, route argument codecs, model allowlist | `test/schema.test.mjs` |
 | `lib/store.js` | ~370 | `~/.dsh/storages/tacit/` — atomic JSON writes, reports, profile, usage day files, expiry, clear | `test/store.test.mjs` |
-| `lib/usage.js` | ~560 | the usage/cost ledger: runs and attempts (synchronous, content-free), the rolling summary, day files, and the report/run/clear read side | `test/usage.test.mjs` |
+| `lib/usage.js` | ~700 | the usage/cost ledger: runs and attempts (synchronous, content-free), the rolling summary, day files, and the report/run/clear read side | `test/usage.test.mjs` |
 | `lib/pricing.js` | ~290 | pure price arithmetic: the bundled DeepSeek list prices, off-peak/peak tiers, `costOf`, `costMeter` state normalisation | `test/pricing.test.mjs` |
 | `lib/pricing-source.js` | ~130 | the live price source: the optional `costMeter` sibling when it answers, the bundled table otherwise; `refresh()` never throws and never blocks a call | `test/pricing.test.mjs` |
 | `client/src/*.js` | ~1700 | the whole browser UI, one file per section (`10-i18n`, `20-api`, `30-session-store`, `40-root-store`, `50-format`, `60-components`, `65-feedback-strip`, `70-panel`, `80-css`, `90-plugin`); `scripts/build-client.mjs` concatenates them into the shipped `client/client.js` (one classic script per plugin is all the harness loads) | `test/client.test.mjs` (SSR render of the built file), `pnpm check:client` |
@@ -60,12 +60,14 @@ All `POST`, JSON in / JSON out, on the harness web server (no extra port), body
 | `/api/tacit/reports` | `{sessionId}` | reports of that session keyed by turn |
 | `/api/tacit/history` | `{limit?}` (≤ 500) | latest reports across sessions |
 | `/api/tacit/analyze` | `{sessionId, turn}` | report + profile; codes `no-session`, `not-retained`, `continuation`, `busy`, `empty-response`, `timeout`, `no-api-key`, `rate-limited`, `call-failed` |
+| `/api/tacit/analyze-batch` | `{sessionId, turns}` (1–50 turns, deduped and sorted) | one `analysis-batch` run over the picked turns: `results [{turn, ok, code, report}]` (a turn already being analyzed reports `busy` and costs nothing), profile, run summary |
 | `/api/tacit/improve` | `{sessionId, draft}` | `improved`, `rationale`, `rewriteId`, `patternsUsed` |
 | `/api/tacit/applied` | `{sessionId, rewriteId}` | ok (starts free verification) |
 | `/api/tacit/feedback` | `{rewriteId, verdict: up\|down, reason?}` | profile |
 | `/api/tacit/directives` | `{action: toggle\|add\|remove, …}` | profile + steering |
 | `/api/tacit/stats` | `{window?}` (3–200, default 20) | trend early vs. recent |
 | `/api/tacit/bootstrap` | `{sessionId?, limit?}` (1–50, default 20) | analyzed / skipped / directives; `busy` if one is running |
+| `/api/tacit/bootstrap-preview` | `{sessionId?, limit?}` (1–50, default 20) | what a bootstrap would do: `eligible` / `skipped` counts and `estimate {usd, basis: measured\|doc, samples, perAnalysisUsd}` (the ledger's median once 3 priced analyses exist in 30 days, the doc figure otherwise). No model call, no run, never `busy` |
 | `/api/tacit/config` | `{patch}` | effective config; non-allowlisted model → 400 |
 | `/api/tacit/clear` | — | `removed` count |
 | `/api/tacit/usage` | `{range?, type?, status?, model?, workspace?, sessionId?, page?, pageSize?}` (range `today\|7d\|30d\|month\|all`, default `30d`; page ≥ 1, pageSize ≤ 100) | `today`/`month`/`last7`/`last30`/`lifetime` totals, `series7`/`series30`, `byType`/`byModel`, `warnings`, one page of `runs`, price-source status |

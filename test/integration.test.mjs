@@ -185,8 +185,10 @@ test('apply() registers the projection, the service, and the routes', () => {
     routes.map((r) => r.path).sort(),
     [
       '/api/tacit/analyze',
+      '/api/tacit/analyze-batch',
       '/api/tacit/applied',
       '/api/tacit/bootstrap',
+      '/api/tacit/bootstrap-preview',
       '/api/tacit/clear',
       '/api/tacit/history',
       '/api/tacit/config',
@@ -2129,4 +2131,240 @@ test('usage report: a narrow range narrows only the run list, never the 30-day f
   assert.equal(narrow.byModel['deepseek-v4-pro'].usdKnown, 12)
   assert.deepEqual(narrow.last30, wide.last30)
   assert.deepEqual(narrow.today, wide.today)
+})
+
+// ── Bootstrap preview + analyze-batch ──────────────────────────────────────
+
+const mkTurn = (turn, prompt) => ({ ...sampleTurn, turn, prompt, endedAt: turn * 1000, retries: 0, steps: 2, endReason: 'success' })
+
+/** A fresh plugin over a hand-seeded ledger AND one live session with turns. */
+async function batchHarness({ sessionId, turns = [], runs = [], config = {}, llm } = {}) {
+  await settleUsage()
+  wipeUsage()
+  const store = new CoachStore(storageRoot())
+  const byDay = new Map()
+  for (const run of runs) {
+    const day = dayKey(run.startedAt)
+    const list = byDay.get(day)
+    if (list === undefined) byDay.set(day, [run])
+    else list.push(run)
+  }
+  for (const [day, list] of byDay) store.writeUsageDay(day, { version: 1, day, runs: list })
+  store.writeUsageSummary(buildSeedSummary(runs, 1000))
+  fs.rmSync(path.join(storageRoot(), 'reports', sessionId), { recursive: true, force: true })
+  seedConfigPatch({})
+  seedProfile(seedDirectives([]))
+  const captured = []
+  const session = { id: sessionId }
+  const fake = makeFakeCtx({
+    llm: llm ?? fakeLlm(captured),
+    sessions: { get: (id) => (id === sessionId ? session : undefined), list: () => [session] },
+    snapshotValue: turns,
+  })
+  apply(fake.ctx, { autoAnalyze: false, directiveEvery: 1000, ...config })
+  const byPath = (name) => fake.routes.find((route) => route.path === '/api/tacit' + name)
+  return { ...fake, byPath, captured, service: fake.provided.get('tacit') }
+}
+
+const previewTurns = () => [
+  mkTurn(1, 'Set up the project skeleton please.'),
+  mkTurn(2, 'continue'),
+  mkTurn(3, 'Now add the login page with tests.'),
+  mkTurn(4, 'ok'),
+  mkTurn(5, 'Refactor the fold into its own module.'),
+]
+
+test('/bootstrap-preview reports exactly the counts /bootstrap acts on, with no model call and no run', async () => {
+  const sessionId = 'preview-counts'
+  const { byPath, captured } = await batchHarness({ sessionId, turns: previewTurns() })
+  const preview = await callRoute(byPath('/bootstrap-preview'), { sessionId, limit: 20 })
+  assert.equal(preview.status, 200)
+  assert.equal(preview.body.ok, true)
+  assert.equal(preview.body.eligible, 3, 'turns 1, 3 and 5')
+  assert.equal(preview.body.skipped, 2, 'a continuation and a two-character prompt')
+  assert.equal(preview.body.limit, 20)
+  assert.equal(preview.body.model, 'deepseek-v4-flash')
+  assert.equal(preview.body.code, '')
+  assert.equal(preview.body.detail, '')
+  assert.equal(captured.length, 0, 'a preview never calls the model')
+  assert.deepEqual(usageRuns(), [], 'and never opens a run')
+
+  // A second preview does not consume anything: the same answer twice.
+  const again = await callRoute(byPath('/bootstrap-preview'), { sessionId, limit: 20 })
+  assert.deepEqual(again.body, preview.body)
+
+  const run = await callRoute(byPath('/bootstrap'), { sessionId, limit: 20 })
+  assert.equal(run.body.ok, true)
+  assert.equal(run.body.analyzed, preview.body.eligible)
+  assert.equal(run.body.skipped, preview.body.skipped)
+})
+
+test('/bootstrap-preview honours the limit and refuses an unknown session softly', async () => {
+  const sessionId = 'preview-limit'
+  const { byPath } = await batchHarness({ sessionId, turns: previewTurns() })
+  const capped = await callRoute(byPath('/bootstrap-preview'), { sessionId, limit: 2 })
+  assert.equal(capped.body.ok, true)
+  assert.equal(capped.body.eligible, 2)
+  assert.equal(capped.body.limit, 2)
+
+  const missing = await callRoute(byPath('/bootstrap-preview'), { sessionId: 'no-such-session' })
+  assert.equal(missing.status, 200)
+  assert.equal(missing.body.ok, false)
+  assert.equal(missing.body.code, 'no-session')
+  assert.equal(missing.body.eligible, 0)
+
+  const bad = await callRoute(byPath('/bootstrap-preview'), { limit: 999 })
+  assert.equal(bad.status, 400)
+  assert.equal(bad.body.code, 'bad-request')
+})
+
+test('/bootstrap-preview estimates from the doc figures while the ledger is fresh', async () => {
+  const flash = await batchHarness({ sessionId: 'preview-doc-flash', turns: previewTurns() })
+  const body = (await callRoute(flash.byPath('/bootstrap-preview'), { sessionId: 'preview-doc-flash' })).body
+  assert.equal(body.estimate.basis, 'doc')
+  assert.equal(body.estimate.samples, 0)
+  assert.equal(body.estimate.perAnalysisUsd, 0.0025)
+  assert.equal(body.estimate.usd, 0.0025 * 3)
+
+  const pro = await batchHarness({ sessionId: 'preview-doc-pro', turns: previewTurns(), config: { model: 'deepseek-v4-pro' } })
+  const proBody = (await callRoute(pro.byPath('/bootstrap-preview'), { sessionId: 'preview-doc-pro' })).body
+  assert.equal(proBody.model, 'deepseek-v4-pro')
+  assert.equal(proBody.estimate.basis, 'doc')
+  assert.equal(proBody.estimate.perAnalysisUsd, 0.0075)
+  assert.equal(proBody.estimate.usd, 0.0075 * 3)
+})
+
+test('/bootstrap-preview switches to the measured basis once three priced analyses are on the ledger', async () => {
+  const sessionId = 'preview-measured'
+  const runs = [
+    seedRun({ runId: 'm-1', offset: 1, usd: 1 }),
+    seedRun({ runId: 'm-2', offset: 2, usd: 3 }),
+    seedRun({ runId: 'm-3', offset: 3, usd: 9 }),
+    seedRun({ runId: 'm-distill', offset: 2, usd: 2, type: 'directive-distillation', ops: ['directive-distillation'] }),
+  ]
+  const { byPath } = await batchHarness({ sessionId, turns: previewTurns(), runs })
+  const body = (await callRoute(byPath('/bootstrap-preview'), { sessionId })).body
+  assert.equal(body.ok, true)
+  assert.equal(body.eligible, 3)
+  assert.equal(body.estimate.basis, 'measured')
+  assert.equal(body.estimate.samples, 3)
+  assert.equal(body.estimate.perAnalysisUsd, 3, 'the median of 1, 3 and 9')
+  assert.equal(body.estimate.usd, 3 * 3 + 2, 'three analyses plus one directive distillation')
+})
+
+test('/bootstrap-preview stays measured-blind below three samples', async () => {
+  const sessionId = 'preview-two-samples'
+  const runs = [seedRun({ runId: 't-1', offset: 1, usd: 1 }), seedRun({ runId: 't-2', offset: 2, usd: 3 })]
+  const { byPath } = await batchHarness({ sessionId, turns: previewTurns(), runs })
+  const body = (await callRoute(byPath('/bootstrap-preview'), { sessionId })).body
+  assert.equal(body.estimate.basis, 'doc')
+  assert.equal(body.estimate.samples, 2)
+  assert.equal(body.estimate.perAnalysisUsd, 0.0025)
+})
+
+test('/bootstrap with nothing eligible writes no run at all', async () => {
+  const sessionId = 'bootstrap-empty'
+  const { byPath, captured } = await batchHarness({ sessionId, turns: [mkTurn(1, 'continue'), mkTurn(2, 'ok')] })
+  const result = await callRoute(byPath('/bootstrap'), { sessionId, limit: 20 })
+  assert.equal(result.body.ok, true)
+  assert.equal(result.body.analyzed, 0)
+  assert.equal(result.body.skipped, 2)
+  assert.equal(result.body.run, null)
+  assert.equal(captured.length, 0)
+  assert.deepEqual(usageRuns(), [], 'an empty bootstrap is not a failed run')
+})
+
+for (const [concurrency, expectedMax] of [[1, 1], [2, 2]]) {
+  test(`/analyze-batch is ONE analysis-batch run keeping at most ${expectedMax} analyses in flight`, async () => {
+    const sessionId = 'batch-conc-' + expectedMax
+    const probe = concurrencyProbe()
+    const captured = []
+    const { byPath } = await batchHarness({
+      sessionId,
+      turns: [mkTurn(1, 'First real prompt here.'), mkTurn(2, 'Second real prompt here.'), mkTurn(3, 'Third real prompt here.')],
+      llm: { async *stream(options) { captured.push(options); yield* probe.llm.stream(options) } },
+      config: { bootstrapConcurrency: concurrency },
+    })
+    const pending = callRoute(byPath('/analyze-batch'), { sessionId, turns: [3, 1, 2, 2] })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    assert.equal(probe.inFlight, expectedMax, 'analyses in flight while gated')
+    probe.release()
+    const done = await pending
+    assert.equal(done.status, 200)
+    assert.equal(done.body.ok, true)
+    assert.equal(done.body.code, '')
+    assert.equal(probe.maxInFlight, expectedMax)
+    assert.deepEqual(done.body.results.map((entry) => entry.turn), [1, 2, 3], 'unique turns, ascending')
+    assert.deepEqual(Object.keys(done.body.results[0]).sort(), ['code', 'ok', 'report', 'turn'])
+    assert.ok(done.body.results.every((entry) => entry.ok === true && entry.code === '' && entry.report !== null))
+    assert.equal(captured.filter((c) => c.system.includes('prompt-engineering coach')).length, 3)
+
+    const runs = runsOf(sessionId)
+    assert.equal(runs.length, 1, 'one run for the whole batch')
+    assert.equal(runs[0].type, 'analysis-batch')
+    assert.equal(runs[0].trigger, 'manual')
+    assert.equal(runs[0].status, 'success')
+    assert.equal(runs[0].attempts.length, 3)
+    assert.ok(runs[0].attempts.every((attempt) => attempt.op === 'analysis'))
+    assert.deepEqual(runs[0].results, { requested: 3, analyzed: 3, skipped: 0 })
+    assert.equal(done.body.run.runId, runs[0].runId)
+    assert.equal(done.body.run.attempts, 3)
+    assert.ok(done.body.run.usdKnown > 0)
+    assert.equal(done.body.profile.analyzedCount, 3)
+  })
+}
+
+test('/analyze-batch reports busy for a turn already in flight and still analyzes the rest', async () => {
+  const sessionId = 'batch-busy'
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  let calls = 0
+  const gatedLlm = {
+    async *stream(options) {
+      calls += 1
+      if (calls === 1) await gate
+      yield* fakeLlm().stream(options)
+    },
+  }
+  const { byPath } = await batchHarness({
+    sessionId,
+    turns: [mkTurn(2, 'Second real prompt here.'), mkTurn(3, 'Third real prompt here.')],
+    llm: gatedLlm,
+  })
+  const first = callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  const batch = await callRoute(byPath('/analyze-batch'), { sessionId, turns: [2, 3] })
+  assert.equal(batch.body.ok, true)
+  const busy = batch.body.results.find((entry) => entry.turn === 2)
+  assert.equal(busy.ok, false)
+  assert.equal(busy.code, 'busy')
+  assert.equal(busy.report, null)
+  const other = batch.body.results.find((entry) => entry.turn === 3)
+  assert.equal(other.ok, true)
+
+  const batchRun = runsOf(sessionId).find((run) => run.type === 'analysis-batch')
+  assert.equal(batchRun.attempts.length, 1, 'the busy turn cost nothing')
+  assert.deepEqual(batchRun.results, { requested: 2, analyzed: 1, skipped: 1 })
+
+  release()
+  const done = await first
+  assert.equal(done.body.ok, true)
+  assert.equal(done.body.run.type, 'analysis', 'the single analysis carries its own run')
+})
+
+test('/analyze-batch rejects an empty or unknown request', async () => {
+  const sessionId = 'batch-bad'
+  const { byPath } = await batchHarness({ sessionId, turns: [mkTurn(2, 'Second real prompt here.')] })
+  const empty = await callRoute(byPath('/analyze-batch'), { sessionId, turns: [] })
+  assert.equal(empty.status, 400)
+  assert.equal(empty.body.ok, false)
+  assert.equal(empty.body.code, 'bad-request')
+
+  const missing = await callRoute(byPath('/analyze-batch'), { sessionId: 'no-such-session', turns: [2] })
+  assert.equal(missing.status, 200)
+  assert.equal(missing.body.ok, false)
+  assert.equal(missing.body.code, 'no-session')
+  assert.equal(missing.body.run, null)
+  assert.deepEqual(missing.body.results, [])
+  assert.deepEqual(usageRuns(), [], 'an unknown session opens no run')
 })
