@@ -806,3 +806,24 @@ test('run() hands back a snapshot, not a window onto the live run', () => {
   assert.equal(snapshot.attempts.length, 1)
   assert.equal(usage.run(runId).attempts.length, 2)
 })
+
+test('report: range "all" reaches every day file retention keeps', () => {
+  // Prune keeps `costHistoryDays` days *plus today*; `range: 'all'` has to span
+  // the same window, or the oldest surviving file is unreachable from the UI.
+  const { usage, clock, store } = setup({ start: START - 8 * MS_PER_DAY, costHistoryDays: 7 })
+  const runs = []
+  for (let back = 8; back >= 0; back -= 1) {
+    clock.ms = START - back * MS_PER_DAY
+    runs.push(finishRun(usage, clock, {}))
+  }
+  usage.flush()
+
+  const surviving = store.listUsageDays()
+  assert.deepEqual(surviving, [7, 6, 5, 4, 3, 2, 1, 0].map((back) => dayKey(START - back * MS_PER_DAY)), 'today plus the 7 kept days')
+  assert.equal(surviving.includes(dayKey(START - 8 * MS_PER_DAY)), false, 'the 9th day is pruned')
+
+  const config = { costHistoryDays: 7, costWarnDailyUsd: 0, costWarnMonthlyUsd: 0 }
+  const ids = report(usage, { config, filters: { range: 'all' } }).runs.items.map((item) => item.runId)
+  assert.equal(ids.includes(runs[1]), true, 'the oldest file retention kept is listable under range "all"')
+  assert.equal(ids.length, 8)
+})

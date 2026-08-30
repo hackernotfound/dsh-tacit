@@ -5,6 +5,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import { CoachStore, emptyProfile, dayKey } from '../lib/store.js'
 
 function tempStore() {
@@ -325,4 +327,56 @@ test('clearUsage removes only matching day files, writes a fresh summary, and ne
   assert.ok(fs.existsSync(path.join(dir, 'reports')))
   const summary = store.readUsageSummary()
   assert.ok(summary.trackingSince >= before)
+})
+
+/**
+ * `pruneUsageDays` in a child process pinned to `TZ`: `node --test` runs every
+ * `.test.mjs` in one process, so the zone has to be set before that process
+ * starts. Seeds day files exactly `[7, 8]` calendar days before `today`
+ * (noon-anchored, so the seeding itself is DST-proof) and returns the day keys
+ * that survived `pruneUsageDays(keepDays, today)`.
+ */
+function pruneInZone(TZ, today, keepDays, offsets) {
+  const src = `
+    import fs from 'node:fs'
+    import os from 'node:os'
+    import path from 'node:path'
+    import { CoachStore } from ${JSON.stringify(pathToFileURL(path.join(import.meta.dirname, '..', 'lib', 'store.js')).href)}
+    const [today, keepDays, offsets] = [${JSON.stringify(today)}, ${JSON.stringify(keepDays)}, ${JSON.stringify(offsets)}]
+    const back = (days) => {
+      const [y, m, d] = today.split('-').map(Number)
+      const at = new Date(y, m - 1, d, 12)
+      at.setDate(at.getDate() - days)
+      const pad = (v) => String(v).padStart(2, '0')
+      return at.getFullYear() + '-' + pad(at.getMonth() + 1) + '-' + pad(at.getDate())
+    }
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-tacit-tz-'))
+    const store = new CoachStore(dir)
+    const seeded = offsets.map(back)
+    for (const day of seeded) store.writeUsageDay(day, { version: 1, day, runs: [] })
+    const removed = store.pruneUsageDays(keepDays, today)
+    process.stdout.write(JSON.stringify({ seeded, removed, left: store.listUsageDays() }))
+  `
+  const out = execFileSync(process.execPath, ['--input-type=module', '-e', src], {
+    encoding: 'utf8',
+    env: { ...process.env, TZ },
+  })
+  return JSON.parse(out)
+}
+
+test('pruneUsageDays counts calendar days, not 24 h blocks, across a spring-forward', () => {
+  // 2026-03-08 is the US spring-forward: today-7 is a 23 h day away, and a
+  // fixed `7 * 86_400_000` subtraction lands the cutoff on 2026-03-01 instead
+  // of 2026-03-02 — keeping keepDays + 1 days of detail.
+  const spring = pruneInZone('America/New_York', '2026-03-09', 7, [7, 8])
+  assert.deepEqual(spring.seeded, ['2026-03-02', '2026-03-01'])
+  assert.equal(spring.removed, 1)
+  assert.deepEqual(spring.left, ['2026-03-02'], 'only the 8-days-ago file goes')
+})
+
+test('pruneUsageDays keeps its calendar cutoff across a fall-back too', () => {
+  const fall = pruneInZone('America/New_York', '2026-11-02', 7, [7, 8])
+  assert.deepEqual(fall.seeded, ['2026-10-26', '2026-10-25'])
+  assert.equal(fall.removed, 1)
+  assert.deepEqual(fall.left, ['2026-10-26'], 'only the 8-days-ago file goes')
 })
