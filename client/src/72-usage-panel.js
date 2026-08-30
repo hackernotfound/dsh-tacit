@@ -408,13 +408,13 @@
 
     /**
      * The Pricing card body. Like `UsageCard` a plain renderer, not a
-     * component: it owns no hooks and no state. It builds nothing at all while
-     * collapsed — the header summary already carries the headline rate, and
-     * this page re-renders on every 10s usage poll.
+     * component: it owns no hooks and no state. It renders whether or not its
+     * card is open, because the `SectionCard` around it hides a collapsed body
+     * rather than unmounting it, which is what keeps find-in-page working over
+     * the rate table.
      */
-    function PricingCard(kit, { pricing, open, onRefresh, refreshing }) {
+    function PricingCard(kit, { pricing, onRefresh, refreshing }) {
       const { t, fmtTime } = kit
-      if (open !== true) return null
       const priced = pricingOf(pricing)
       const models = Object.keys(priced.models).sort()
       const when = priced.refreshedAt > 0

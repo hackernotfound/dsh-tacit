@@ -280,7 +280,6 @@
           card('pricing', [
             PricingCard(kit, {
               pricing: usagePricing,
-              open: sections.pricing === true,
               refreshing: rootStore.pricingRefreshing === true,
               onRefresh: () => refreshPricing(t),
             }),

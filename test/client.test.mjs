@@ -858,7 +858,7 @@ test('the usage card falls back to an empty state before anything is metered', (
   rootStore.usage = usageEnvelope({ lifetime: period({}) })
   const zeroed = renderSettings()
   assert.ok(zeroed.includes(tr('usage.empty', { since: '2026-08-01' })), 'a zero-billed lifetime renders the empty hint')
-  assert.equal(/role="table"/.test(zeroed), false, 'no runs table in the empty state')
+  assert.equal(/class="tacit-usage-table"/.test(zeroed), false, 'no runs table in the empty state')
   resetUsage()
 })
 
@@ -942,7 +942,7 @@ test('the runs table is a role=table with an expandable first cell and a pager',
   rootStore.usage.runs = { items: [sampleRun], page: 2, pageSize: 20, total: 45 }
   const markup = renderSettings()
   assert.ok(markup.includes('role="table"'))
-  assert.equal((markup.match(/role="columnheader"/g) || []).length, 8, 'eight column headers')
+  assert.equal((markup.match(/class="tacit-usage-cell" role="columnheader"/g) || []).length, 8, 'eight column headers')
   assert.ok(markup.includes(EN()['usage.col.time']))
   assert.ok(markup.includes(EN()['usage.col.cost']))
   assert.ok(markup.includes('aria-controls="tacit-run-run-1"'), 'the toggle points at its detail row')
@@ -1162,7 +1162,10 @@ test('the collapsed pricing card summarises the flash rates in its header', () =
   assert.ok(summary.includes('per 1M'))
   assert.ok(summary.includes(EN()['pricing.sourceBundled']))
   assert.ok(summary.includes('2026-08-22'), 'and the as-of day')
-  assert.ok(!markup.includes('$3.96'), 'a collapsed card builds no rate table')
+  const body = /<div class="tacit-card-body"[^>]*id="tacit-card-pricing-body"([^>]*)>/.exec(markup)
+  assert.ok(body, 'the pricing body renders')
+  assert.ok(body[1].includes('hidden'), 'a collapsed card hides its body instead of unmounting it')
+  assert.ok(markup.includes('$3.96'), 'so find-in-page still reaches the rate table')
   resetPricing()
 })
 
