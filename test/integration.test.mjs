@@ -1641,7 +1641,8 @@ test('usage: a bootstrap batch is ONE run covering every analysis and the forced
   assert.ok(String(midRun.body.bootstrap.runId).length > 0, 'the live bootstrap run is addressable')
   assert.ok(midRun.body.bootstrap.usdKnown > 0, 'money already spent shows up mid-run')
   assert.ok(midRun.body.bootstrap.billedCalls >= 2)
-  assert.ok(midRun.body.bootstrap.tokens >= 2 * (FAKE_USAGE.inputTokens + FAKE_USAGE.outputTokens + FAKE_USAGE.cacheReadTokens))
+  assert.ok(midRun.body.bootstrap.tokensTotal >= 2 * (FAKE_USAGE.inputTokens + FAKE_USAGE.outputTokens + FAKE_USAGE.cacheReadTokens))
+  assert.equal(midRun.body.bootstrap.tokens, undefined, 'the running total is not shaped like a run\'s five token buckets')
   assert.equal(done.body.ok, true)
   assert.equal(done.body.analyzed, 3)
 
@@ -2385,6 +2386,34 @@ test('/analyze-batch reports busy for a turn already in flight and still analyze
   const done = await first
   assert.equal(done.body.ok, true)
   assert.equal(done.body.run.type, 'analysis', 'the single analysis carries its own run')
+})
+
+test('/analyze-batch whose every turn is busy is a real, successful, zero-attempt run', async () => {
+  const sessionId = 'batch-all-busy'
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  let calls = 0
+  const gatedLlm = {
+    async *stream(options) {
+      calls += 1
+      if (calls === 1) await gate
+      yield* fakeLlm().stream(options)
+    },
+  }
+  const { byPath } = await batchHarness({ sessionId, turns: [mkTurn(2, 'Second real prompt here.')], llm: gatedLlm })
+  const first = callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  const batch = await callRoute(byPath('/analyze-batch'), { sessionId, turns: [2] })
+  assert.equal(batch.body.ok, true)
+  assert.deepEqual(batch.body.results.map((entry) => entry.code), ['busy'])
+
+  const batchRun = runsOf(sessionId).find((run) => run.type === 'analysis-batch')
+  assert.equal(batchRun.attempts.length, 0, 'nothing was spent')
+  assert.equal(batchRun.status, 'success', 'the request was real and nothing failed')
+  assert.deepEqual(batchRun.results, { requested: 1, analyzed: 0, skipped: 1 })
+
+  release()
+  assert.equal((await first).body.ok, true)
 })
 
 test('/analyze-batch rejects an empty or unknown request', async () => {
