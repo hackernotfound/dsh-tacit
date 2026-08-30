@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-08-30
 
 - Every Tacit model call is now metered (tokens + list-price cost, priced
   from the bundled DeepSeek table or the optional `dsh-cost-meter` sibling)
