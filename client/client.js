@@ -231,8 +231,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'privacy.stored': '分析报告、指令和风格规则只保存在本机的 Tacit 数据目录里。一条用量记录只包含：时间、操作、会话 ID、轮次编号、工作区名称、模型、服务商、token 计数与目录价——绝不包含你的提示词或模型回复的内容。清除操作只会删除 Tacit 自己的文件。',
       'privacy.retention': '详细用量记录保留天数',
       'privacy.warnDaily': '每日花费提醒阈值（美元）',
-      'privacy.warnMonthly': '每月花费阈值（美元）',
-      'privacy.warnHint': '填 0 表示关闭提醒。达到阈值的 80 % 时开始提醒，超过阈值后标记为已超出。',
+      'privacy.warnMonthly': '每月花费提醒阈值（美元）',
+      'privacy.warnHint': '填 0 表示关闭提醒。达到阈值的 80% 时开始提醒，超过阈值后标记为已超出。',
       'privacy.clearUsage': '清除用量记录',
       'privacy.apply': '应用',
       'confirm.reportsTitle': '清除所有分析报告？',
@@ -269,7 +269,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'notice.analyze': '已分析 #{turn} · {calls} 次调用 · {tokens} tokens · {usd}',
       'notice.improve': '已改进草稿 · {calls} 次调用 · {tokens} tokens · {usd}',
       'notice.batch': '已分析 {analyzed}/{requested} 条 · {calls} 次调用 · {tokens} tokens · {usd}',
-      'notice.usageCleared': '用量记录已清除 · 删除 {n} 个日文件 · 计量窗口重新开始',
+      'notice.usageCleared': '用量记录已清除 · 删除 {n} 天的记录 · 计量窗口重新开始',
       'notice.pricingRefreshed': '价目已刷新 · {source}（{asOf}）',
       'notice.unpriced': ' · {n} 次无价目',
       'err.bad-request': '请求无效。',
@@ -968,6 +968,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         rootStore.error = errorOf(error)
       }
       fetchUsage()
+      // Turns without a report are eligible again, so a preview that last read
+      // `eligible: 0` would otherwise keep the Bootstrap button disabled.
+      await fetchBootstrapPreview()
       notifyRoot()
     }
 
@@ -991,6 +994,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         rootStore.error = errorOf(error)
       }
       await fetchUsage()
+      // The measured basis of the bootstrap estimate came from the ledger this
+      // just deleted; re-price it rather than quoting figures that are gone.
+      await fetchBootstrapPreview()
       notifyRoot()
     }
 
@@ -2468,8 +2474,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         }
         /** One USD threshold: never negative, `0` = off, no rounding to whole dollars. */
         const applyWarn = (key, text, setText) => {
-          const typed = Number(text)
-          const value = Math.max(0, Number.isFinite(typed) ? typed : 0)
+          const typed = String(text).trim()
+          // An empty field means "off". Anything that is not a number at all is
+          // a typo: silently writing 0 would turn a warning off behind the
+          // user's back, so the entry is left alone instead.
+          if (typed.length > 0 && !Number.isFinite(Number(typed))) return
+          const value = Math.max(0, typed.length === 0 ? 0 : Number(typed))
           setText(String(value))
           updateRootConfig({ [key]: value })
         }
@@ -2656,6 +2666,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               h('button', {
                 type: 'button',
                 className: 'tacit-btn tacit-btn-sm',
+                // Two identically labelled buttons in one card: the accessible
+                // name has to say which threshold each one applies.
+                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnDaily'),
                 onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
               }, t('privacy.apply'))),
             h('div', { className: 'tacit-settings-row' },
@@ -2672,6 +2685,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               h('button', {
                 type: 'button',
                 className: 'tacit-btn tacit-btn-sm',
+                // Two identically labelled buttons in one card: the accessible
+                // name has to say which threshold each one applies.
+                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnMonthly'),
                 onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
               }, t('privacy.apply'))),
             h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),
@@ -3368,6 +3384,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         openConfirm,
         closeConfirm,
         fetchBootstrapPreview,
+        clearAllRoot,
+        clearUsageHistory,
         runNotice,
         fmtRate,
         UsageCard,

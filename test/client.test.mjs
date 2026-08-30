@@ -1389,138 +1389,166 @@ function resetPrivacy() {
 }
 
 test('the Data & Privacy card states exactly what a usage record holds', () => {
-  seedPrivacy()
-  const markup = renderSettings()
-  const stored = EN()['privacy.stored']
-  assert.ok(markup.includes(escapeHtml(stored)), 'the stored-data paragraph renders')
-  for (const field of ['session id', 'turn number', 'workspace', 'model', 'provider', 'token counts', 'list price']) {
-    assert.ok(stored.includes(field), 'privacy.stored names the ' + field)
+  try {
+    seedPrivacy()
+    const markup = renderSettings()
+    const stored = EN()['privacy.stored']
+    assert.ok(markup.includes(escapeHtml(stored)), 'the stored-data paragraph renders')
+    for (const field of ['session id', 'turn number', 'workspace', 'model', 'provider', 'token counts', 'list price']) {
+      assert.ok(stored.includes(field), 'privacy.stored names the ' + field)
+    }
+    assert.match(stored, /never your prompt/i, 'and states prompt/response text is never stored')
+  } finally {
+    resetPrivacy()
   }
-  assert.match(stored, /never your prompt/i, 'and states prompt/response text is never stored')
-  resetPrivacy()
 })
 
 test('the retention select is bound to the configured costHistoryDays', () => {
-  seedPrivacy()
-  const markup = renderSettings()
-  assert.ok(markup.includes(escapeHtml(EN()['privacy.retention'])), 'the retention row is labelled')
-  for (const days of [7, 14, 30, 90, 180, 365]) {
-    assert.ok(new RegExp('<option[^>]*value="' + days + '"').test(markup), 'option ' + days + ' renders')
+  try {
+    seedPrivacy()
+    const markup = renderSettings()
+    assert.ok(markup.includes(escapeHtml(EN()['privacy.retention'])), 'the retention row is labelled')
+    for (const days of [7, 14, 30, 90, 180, 365]) {
+      assert.ok(new RegExp('<option[^>]*value="' + days + '"').test(markup), 'option ' + days + ' renders')
+    }
+    assert.match(markup, /<option[^>]*value="90"[^>]*selected=""/, 'the configured 90 days is the selected option')
+    assert.equal(/<option[^>]*value="30"[^>]*selected=""/.test(markup), false, 'and nothing else is')
+  } finally {
+    resetPrivacy()
   }
-  assert.match(markup, /<option[^>]*value="90"[^>]*selected=""/, 'the configured 90 days is the selected option')
-  assert.equal(/<option[^>]*value="30"[^>]*selected=""/.test(markup), false, 'and nothing else is')
-  resetPrivacy()
 })
 
 test('the two USD threshold rows carry the configured amounts and the 80 % hint', () => {
-  seedPrivacy()
-  const markup = renderSettings()
-  assert.ok(markup.includes(escapeHtml(EN()['privacy.warnDaily'])), 'the daily row is labelled')
-  assert.ok(markup.includes(escapeHtml(EN()['privacy.warnMonthly'])), 'the monthly row is labelled')
-  assert.ok(markup.includes('value="1.5"'), 'the daily threshold shows its configured amount')
-  assert.ok(markup.includes('value="0"'), 'and a zero (off) threshold shows as 0')
-  assert.ok(markup.includes(escapeHtml(EN()['privacy.warnHint'])), 'the hint renders')
-  assert.match(EN()['privacy.warnHint'], /80\s?%/, 'the hint states the 80 % warn point')
-  assert.match(EN()['privacy.warnHint'], /\b0\b/, 'and that 0 turns the warning off')
-  const applies = markup.split(EN()['privacy.apply']).length - 1
-  assert.ok(applies >= 2, 'both threshold rows have their own Apply button — got ' + applies)
-  resetPrivacy()
+  try {
+    seedPrivacy()
+    const markup = renderSettings()
+    assert.ok(markup.includes(escapeHtml(EN()['privacy.warnDaily'])), 'the daily row is labelled')
+    assert.ok(markup.includes(escapeHtml(EN()['privacy.warnMonthly'])), 'the monthly row is labelled')
+    assert.ok(markup.includes('value="1.5"'), 'the daily threshold shows its configured amount')
+    assert.ok(markup.includes('value="0"'), 'and a zero (off) threshold shows as 0')
+    assert.ok(markup.includes(escapeHtml(EN()['privacy.warnHint'])), 'the hint renders')
+    assert.match(EN()['privacy.warnHint'], /80\s?%/, 'the hint states the 80 % warn point')
+    assert.match(EN()['privacy.warnHint'], /\b0\b/, 'and that 0 turns the warning off')
+    const applies = markup.split(EN()['privacy.apply']).length - 1
+    assert.ok(applies >= 2, 'both threshold rows have their own Apply button — got ' + applies)
+    // Two buttons reading "Apply" in one card need accessible names that say
+    // which threshold each one applies.
+    for (const key of ['privacy.warnDaily', 'privacy.warnMonthly']) {
+      const label = escapeHtml(EN()['privacy.apply'] + ': ' + EN()[key])
+      assert.ok(new RegExp('<button[^>]*aria-label="' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"').test(markup),
+        'the Apply button for ' + key + ' names its threshold')
+    }
+  } finally {
+    resetPrivacy()
+  }
 })
 
 test('the Data & Privacy card offers both destructive actions', () => {
-  seedPrivacy()
-  const markup = renderSettings()
-  assert.ok(markup.includes(escapeHtml(EN()['settings.clear'])), 'clear reports')
-  assert.ok(markup.includes(escapeHtml(EN()['privacy.clearUsage'])), 'clear usage history')
-  resetPrivacy()
+  try {
+    seedPrivacy()
+    const markup = renderSettings()
+    assert.ok(markup.includes(escapeHtml(EN()['settings.clear'])), 'clear reports')
+    assert.ok(markup.includes(escapeHtml(EN()['privacy.clearUsage'])), 'clear usage history')
+  } finally {
+    resetPrivacy()
+  }
 })
 
 test('the confirm dialog renders only while a confirm is pending, and is a labelled modal', () => {
-  const rootStore = seedPrivacy()
-  assert.equal(/role="dialog"/.test(renderSettings()), false, 'no dialog while nothing is pending')
+  try {
+    const rootStore = seedPrivacy()
+    assert.equal(/role="dialog"/.test(renderSettings()), false, 'no dialog while nothing is pending')
 
-  rootStore.confirm = { kind: 'reports' }
-  const markup = renderSettings()
-  const dialog = /<div[^>]*role="dialog"[^>]*>/.exec(markup)
-  assert.ok(dialog, 'the dialog renders')
-  assert.ok(dialog[0].includes('aria-modal="true"'), 'it is modal — got ' + dialog[0])
-  assert.ok(dialog[0].includes('aria-labelledby="tacit-confirm-title"'), 'named by its own heading')
-  assert.ok(/<h3[^>]*id="tacit-confirm-title"[^>]*>/.test(markup), 'the heading carries that id')
-  assert.ok(markup.includes('tacit-modal-backdrop'), 'behind a backdrop')
-  assert.ok(markup.includes(escapeHtml(EN()['confirm.reportsTitle'])))
-  assert.ok(markup.includes(escapeHtml(EN()['confirm.reportsBody'])))
+    rootStore.confirm = { kind: 'reports' }
+    const markup = renderSettings()
+    const dialog = /<div[^>]*role="dialog"[^>]*>/.exec(markup)
+    assert.ok(dialog, 'the dialog renders')
+    assert.ok(dialog[0].includes('aria-modal="true"'), 'it is modal — got ' + dialog[0])
+    assert.ok(dialog[0].includes('aria-labelledby="tacit-confirm-title"'), 'named by its own heading')
+    assert.ok(/<h3[^>]*id="tacit-confirm-title"[^>]*>/.test(markup), 'the heading carries that id')
+    assert.ok(markup.includes('tacit-modal-backdrop'), 'behind a backdrop')
+    assert.ok(markup.includes(escapeHtml(EN()['confirm.reportsTitle'])))
+    assert.ok(markup.includes(escapeHtml(EN()['confirm.reportsBody'])))
 
-  // Cancel comes first so the safe action is the one focus and Tab reach first.
-  const cancelAt = markup.indexOf(EN()['confirm.cancel'])
-  const clearAt = markup.indexOf('tacit-btn-danger')
-  assert.ok(cancelAt > -1 && clearAt > -1 && cancelAt < clearAt, 'Cancel precedes the destructive button')
-  assert.ok(/<button[^>]*tacit-btn-danger[^>]*>/.test(markup), 'the destructive button is styled as such')
-  assert.ok(markup.includes(escapeHtml(EN()['confirm.clear'])))
+    // Cancel comes first so the safe action is the one focus and Tab reach first.
+    const cancelAt = markup.indexOf(EN()['confirm.cancel'])
+    const clearAt = markup.indexOf('tacit-btn-danger')
+    assert.ok(cancelAt > -1 && clearAt > -1 && cancelAt < clearAt, 'Cancel precedes the destructive button')
+    assert.ok(/<button[^>]*tacit-btn-danger[^>]*>/.test(markup), 'the destructive button is styled as such')
+    assert.ok(markup.includes(escapeHtml(EN()['confirm.clear'])))
 
-  rootStore.confirm = { kind: 'usage' }
-  const usage = renderSettings()
-  assert.ok(usage.includes(escapeHtml(EN()['confirm.usageTitle'])))
-  assert.ok(usage.includes(escapeHtml(EN()['confirm.usageBody'])))
-  assert.equal(usage.includes(escapeHtml(EN()['confirm.reportsTitle'])), false, 'one dialog at a time')
-  resetPrivacy()
+    rootStore.confirm = { kind: 'usage' }
+    const usage = renderSettings()
+    assert.ok(usage.includes(escapeHtml(EN()['confirm.usageTitle'])))
+    assert.ok(usage.includes(escapeHtml(EN()['confirm.usageBody'])))
+    assert.equal(usage.includes(escapeHtml(EN()['confirm.reportsTitle'])), false, 'one dialog at a time')
+  } finally {
+    resetPrivacy()
+  }
 })
 
 test('openConfirm and closeConfirm are the only way the dialog opens', () => {
-  const rootStore = seedPrivacy()
-  testKit.openConfirm('usage')
-  assert.deepEqual(rootStore.confirm, { kind: 'usage' })
-  testKit.openConfirm('reports')
-  assert.deepEqual(rootStore.confirm, { kind: 'reports' })
-  testKit.openConfirm('nonsense')
-  assert.deepEqual(rootStore.confirm, { kind: 'reports' }, 'an unknown kind is ignored')
-  testKit.closeConfirm()
-  assert.equal(rootStore.confirm, null)
-  resetPrivacy()
+  try {
+    const rootStore = seedPrivacy()
+    testKit.openConfirm('usage')
+    assert.deepEqual(rootStore.confirm, { kind: 'usage' })
+    testKit.openConfirm('reports')
+    assert.deepEqual(rootStore.confirm, { kind: 'reports' })
+    testKit.openConfirm('nonsense')
+    assert.deepEqual(rootStore.confirm, { kind: 'reports' }, 'an unknown kind is ignored')
+    testKit.closeConfirm()
+    assert.equal(rootStore.confirm, null)
+  } finally {
+    resetPrivacy()
+  }
 })
 
 test('the overview preview line prices the eligible turns and names its basis', () => {
-  const rootStore = seedSettings()
-  rootStore.preview = null
-  assert.ok(renderSettings().includes(escapeHtml(EN()['bootstrap.estimateDoc'])), 'the documented line stands in until a preview lands')
+  try {
+    const rootStore = seedSettings()
+    rootStore.preview = null
+    assert.ok(renderSettings().includes(escapeHtml(EN()['bootstrap.estimateDoc'])), 'the documented line stands in until a preview lands')
 
-  rootStore.preview = {
-    ok: true,
-    eligible: 12,
-    skipped: 3,
-    limit: 20,
-    model: 'deepseek-v4-flash',
-    estimate: { usd: 0.0312, basis: 'measured', samples: 9, perAnalysisUsd: 0.0026 },
+    rootStore.preview = {
+      ok: true,
+      eligible: 12,
+      skipped: 3,
+      limit: 20,
+      model: 'deepseek-v4-flash',
+      estimate: { usd: 0.0312, basis: 'measured', samples: 9, perAnalysisUsd: 0.0026 },
+    }
+    const measured = renderSettings()
+    assert.ok(measured.includes(tr('bootstrap.preview', { eligible: 12, usd: '$0.0312' })), 'the measured line renders — got ' + measured.slice(0, 0))
+    assert.ok(measured.includes(escapeHtml(tr('bootstrap.previewMeasured', { samples: 9 }))), 'and says it is measured')
+    assert.equal(measured.includes(escapeHtml(EN()['bootstrap.previewDoc'])), false)
+    assert.equal(measured.includes(escapeHtml(EN()['bootstrap.estimateDoc'])), false, 'the standing-in line steps aside')
+
+    rootStore.preview = { ...rootStore.preview, estimate: { usd: 0.03, basis: 'doc', samples: 0, perAnalysisUsd: 0.0025 } }
+    const doc = renderSettings()
+    assert.ok(doc.includes(escapeHtml(EN()['bootstrap.previewDoc'])), 'the doc-basis line says so')
+    assert.equal(doc.includes(escapeHtml(tr('bootstrap.previewMeasured', { samples: 0 }))), false)
+
+    // An estimate the host could not price must never read as a free run.
+    rootStore.preview = { ...rootStore.preview, estimate: { usd: null, basis: 'doc', samples: 0, perAnalysisUsd: null } }
+    const unpriced = renderSettings()
+    assert.ok(unpriced.includes(tr('bootstrap.preview', { eligible: 12, usd: EN()['usage.priceUnavailable'] })), 'an unpriceable estimate says so')
+    assert.equal(unpriced.includes('$0.0000'), false, 'and never claims the run is free')
+
+    rootStore.preview = { ...rootStore.preview, estimate: { usd: 0.03, basis: 'doc', samples: 0, perAnalysisUsd: 0.0025 } }
+    const button = (markup) => {
+      const match = /<span class="tacit-bootstrap"><button([^>]*)>/.exec(markup)
+      assert.ok(match, 'the bootstrap button renders')
+      return match[1]
+    }
+    assert.equal(button(doc).includes('disabled'), false, 'enabled while there is something to learn from')
+    rootStore.preview = { ...rootStore.preview, eligible: 0 }
+    assert.ok(button(renderSettings()).includes('disabled'), 'and disabled once nothing is eligible')
+
+    rootStore.preview = null
+    assert.equal(button(renderSettings()).includes('disabled'), false, 'never disabled before a preview has loaded')
+  } finally {
+    resetPrivacy()
   }
-  const measured = renderSettings()
-  assert.ok(measured.includes(tr('bootstrap.preview', { eligible: 12, usd: '$0.0312' })), 'the measured line renders — got ' + measured.slice(0, 0))
-  assert.ok(measured.includes(escapeHtml(tr('bootstrap.previewMeasured', { samples: 9 }))), 'and says it is measured')
-  assert.equal(measured.includes(escapeHtml(EN()['bootstrap.previewDoc'])), false)
-  assert.equal(measured.includes(escapeHtml(EN()['bootstrap.estimateDoc'])), false, 'the standing-in line steps aside')
-
-  rootStore.preview = { ...rootStore.preview, estimate: { usd: 0.03, basis: 'doc', samples: 0, perAnalysisUsd: 0.0025 } }
-  const doc = renderSettings()
-  assert.ok(doc.includes(escapeHtml(EN()['bootstrap.previewDoc'])), 'the doc-basis line says so')
-  assert.equal(doc.includes(escapeHtml(tr('bootstrap.previewMeasured', { samples: 0 }))), false)
-
-  // An estimate the host could not price must never read as a free run.
-  rootStore.preview = { ...rootStore.preview, estimate: { usd: null, basis: 'doc', samples: 0, perAnalysisUsd: null } }
-  const unpriced = renderSettings()
-  assert.ok(unpriced.includes(tr('bootstrap.preview', { eligible: 12, usd: EN()['usage.priceUnavailable'] })), 'an unpriceable estimate says so')
-  assert.equal(unpriced.includes('$0.0000'), false, 'and never claims the run is free')
-
-  rootStore.preview = { ...rootStore.preview, estimate: { usd: 0.03, basis: 'doc', samples: 0, perAnalysisUsd: 0.0025 } }
-  const button = (markup) => {
-    const match = /<span class="tacit-bootstrap"><button([^>]*)>/.exec(markup)
-    assert.ok(match, 'the bootstrap button renders')
-    return match[1]
-  }
-  assert.equal(button(doc).includes('disabled'), false, 'enabled while there is something to learn from')
-  rootStore.preview = { ...rootStore.preview, eligible: 0 }
-  assert.ok(button(renderSettings()).includes('disabled'), 'and disabled once nothing is eligible')
-
-  rootStore.preview = null
-  assert.equal(button(renderSettings()).includes('disabled'), false, 'never disabled before a preview has loaded')
-  resetPrivacy()
 })
 
 test('a batch notice carries the analyzed/requested counts and the run figures', () => {
@@ -1564,4 +1592,84 @@ test('the stylesheet carries the destructive-action rules', () => {
   const sheet = String(testKit.css)
   assert.match(sheet, /\.tacit-btn-danger\{[^}]*--dsw-alias-state-error-primary/)
   assert.match(sheet, /\.tacit-confirm-actions\{display:flex/)
+})
+
+/**
+ * Run `body` with every /api/tacit call answered from `routes` (anything not
+ * listed answers a bare ok envelope), handing it the list of paths called in
+ * order. The suite's throwing fetch is always put back.
+ */
+async function withApiStub(routes, body) {
+  const realFetch = globalThis.fetch
+  const calls = []
+  globalThis.fetch = async (url) => {
+    const path = String(url).replace('/api/tacit', '')
+    calls.push(path)
+    const payload = routes[path] === undefined ? { ok: true, code: '', detail: '' } : routes[path]
+    return { ok: true, json: async () => payload }
+  }
+  try {
+    await body(calls)
+  } finally {
+    globalThis.fetch = realFetch
+  }
+}
+
+const previewEnvelope = (over) => ({
+  ok: true,
+  eligible: 6,
+  skipped: 1,
+  limit: 20,
+  model: 'deepseek-v4-flash',
+  estimate: { usd: 0.015, basis: 'doc', samples: 0, perAnalysisUsd: 0.0025 },
+  code: '',
+  detail: '',
+  ...(over === undefined ? {} : over),
+})
+
+test('clearing reports re-prices the bootstrap preview instead of stranding the button', async () => {
+  const rootStore = seedSettings()
+  try {
+    // The preview the panel is holding says there is nothing left to learn
+    // from — exactly the state that leaves the button disabled forever.
+    rootStore.preview = previewEnvelope({ eligible: 0 })
+    await withApiStub({ '/bootstrap-preview': previewEnvelope({ eligible: 6 }) }, async (calls) => {
+      await testKit.clearAllRoot()
+      assert.ok(calls.includes('/clear'), 'the clear itself is posted')
+      assert.ok(calls.includes('/bootstrap-preview'), 'and the preview is re-read')
+      assert.ok(calls.indexOf('/clear') < calls.indexOf('/bootstrap-preview'), 'after the clear, not before')
+      assert.equal(rootStore.preview.eligible, 6, 'the stale zero-eligible preview is replaced')
+    })
+    assert.equal(/<span class="tacit-bootstrap"><button([^>]*)>/.exec(renderSettings())[1].includes('disabled'), false,
+      'so the Bootstrap button is usable again without a remount')
+  } finally {
+    rootStore.preview = null
+    rootStore.usage = null
+    rootStore.coached = []
+    rootStore.notice = null
+    rootStore.profile = null
+  }
+})
+
+test('clearing usage history re-prices the preview whose measured basis it deleted', async () => {
+  const rootStore = seedSettings()
+  try {
+    rootStore.preview = previewEnvelope({ estimate: { usd: 0.031, basis: 'measured', samples: 9, perAnalysisUsd: 0.0026 } })
+    await withApiStub({
+      '/usage-clear': { ok: true, removed: 12, trackingSince: 1756512000000, code: '', detail: '' },
+      '/bootstrap-preview': previewEnvelope(),
+    }, async (calls) => {
+      await testKit.clearUsageHistory()
+      assert.ok(calls.includes('/usage-clear'), 'the ledger is cleared')
+      assert.ok(calls.includes('/bootstrap-preview'), 'and the estimate re-read')
+      assert.ok(calls.indexOf('/usage-clear') < calls.indexOf('/bootstrap-preview'), 'after the clear, not before')
+      assert.equal(rootStore.preview.estimate.basis, 'doc', 'a measured basis whose ledger is gone falls back')
+      assert.equal(rootStore.notice.text, tr('notice.usageCleared', { n: 12 }), 'the clear reports what it removed')
+    })
+  } finally {
+    rootStore.preview = null
+    rootStore.usage = null
+    rootStore.notice = null
+    rootStore.profile = null
+  }
 })

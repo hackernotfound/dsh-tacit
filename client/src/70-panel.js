@@ -180,8 +180,12 @@
         }
         /** One USD threshold: never negative, `0` = off, no rounding to whole dollars. */
         const applyWarn = (key, text, setText) => {
-          const typed = Number(text)
-          const value = Math.max(0, Number.isFinite(typed) ? typed : 0)
+          const typed = String(text).trim()
+          // An empty field means "off". Anything that is not a number at all is
+          // a typo: silently writing 0 would turn a warning off behind the
+          // user's back, so the entry is left alone instead.
+          if (typed.length > 0 && !Number.isFinite(Number(typed))) return
+          const value = Math.max(0, typed.length === 0 ? 0 : Number(typed))
           setText(String(value))
           updateRootConfig({ [key]: value })
         }
@@ -368,6 +372,9 @@
               h('button', {
                 type: 'button',
                 className: 'tacit-btn tacit-btn-sm',
+                // Two identically labelled buttons in one card: the accessible
+                // name has to say which threshold each one applies.
+                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnDaily'),
                 onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
               }, t('privacy.apply'))),
             h('div', { className: 'tacit-settings-row' },
@@ -384,6 +391,9 @@
               h('button', {
                 type: 'button',
                 className: 'tacit-btn tacit-btn-sm',
+                // Two identically labelled buttons in one card: the accessible
+                // name has to say which threshold each one applies.
+                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnMonthly'),
                 onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
               }, t('privacy.apply'))),
             h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),

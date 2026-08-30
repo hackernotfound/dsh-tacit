@@ -345,6 +345,9 @@
         rootStore.error = errorOf(error)
       }
       fetchUsage()
+      // Turns without a report are eligible again, so a preview that last read
+      // `eligible: 0` would otherwise keep the Bootstrap button disabled.
+      await fetchBootstrapPreview()
       notifyRoot()
     }
 
@@ -368,6 +371,9 @@
         rootStore.error = errorOf(error)
       }
       await fetchUsage()
+      // The measured basis of the bootstrap estimate came from the ledger this
+      // just deleted; re-price it rather than quoting figures that are gone.
+      await fetchBootstrapPreview()
       notifyRoot()
     }
 

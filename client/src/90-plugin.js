@@ -85,6 +85,8 @@
         openConfirm,
         closeConfirm,
         fetchBootstrapPreview,
+        clearAllRoot,
+        clearUsageHistory,
         runNotice,
         fmtRate,
         UsageCard,
