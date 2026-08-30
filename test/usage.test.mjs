@@ -827,3 +827,33 @@ test('report: range "all" reaches every day file retention keeps', () => {
   assert.equal(ids.includes(runs[1]), true, 'the oldest file retention kept is listable under range "all"')
   assert.equal(ids.length, 8)
 })
+
+test('summary day buckets past the retention cap are dropped on the first run of a new day', () => {
+  const { dir, store } = setup()
+  const ancient = dayKey(START - 500 * MS_PER_DAY)
+  const recent = dayKey(START - 10 * MS_PER_DAY)
+  store.writeUsageSummary(usageSummarySchema.parse({
+    version: 1,
+    trackingSince: 111,
+    lifetime: { attempts: 1 },
+    days: { [ancient]: { attempts: 1, usdKnown: 1 }, [recent]: { attempts: 1, usdKnown: 1 } },
+  }))
+  const clock = { ms: START }
+  const usage = createUsageTracker({
+    store: new CoachStore(dir),
+    config: () => ({ costHistoryDays: 30 }),
+    pricing: fakePricing(),
+    now: () => clock.ms,
+    flushDelayMs: 60_000,
+  })
+  assert.ok(usage.summary().days[ancient] !== undefined)
+
+  const runId = usage.beginRun({ type: 'analysis' })
+  usage.attemptSink(runId, { op: 'analysis' })(record(clock))
+  usage.endRun(runId, {})
+
+  assert.equal(usage.summary().days[ancient], undefined, 'the out-of-cap bucket is gone')
+  assert.ok(usage.summary().days[recent] !== undefined, 'an in-cap bucket is kept')
+  usage.flush()
+  assert.equal(store.readUsageSummary().days[ancient], undefined, 'the prune reaches disk')
+})
