@@ -274,7 +274,7 @@ test('readUsageSummary defaults an absent summary without warning', () => {
   const { store } = tempStore()
   let summary
   const warnings = captureWarn(() => {
-    summary = store.readUsageSummary()
+    summary = store.readUsageSummary().summary
   })
   assert.equal(warnings.length, 0)
   assert.equal(summary.version, 1)
@@ -292,8 +292,8 @@ test('a corrupt usage summary falls back to a fresh object with a single warning
 
   let first, second
   const warnings = captureWarn(() => {
-    first = store.readUsageSummary()
-    second = store.readUsageSummary()
+    first = store.readUsageSummary().summary
+    second = store.readUsageSummary().summary
   })
   assert.equal(first.version, 1)
   assert.equal(second.version, 1)
@@ -303,7 +303,7 @@ test('a corrupt usage summary falls back to a fresh object with a single warning
 test('writeUsageSummary round-trips', () => {
   const { store } = tempStore()
   store.writeUsageSummary({ version: 1, trackingSince: 5, lifetime: {}, byType: {}, byModel: {}, days: {} })
-  const read = store.readUsageSummary()
+  const read = store.readUsageSummary().summary
   assert.equal(read.trackingSince, 5)
 })
 
@@ -325,7 +325,7 @@ test('clearUsage removes only matching day files, writes a fresh summary, and ne
   assert.equal(store.report('s1', 1).turn, 1)
   assert.equal(store.profile().analyzedCount, 1)
   assert.ok(fs.existsSync(path.join(dir, 'reports')))
-  const summary = store.readUsageSummary()
+  const summary = store.readUsageSummary().summary
   assert.ok(summary.trackingSince >= before)
 })
 

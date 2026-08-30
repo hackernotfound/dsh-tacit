@@ -261,7 +261,7 @@ test('lifetime / byType / byModel / days accumulate across runs and days', () =>
   assert.equal(store.readUsageDay(dayOne).runs.length, 1)
   assert.equal(store.readUsageDay(dayTwo).runs.length, 1)
   assert.deepEqual(store.listUsageDays(), [dayOne, dayTwo].sort())
-  const persisted = store.readUsageSummary()
+  const persisted = store.readUsageSummary().summary
   assert.equal(persisted.lifetime.attempts, 3)
   assert.equal(persisted.days[dayTwo].byType.improve.attempts, 2)
 })
@@ -373,7 +373,7 @@ test('flush writes live runs with status running, plus the summary', () => {
   assert.equal(run.status, 'running')
   assert.equal(run.endedAt, 0)
   assert.equal(run.attempts.length, 1)
-  assert.equal(store.readUsageSummary().lifetime.attempts, 1)
+  assert.equal(store.readUsageSummary().summary.lifetime.attempts, 1)
   assert.equal(usage.liveRuns().length, 1, 'flush does not end the run')
 
   // the same run is upserted (not duplicated) when it finishes
@@ -390,7 +390,7 @@ test('a scheduled flush lands without any endRun (and its timer is unref\'d)', a
   const runId = usage.beginRun({ type: 'analysis' })
   usage.attemptSink(runId, { op: 'analysis' })(record(clock))
   await delay(80)
-  assert.equal(store.readUsageSummary().lifetime.attempts, 1)
+  assert.equal(store.readUsageSummary().summary.lifetime.attempts, 1)
   assert.equal(store.readUsageDay(dayKey(clock.ms)).runs.length, 1)
   usage.flush()
 })
@@ -418,7 +418,7 @@ test('a corrupt day file on disk does not lose the run being written', () => {
 test('a freshly created summary is written back so trackingSince sticks', () => {
   const { usage, store, clock } = setup()
   assert.equal(usage.summary().trackingSince, clock.ms)
-  assert.equal(store.readUsageSummary().trackingSince, clock.ms)
+  assert.equal(store.readUsageSummary().summary.trackingSince, clock.ms)
 })
 
 test('an existing summary is loaded once and kept (never recomputed)', () => {
@@ -855,7 +855,7 @@ test('summary day buckets past the retention cap are dropped on the first run of
   assert.equal(usage.summary().days[ancient], undefined, 'the out-of-cap bucket is gone')
   assert.ok(usage.summary().days[recent] !== undefined, 'an in-cap bucket is kept')
   usage.flush()
-  assert.equal(store.readUsageSummary().days[ancient], undefined, 'the prune reaches disk')
+  assert.equal(store.readUsageSummary().summary.days[ancient], undefined, 'the prune reaches disk')
 })
 
 test('range "today" lists a run that started before midnight and billed after it', () => {
@@ -914,4 +914,44 @@ test('two trackers minting in the same millisecond do not overwrite each other',
   } finally {
     Math.random = realRandom
   }
+})
+
+test('an unknown run type warns once per type, not once per run', () => {
+  const { usage } = setup()
+  const { lines } = captureWarn(() => {
+    usage.beginRun({ type: 'not-a-type' })
+    usage.beginRun({ type: 'not-a-type' })
+    usage.beginRun({ type: 'also-not-a-type' })
+  })
+  assert.equal(lines.filter((line) => line.includes('"not-a-type"')).length, 1)
+  assert.equal(lines.filter((line) => line.includes('"also-not-a-type"')).length, 1)
+})
+
+test('a malformed pricing result is dropped, not written into the day file', () => {
+  const broken = { priceCall: () => ({ source: 'made-up', tier: 7, rates: { cacheHit: 1 }, usd: 'free' }) }
+  const { usage, store, clock } = setup({ pricing: broken })
+  const runId = usage.beginRun({ type: 'analysis' })
+  usage.attemptSink(runId, { op: 'analysis' })(record(clock))
+  usage.endRun(runId, {})
+  usage.flush()
+
+  const live = usage.summary()
+  assert.equal(live.lifetime.unpricedCalls, 1, 'an unusable price is an unpriced call')
+  assert.equal(live.lifetime.usdKnown, 0)
+  const { runs } = store.readUsageDay(dayKey(clock.ms))
+  assert.equal(runs.length, 1, 'a bad price never makes the day file unreadable')
+  assert.equal(runs[0].attempts[0].priced, null)
+})
+
+test('a restart before the first attempt keeps the original trackingSince', () => {
+  const { dir, clock } = setup()
+  clock.ms = START + 3 * MS_PER_DAY
+  const restarted = createUsageTracker({
+    store: new CoachStore(dir),
+    config: () => ({ costHistoryDays: 30 }),
+    pricing: fakePricing(),
+    now: () => clock.ms,
+    flushDelayMs: 60_000,
+  })
+  assert.equal(restarted.summary().trackingSince, START, 'the window is not re-stamped on every empty restart')
 })
