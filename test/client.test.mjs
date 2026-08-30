@@ -482,10 +482,10 @@ test('the status card shows the measured trend when enough turns exist', () => {
   const rootStore = testKit.rootStore
   rootStore.config = { model: 'deepseek-v4-flash', liveSuggestions: true, autoAnalyze: true, autoDailyBudget: 30, steerAgent: true }
   rootStore.profile = { analyzedCount: 4, patterns: [] }
-  rootStore.trend = { enough: true, window: 20, early: { n: 20, messyRate: 0.4, tokensPerTurn: 12000 }, recent: { n: 20, messyRate: 0.2, tokensPerTurn: 9000 } }
+  rootStore.trend = { enough: true, window: 20, early: { n: 20, correctionRate: 0.3, messyRate: 0.4, tokensPerTurn: 12000 }, recent: { n: 20, correctionRate: 0.1, messyRate: 0.2, tokensPerTurn: 9000 } }
   const Section = slotEntries.find((e) => e.name === 'settings.section').registration.component
   const markup = renderToStaticMarkup(React.createElement(Section, {}))
-  assert.ok(markup.includes('Messy turns: 40% → 20%'))
+  assert.ok(markup.indexOf('You corrected the agent: 30% → 10%') < markup.indexOf('Messy turns: 40% → 20%'), 'the correction rate leads')
   assert.ok(markup.includes('12.0k → 9.0k'))
   rootStore.profile = null
   rootStore.trend = null
