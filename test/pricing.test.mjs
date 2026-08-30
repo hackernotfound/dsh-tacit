@@ -41,6 +41,16 @@ test('isOfficialRoute recognizes both official provider ids', () => {
   assert.equal(isOfficialRoute(undefined), false)
 })
 
+test('isOfficialRoute matches a provider id whatever its case', () => {
+  // A harness or proxy reporting 'DeepSeek-Official' must still be priced —
+  // an exact match would silently count every one of its calls as unpriced.
+  assert.equal(isOfficialRoute('DeepSeek-Official'), true)
+  assert.equal(isOfficialRoute('DeepSeek'), true)
+  assert.equal(isOfficialRoute('DEEPSEEK'), true)
+  assert.equal(isOfficialRoute('Some-Proxy'), false)
+  assert.equal(isOfficialRoute(42), false)
+})
+
 // ── isBeijingWeekend ─────────────────────────────────────────────────────
 
 test('isBeijingWeekend shifts by +8h and checks Sat/Sun', () => {
