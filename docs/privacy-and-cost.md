@@ -52,14 +52,14 @@ keys, session ids, anything outside the clips above.
   you happen to visit cannot plant a directive or spend your budget through
   `127.0.0.1`. (A request with none of those headers — `curl`, the smoke test —
   passes by design.)
-- **Two deletion paths, both restricted to Tacit's own files.** Analysis reports:
-  *Clear all analysis reports* removes `reports/*/<turn>.json` files (and the
-  emptied folders). Usage: day files older than `costHistoryDays` are deleted
-  automatically (at most once per calendar day), and the whole usage ledger can
-  be reset at once. Both only ever unlink files matching Tacit's own naming
+- **Three deletion paths, all restricted to Tacit's own files.** *Clear all
+  analysis reports* removes `reports/*/<turn>.json` files (and the emptied
+  folders). Day files older than `costHistoryDays` are deleted automatically, at
+  most once per calendar day. *Clear usage history* resets the whole ledger at
+  once. All three only ever unlink files matching Tacit's own naming
   (`reports/*/<n>.json` or `usage/<YYYY-MM-DD>.json`); the `usage/` directory,
   `summary.json` (rewritten fresh, not unlinked), the profile and the config are
-  never touched by either path.
+  never touched by any of them.
 - **Bounded everything.** Every text sent to the model is clipped (table above);
   directives ≤ 220 chars, the steering section ≤ 1400 chars, 8 directives, 12 patterns.
 
