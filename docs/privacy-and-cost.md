@@ -87,6 +87,14 @@ turn, the five raw token buckets, and the priced result (`null` when nothing
 matched). None of it is ever a prompt, a response, a tool argument or an API
 key.
 
+**The tiles and the run list count differently on purpose.** A tile is summed
+from the per-day totals, which count each *attempt* on the day it was billed. A
+run row lives in the day file of the day the run *started*. So a run that begins
+before midnight and finishes after it puts tokens into two days' tiles, and it
+is listed under *today* as long as any of its attempts happened today. That is
+the reading that makes the *today* tile and the *today* list agree on the same
+work.
+
 **Pricing sources and resolution order.** Each attempt is priced once, at the
 call's own start time, in this order:
 
