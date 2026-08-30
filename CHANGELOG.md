@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-08-31
 
 - Directive trials are now graded on how often you *correct* the agent: a
   candidate is retired when its correction rate rises more than
