@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { CoachStore, dayKey } from '../lib/store.js'
-import { usageDayFileSchema, usageSummarySchema } from '../lib/schema.js'
+import { usageArgSchema, usageDayFileSchema, usageSummarySchema } from '../lib/schema.js'
 import { createUsageTracker, totalTokens } from '../lib/usage.js'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -954,4 +954,23 @@ test('a restart before the first attempt keeps the original trackingSince', () =
     flushDelayMs: 60_000,
   })
   assert.equal(restarted.summary().trackingSince, START, 'the window is not re-stamped on every empty restart')
+})
+
+test('the usage filter accepts status "running" and lists only the runs still in flight', () => {
+  assert.equal(usageArgSchema.safeParse({ status: 'running' }).success, true)
+
+  const { usage, clock } = setup()
+  const liveId = usage.beginRun({ type: 'analysis' })
+  usage.attemptSink(liveId, { op: 'analysis' })(record(clock))
+  const doneId = usage.beginRun({ type: 'analysis' })
+  usage.attemptSink(doneId, { op: 'analysis' })(record(clock))
+  usage.endRun(doneId, {})
+  usage.flush()
+
+  const running = usage.report({ filters: { status: 'running' } })
+  assert.equal(running.runs.total, 1)
+  assert.equal(running.runs.items[0].runId, liveId)
+  const succeeded = usage.report({ filters: { status: 'success' } })
+  assert.equal(succeeded.runs.total, 1)
+  assert.equal(succeeded.runs.items[0].runId, doneId)
 })
