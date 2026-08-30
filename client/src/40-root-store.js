@@ -22,6 +22,10 @@
         privacy: false,
       },
       notice: null, // {text} — a short-lived result line, cleared after 5s
+      // A destructive action waiting on its confirmation dialog:
+      // null | {kind:'reports'|'usage'}.
+      confirm: null,
+      preview: null, // the last /bootstrap-preview envelope
       usage: null, // the last /usage envelope
       usageFilters: { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 },
       usageRuns: {}, // runId → the full run (attempts included), fetched on first expand
@@ -344,6 +348,71 @@
       notifyRoot()
     }
 
+    /**
+     * Delete the usage ledger and restart the tracking window. The runs the
+     * panel had expanded are dropped with it — their ids no longer exist.
+     */
+    async function clearUsageHistory() {
+      rootStore.error = null
+      try {
+        const result = await api('/usage-clear', {})
+        if (result !== null && typeof result === 'object' && result.ok) {
+          rootStore.usageRuns = {}
+          rootStore.usageExpanded = new Set()
+          rootStore.usageFilters = { ...rootStore.usageFilters, page: 1 }
+          if (translate !== null) setRootNotice(translate('notice.usageCleared', { n: fmtTokens(usageNum(result.removed)) }))
+        } else {
+          rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
+        }
+      } catch (error) {
+        rootStore.error = errorOf(error)
+      }
+      await fetchUsage()
+      notifyRoot()
+    }
+
+    /**
+     * Ask before deleting. The two clears are the only irreversible actions in
+     * the panel, so neither fires straight off a click: the kind is parked here
+     * and the dialog does the asking.
+     */
+    function openConfirm(kind) {
+      if (kind !== 'reports' && kind !== 'usage') return
+      // Captured before the dialog steals focus, so closing it can hand focus
+      // back to the button that opened it.
+      captureConfirmOpener()
+      rootStore.confirm = { kind }
+      notifyRoot()
+    }
+
+    function closeConfirm() {
+      rootStore.confirm = null
+      notifyRoot()
+    }
+
+    /** Run the parked destructive action, whichever it is, and close the dialog. */
+    async function confirmAction() {
+      const kind = rootStore.confirm !== null && typeof rootStore.confirm === 'object' ? rootStore.confirm.kind : null
+      rootStore.confirm = null
+      notifyRoot()
+      if (kind === 'reports') await clearAllRoot()
+      else if (kind === 'usage') await clearUsageHistory()
+    }
+
+    /**
+     * "What would Bootstrap do, and what would it cost?" — read-only, no model
+     * call. A failure leaves `preview` alone: the documented estimate stands in.
+     */
+    async function fetchBootstrapPreview() {
+      try {
+        const result = await api('/bootstrap-preview', { limit: 20 })
+        if (result !== null && typeof result === 'object' && result.ok === true) rootStore.preview = result
+      } catch {
+        // One missing hint line; the next mount tries again.
+      }
+      notifyRoot()
+    }
+
     /** Poll /state while a bootstrap runs so the counter moves; `apply` receives each snapshot. */
     function pollBootstrap(apply) {
       const tick = async () => {
@@ -419,6 +488,9 @@
       // here: a second call would only duplicate the one the batch already
       // makes worth issuing.
       await initRootStore()
+      // Fewer turns are eligible now, and the ledger has fresh measurements to
+      // price the next batch from.
+      await fetchBootstrapPreview()
     }
 
     async function editDirectives(payload) {
@@ -494,54 +566,68 @@
         })
     }
 
-    /** Run one /analyze call and settle when it finishes (batch building block). */
-    function analyzeTurnAsync(store, turn) {
-      return new Promise((resolve) => {
-        store.inFlight[String(turn)] = true
-        notify(store)
-        api('/analyze', { sessionId: store.sessionId, turn })
-          .then((result) => {
-            if (result !== null && typeof result === 'object' && result.ok && result.report !== null && typeof result.report === 'object') {
-              store.reports[String(turn)] = result.report
-              store.selection.delete(turn)
-              store.expanded.add(turn)
-              store.error = null
-            } else {
-              store.error = {
-                code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
-                detail: result !== null && typeof result === 'object' && typeof result.detail === 'string' ? result.detail : '',
-              }
-            }
-            if (result !== null && typeof result === 'object' && result.profile !== null && typeof result.profile === 'object') {
-              store.profile = result.profile
-            }
-          })
-          .catch((error) => {
-            store.error = errorOf(error)
-          })
-          .finally(() => {
-            delete store.inFlight[String(turn)]
-            notify(store)
-            resolve()
-          })
-      })
-    }
-
-    /** Coach every ticked prompt sequentially (the user-chosen 20). */
+    /**
+     * Coach every ticked prompt in ONE `/analyze-batch` call.
+     *
+     * The host runs the whole selection under a single ledger run, so the tab
+     * reports one price for the batch instead of N separate analyses — and the
+     * turns settle together rather than one row at a time.
+     */
     async function coachSelected(store) {
       if (store.batchRunning) return
       const turns = [...store.selection].sort((a, b) => a - b)
       if (turns.length === 0) return
       store.batchRunning = true
       store.error = null
+      store.notice = null
+      // Every ticked row shows its spinner for the whole call: the batch has no
+      // per-turn progress to report.
+      for (const turn of turns) store.inFlight[String(turn)] = true
       notify(store)
-      for (const turn of turns) {
-        if (store.inFlight[String(turn)]) continue
-        await analyzeTurnAsync(store, turn)
+      try {
+        const result = await api('/analyze-batch', { sessionId: store.sessionId, turns })
+        if (result !== null && typeof result === 'object' && result.ok) {
+          const results = Array.isArray(result.results) ? result.results : []
+          let analyzed = 0
+          let failure = null
+          for (const entry of results) {
+            if (entry === null || typeof entry !== 'object') continue
+            const turn = typeof entry.turn === 'number' ? entry.turn : null
+            if (entry.ok === true && entry.report !== null && typeof entry.report === 'object') {
+              if (turn !== null) {
+                store.reports[String(turn)] = entry.report
+                store.expanded.add(turn)
+              }
+              analyzed += 1
+              continue
+            }
+            // `busy` means an analysis of that turn was already running — a
+            // race with the auto-analyzer, not a failure of this batch.
+            const code = typeof entry.code === 'string' && entry.code.length > 0 ? entry.code : 'call-failed'
+            if (failure === null && code !== 'busy') failure = { code, detail: '' }
+          }
+          if (failure !== null) store.error = failure
+          if (result.profile !== null && typeof result.profile === 'object') store.profile = result.profile
+          // What the whole batch cost, from the run the host closed for it.
+          setStoreNotice(store, 'notice.batch', { analyzed: String(analyzed), requested: String(turns.length) }, result.run)
+        } else {
+          store.error = {
+            code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
+            detail: result !== null && typeof result === 'object' && typeof result.detail === 'string' ? result.detail : '',
+          }
+        }
+      } catch (error) {
+        store.error = errorOf(error)
       }
+      for (const turn of turns) delete store.inFlight[String(turn)]
+      store.selection.clear()
       store.batchRunning = false
       store.selecting = false
       notify(store)
+      // The batch just spent money, and analyzed turns stop being eligible for
+      // a bootstrap; the Settings page should say both.
+      fetchUsage()
+      fetchBootstrapPreview()
     }
 
     function toggleSelecting(store) {

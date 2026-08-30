@@ -1363,3 +1363,205 @@ test('every usage dictionary key exists in both dictionaries', () => {
   }
   assert.equal(dicts.en['usage.label'], 'Measured usage · list-price cost')
 })
+
+// ── Confirm dialog, bootstrap preview and the Data & Privacy card ─────────
+
+function seedPrivacy(over) {
+  const rootStore = seedSettings()
+  rootStore.config = {
+    ...rootStore.config,
+    costHistoryDays: 90,
+    costWarnDailyUsd: 1.5,
+    costWarnMonthlyUsd: 0,
+    ...(over === undefined ? {} : over),
+  }
+  rootStore.sections.privacy = true
+  return rootStore
+}
+
+function resetPrivacy() {
+  const rootStore = testKit.rootStore
+  rootStore.sections.privacy = false
+  rootStore.confirm = null
+  rootStore.preview = null
+  rootStore.config = null
+  rootStore.profile = null
+}
+
+test('the Data & Privacy card states exactly what a usage record holds', () => {
+  seedPrivacy()
+  const markup = renderSettings()
+  const stored = EN()['privacy.stored']
+  assert.ok(markup.includes(escapeHtml(stored)), 'the stored-data paragraph renders')
+  for (const field of ['session id', 'turn number', 'workspace', 'model', 'provider', 'token counts', 'list price']) {
+    assert.ok(stored.includes(field), 'privacy.stored names the ' + field)
+  }
+  assert.match(stored, /never your prompt/i, 'and states prompt/response text is never stored')
+  resetPrivacy()
+})
+
+test('the retention select is bound to the configured costHistoryDays', () => {
+  seedPrivacy()
+  const markup = renderSettings()
+  assert.ok(markup.includes(escapeHtml(EN()['privacy.retention'])), 'the retention row is labelled')
+  for (const days of [7, 14, 30, 90, 180, 365]) {
+    assert.ok(new RegExp('<option[^>]*value="' + days + '"').test(markup), 'option ' + days + ' renders')
+  }
+  assert.match(markup, /<option[^>]*value="90"[^>]*selected=""/, 'the configured 90 days is the selected option')
+  assert.equal(/<option[^>]*value="30"[^>]*selected=""/.test(markup), false, 'and nothing else is')
+  resetPrivacy()
+})
+
+test('the two USD threshold rows carry the configured amounts and the 80 % hint', () => {
+  seedPrivacy()
+  const markup = renderSettings()
+  assert.ok(markup.includes(escapeHtml(EN()['privacy.warnDaily'])), 'the daily row is labelled')
+  assert.ok(markup.includes(escapeHtml(EN()['privacy.warnMonthly'])), 'the monthly row is labelled')
+  assert.ok(markup.includes('value="1.5"'), 'the daily threshold shows its configured amount')
+  assert.ok(markup.includes('value="0"'), 'and a zero (off) threshold shows as 0')
+  assert.ok(markup.includes(escapeHtml(EN()['privacy.warnHint'])), 'the hint renders')
+  assert.match(EN()['privacy.warnHint'], /80\s?%/, 'the hint states the 80 % warn point')
+  assert.match(EN()['privacy.warnHint'], /\b0\b/, 'and that 0 turns the warning off')
+  const applies = markup.split(EN()['privacy.apply']).length - 1
+  assert.ok(applies >= 2, 'both threshold rows have their own Apply button — got ' + applies)
+  resetPrivacy()
+})
+
+test('the Data & Privacy card offers both destructive actions', () => {
+  seedPrivacy()
+  const markup = renderSettings()
+  assert.ok(markup.includes(escapeHtml(EN()['settings.clear'])), 'clear reports')
+  assert.ok(markup.includes(escapeHtml(EN()['privacy.clearUsage'])), 'clear usage history')
+  resetPrivacy()
+})
+
+test('the confirm dialog renders only while a confirm is pending, and is a labelled modal', () => {
+  const rootStore = seedPrivacy()
+  assert.equal(/role="dialog"/.test(renderSettings()), false, 'no dialog while nothing is pending')
+
+  rootStore.confirm = { kind: 'reports' }
+  const markup = renderSettings()
+  const dialog = /<div[^>]*role="dialog"[^>]*>/.exec(markup)
+  assert.ok(dialog, 'the dialog renders')
+  assert.ok(dialog[0].includes('aria-modal="true"'), 'it is modal — got ' + dialog[0])
+  assert.ok(dialog[0].includes('aria-labelledby="tacit-confirm-title"'), 'named by its own heading')
+  assert.ok(/<h3[^>]*id="tacit-confirm-title"[^>]*>/.test(markup), 'the heading carries that id')
+  assert.ok(markup.includes('tacit-modal-backdrop'), 'behind a backdrop')
+  assert.ok(markup.includes(escapeHtml(EN()['confirm.reportsTitle'])))
+  assert.ok(markup.includes(escapeHtml(EN()['confirm.reportsBody'])))
+
+  // Cancel comes first so the safe action is the one focus and Tab reach first.
+  const cancelAt = markup.indexOf(EN()['confirm.cancel'])
+  const clearAt = markup.indexOf('tacit-btn-danger')
+  assert.ok(cancelAt > -1 && clearAt > -1 && cancelAt < clearAt, 'Cancel precedes the destructive button')
+  assert.ok(/<button[^>]*tacit-btn-danger[^>]*>/.test(markup), 'the destructive button is styled as such')
+  assert.ok(markup.includes(escapeHtml(EN()['confirm.clear'])))
+
+  rootStore.confirm = { kind: 'usage' }
+  const usage = renderSettings()
+  assert.ok(usage.includes(escapeHtml(EN()['confirm.usageTitle'])))
+  assert.ok(usage.includes(escapeHtml(EN()['confirm.usageBody'])))
+  assert.equal(usage.includes(escapeHtml(EN()['confirm.reportsTitle'])), false, 'one dialog at a time')
+  resetPrivacy()
+})
+
+test('openConfirm and closeConfirm are the only way the dialog opens', () => {
+  const rootStore = seedPrivacy()
+  testKit.openConfirm('usage')
+  assert.deepEqual(rootStore.confirm, { kind: 'usage' })
+  testKit.openConfirm('reports')
+  assert.deepEqual(rootStore.confirm, { kind: 'reports' })
+  testKit.openConfirm('nonsense')
+  assert.deepEqual(rootStore.confirm, { kind: 'reports' }, 'an unknown kind is ignored')
+  testKit.closeConfirm()
+  assert.equal(rootStore.confirm, null)
+  resetPrivacy()
+})
+
+test('the overview preview line prices the eligible turns and names its basis', () => {
+  const rootStore = seedSettings()
+  rootStore.preview = null
+  assert.ok(renderSettings().includes(escapeHtml(EN()['bootstrap.estimateDoc'])), 'the documented line stands in until a preview lands')
+
+  rootStore.preview = {
+    ok: true,
+    eligible: 12,
+    skipped: 3,
+    limit: 20,
+    model: 'deepseek-v4-flash',
+    estimate: { usd: 0.0312, basis: 'measured', samples: 9, perAnalysisUsd: 0.0026 },
+  }
+  const measured = renderSettings()
+  assert.ok(measured.includes(tr('bootstrap.preview', { eligible: 12, usd: '$0.0312' })), 'the measured line renders — got ' + measured.slice(0, 0))
+  assert.ok(measured.includes(escapeHtml(tr('bootstrap.previewMeasured', { samples: 9 }))), 'and says it is measured')
+  assert.equal(measured.includes(escapeHtml(EN()['bootstrap.previewDoc'])), false)
+  assert.equal(measured.includes(escapeHtml(EN()['bootstrap.estimateDoc'])), false, 'the standing-in line steps aside')
+
+  rootStore.preview = { ...rootStore.preview, estimate: { usd: 0.03, basis: 'doc', samples: 0, perAnalysisUsd: 0.0025 } }
+  const doc = renderSettings()
+  assert.ok(doc.includes(escapeHtml(EN()['bootstrap.previewDoc'])), 'the doc-basis line says so')
+  assert.equal(doc.includes(escapeHtml(tr('bootstrap.previewMeasured', { samples: 0 }))), false)
+
+  // An estimate the host could not price must never read as a free run.
+  rootStore.preview = { ...rootStore.preview, estimate: { usd: null, basis: 'doc', samples: 0, perAnalysisUsd: null } }
+  const unpriced = renderSettings()
+  assert.ok(unpriced.includes(tr('bootstrap.preview', { eligible: 12, usd: EN()['usage.priceUnavailable'] })), 'an unpriceable estimate says so')
+  assert.equal(unpriced.includes('$0.0000'), false, 'and never claims the run is free')
+
+  rootStore.preview = { ...rootStore.preview, estimate: { usd: 0.03, basis: 'doc', samples: 0, perAnalysisUsd: 0.0025 } }
+  const button = (markup) => {
+    const match = /<span class="tacit-bootstrap"><button([^>]*)>/.exec(markup)
+    assert.ok(match, 'the bootstrap button renders')
+    return match[1]
+  }
+  assert.equal(button(doc).includes('disabled'), false, 'enabled while there is something to learn from')
+  rootStore.preview = { ...rootStore.preview, eligible: 0 }
+  assert.ok(button(renderSettings()).includes('disabled'), 'and disabled once nothing is eligible')
+
+  rootStore.preview = null
+  assert.equal(button(renderSettings()).includes('disabled'), false, 'never disabled before a preview has loaded')
+  resetPrivacy()
+})
+
+test('a batch notice carries the analyzed/requested counts and the run figures', () => {
+  const run = {
+    runId: 'run-batch',
+    billedCalls: 4,
+    unmeteredCalls: 0,
+    unpricedCalls: 0,
+    tokens: { inputTokens: 20000, outputTokens: 6000, cacheReadTokens: 1230, cacheWriteTokens: 0, reasoningTokens: 400 },
+    usdKnown: 0.0088,
+  }
+  const text = testKit.runNotice(tr, 'notice.batch', { analyzed: 4, requested: 5 }, run)
+  assert.equal(text, tr('notice.batch', { analyzed: 4, requested: 5, calls: '4', tokens: '27,230', usd: '$0.0088' }))
+  assert.ok(text.includes('4') && text.includes('5'), 'both counts survive')
+  assert.ok(text.includes('27,230'), 'grouped token total')
+  assert.ok(text.includes('$0.0088'), 'four-decimal list price')
+
+  const unpriced = testKit.runNotice(tr, 'notice.batch', { analyzed: 4, requested: 5 }, { ...run, unpricedCalls: 4, usdKnown: 0 })
+  assert.ok(unpriced.includes(EN()['usage.priceUnavailable']), 'an entirely unpriced batch says so')
+  assert.equal(unpriced.includes('$0.00'), false, 'and never claims it was free')
+})
+
+test('every confirm, privacy and preview key exists in both dictionaries', () => {
+  const dicts = localeDicts['dsh-tacit']
+  const keys = [
+    'notice.batch', 'notice.usageCleared',
+    'bootstrap.preview', 'bootstrap.previewMeasured', 'bootstrap.previewDoc',
+    'confirm.reportsTitle', 'confirm.reportsBody', 'confirm.usageTitle', 'confirm.usageBody',
+    'confirm.cancel', 'confirm.clear',
+    'privacy.retention', 'privacy.warnDaily', 'privacy.warnMonthly', 'privacy.warnHint',
+    'privacy.clearUsage', 'privacy.apply', 'privacy.stored',
+  ]
+  for (const key of keys) {
+    assert.equal(typeof dicts.en[key], 'string', 'en ' + key)
+    assert.equal(typeof dicts.zh[key], 'string', 'zh ' + key)
+  }
+  assert.equal(Object.keys(dicts.en).length, Object.keys(dicts.zh).length, 'the two dictionaries stay the same size')
+})
+
+test('the stylesheet carries the destructive-action rules', () => {
+  const sheet = String(testKit.css)
+  assert.match(sheet, /\.tacit-btn-danger\{[^}]*--dsw-alias-state-error-primary/)
+  assert.match(sheet, /\.tacit-confirm-actions\{display:flex/)
+})

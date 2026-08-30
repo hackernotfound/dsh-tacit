@@ -14,7 +14,7 @@
      * label carries no figure at all, and a batch whose billed calls all came
      * back unpriced says so through `usageSpend` rather than claiming `$0.0000`.
      */
-    function BootstrapButton(kit, { bootstrap, onClick }) {
+    function BootstrapButton(kit, { bootstrap, onClick, disabled }) {
       const { t } = kit
       const running = bootstrap !== null && bootstrap !== undefined && typeof bootstrap === 'object' && bootstrap.running === true
       const progress = running
@@ -40,7 +40,8 @@
         h('button', {
           type: 'button',
           className: 'tacit-btn tacit-btn-sm',
-          disabled: running,
+          // Also disabled when the caller knows there is nothing eligible left.
+          disabled: running || disabled === true,
           title: t('bootstrap.hint'),
           onClick,
         }, label()))

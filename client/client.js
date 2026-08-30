@@ -67,6 +67,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'bootstrap.runningUsd': '学习中… {done}/{total} · {usd}',
       'bootstrap.hint': '分析你最近完成的轮次：提示词至少 8 个字符、不是单纯的「继续」类消息（「继续」「好的」…）、且还没有报告——最多 20 条。',
       'bootstrap.estimateDoc': '使用 deepseek-v4-flash 约 $0.02–0.05，一次性。',
+      'bootstrap.preview': '有 {eligible} 轮符合条件 · 按目录价约 {usd}',
+      'bootstrap.previewMeasured': '（根据你最近 {samples} 次分析的实测数据）',
+      'bootstrap.previewDoc': '（文档估算——还没有足够的实测分析）',
       'steer.enrich': '发送前补充学到的上下文（实验性，每次发送一次小调用）',
       'steer.title': '智能体被告知的关于你的信息',
       'steer.desc': '这些指令会注入每个新会话的系统提示词，让智能体替你补上你通常没说的内容。',
@@ -225,7 +228,19 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'warn.daily': '今日 {spent} / 每日上限 {limit}（{pct}%）',
       'warn.monthly': '本月 {spent} / 每月上限 {limit}（{pct}%）',
       'improve.explain': '「改进」会在你发送前重写草稿。给某次重写点 👎 并写一句原因，Tacit 会从中提炼出持久的风格规则。',
-      'privacy.stored': '分析报告、指令和风格规则只保存在本机的 Tacit 数据目录里；清除操作只会删除 Tacit 自己的文件。',
+      'privacy.stored': '分析报告、指令和风格规则只保存在本机的 Tacit 数据目录里。一条用量记录只包含：时间、操作、会话 ID、轮次编号、工作区名称、模型、服务商、token 计数与目录价——绝不包含你的提示词或模型回复的内容。清除操作只会删除 Tacit 自己的文件。',
+      'privacy.retention': '详细用量记录保留天数',
+      'privacy.warnDaily': '每日花费提醒阈值（美元）',
+      'privacy.warnMonthly': '每月花费阈值（美元）',
+      'privacy.warnHint': '填 0 表示关闭提醒。达到阈值的 80 % 时开始提醒，超过阈值后标记为已超出。',
+      'privacy.clearUsage': '清除用量记录',
+      'privacy.apply': '应用',
+      'confirm.reportsTitle': '清除所有分析报告？',
+      'confirm.reportsBody': '这会删除 Tacit 为所有会话写下的全部分析报告。指令、风格规则和用量记录会保留。此操作无法撤销。',
+      'confirm.usageTitle': '清除用量记录？',
+      'confirm.usageBody': '这会删除 Tacit 的用量账本——每一次记录的调用、它的 token 计数和目录价——并重新开始计量窗口。分析报告和指令会保留。此操作无法撤销。',
+      'confirm.cancel': '取消',
+      'confirm.clear': '清除',
       'pricing.summary': '{model} {tier} {rates} / 100 万 · {source}（{asOf}）',
       'pricing.rateTable': '每 100 万 tokens 的目录价',
       'pricing.model': '模型',
@@ -253,6 +268,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'notice.bootstrap': '引导完成 · 已分析 {analyzed} 条 · 跳过 {skipped} 条 · {calls} 次计费调用 · {tokens} tokens · 目录价 {usd}',
       'notice.analyze': '已分析 #{turn} · {calls} 次调用 · {tokens} tokens · {usd}',
       'notice.improve': '已改进草稿 · {calls} 次调用 · {tokens} tokens · {usd}',
+      'notice.batch': '已分析 {analyzed}/{requested} 条 · {calls} 次调用 · {tokens} tokens · {usd}',
+      'notice.usageCleared': '用量记录已清除 · 删除 {n} 个日文件 · 计量窗口重新开始',
       'notice.pricingRefreshed': '价目已刷新 · {source}（{asOf}）',
       'notice.unpriced': ' · {n} 次无价目',
       'err.bad-request': '请求无效。',
@@ -294,6 +311,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'bootstrap.runningUsd': 'Learning… {done}/{total} · {usd}',
       'bootstrap.hint': 'Analyzes your newest finished turns whose prompt is at least 8 characters, is not a bare continuation (“continue”, “ok”…), and has no report yet — up to 20.',
       'bootstrap.estimateDoc': '≈ $0.02–0.05 with deepseek-v4-flash, one time',
+      'bootstrap.preview': '{eligible} turn(s) eligible · ≈{usd} at list price',
+      'bootstrap.previewMeasured': '(measured from your last {samples} analyses)',
+      'bootstrap.previewDoc': '(documented estimate — not enough measured analyses yet)',
       'steer.enrich': 'Add learned context before each send (experimental — one small call per send)',
       'steer.title': 'What the agent is told about you',
       'steer.desc': 'These directives ride every new session\'s system prompt so the agent fills in what you usually leave unsaid.',
@@ -452,7 +472,19 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'warn.daily': 'Today {spent} of the {limit} daily cap ({pct}%)',
       'warn.monthly': 'This month {spent} of the {limit} monthly cap ({pct}%)',
       'improve.explain': 'Improve rewrites your draft before you send it. Rate a rewrite 👎 with a one-line reason and Tacit distills a durable style rule from it.',
-      'privacy.stored': 'Analysis reports, directives, and style rules are stored on this machine only, in Tacit’s own data directory; clearing only ever removes Tacit’s own files.',
+      'privacy.stored': 'Analysis reports, directives and style rules are stored on this machine only, in Tacit’s own data directory. A usage record holds the time, the operation, the session id, the turn number, the workspace name, the model, the provider, token counts and the list price — never your prompt or the response text. Clearing only ever removes Tacit’s own files.',
+      'privacy.retention': 'Keep detailed usage history (days)',
+      'privacy.warnDaily': 'Warn above this daily spend (USD)',
+      'privacy.warnMonthly': 'Warn above this monthly spend (USD)',
+      'privacy.warnHint': '0 turns the warning off. Tacit warns at 80 % of the amount and marks it exceeded above it.',
+      'privacy.clearUsage': 'Clear usage history',
+      'privacy.apply': 'Apply',
+      'confirm.reportsTitle': 'Clear all analysis reports?',
+      'confirm.reportsBody': 'This deletes every analysis report Tacit has written, for every session. Your directives, style rules and usage history are kept. This cannot be undone.',
+      'confirm.usageTitle': 'Clear usage history?',
+      'confirm.usageBody': 'This deletes Tacit’s usage ledger — every recorded call, its token counts and its list price — and restarts the tracking window. Your analysis reports and directives are kept. This cannot be undone.',
+      'confirm.cancel': 'Cancel',
+      'confirm.clear': 'Clear',
       'pricing.summary': '{model} {tier} {rates} per 1M · {source} ({asOf})',
       'pricing.rateTable': 'List price per 1M tokens',
       'pricing.model': 'Model',
@@ -480,6 +512,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'notice.bootstrap': 'Bootstrap complete · {analyzed} analyzed · {skipped} skipped · {calls} billed calls · {tokens} tokens · {usd} list price',
       'notice.analyze': 'Analyzed #{turn} · {calls} call(s) · {tokens} tokens · {usd}',
       'notice.improve': 'Improved your draft · {calls} call(s) · {tokens} tokens · {usd}',
+      'notice.batch': 'Analyzed {analyzed} of {requested} · {calls} calls · {tokens} tokens · {usd}',
+      'notice.usageCleared': 'Usage history cleared · {n} day file(s) removed · tracking restarts now',
       'notice.pricingRefreshed': 'Prices refreshed · {source} ({asOf})',
       'notice.unpriced': ' · {n} unpriced',
       'err.bad-request': 'Invalid request.',
@@ -611,6 +645,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         privacy: false,
       },
       notice: null, // {text} — a short-lived result line, cleared after 5s
+      // A destructive action waiting on its confirmation dialog:
+      // null | {kind:'reports'|'usage'}.
+      confirm: null,
+      preview: null, // the last /bootstrap-preview envelope
       usage: null, // the last /usage envelope
       usageFilters: { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 },
       usageRuns: {}, // runId → the full run (attempts included), fetched on first expand
@@ -933,6 +971,71 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       notifyRoot()
     }
 
+    /**
+     * Delete the usage ledger and restart the tracking window. The runs the
+     * panel had expanded are dropped with it — their ids no longer exist.
+     */
+    async function clearUsageHistory() {
+      rootStore.error = null
+      try {
+        const result = await api('/usage-clear', {})
+        if (result !== null && typeof result === 'object' && result.ok) {
+          rootStore.usageRuns = {}
+          rootStore.usageExpanded = new Set()
+          rootStore.usageFilters = { ...rootStore.usageFilters, page: 1 }
+          if (translate !== null) setRootNotice(translate('notice.usageCleared', { n: fmtTokens(usageNum(result.removed)) }))
+        } else {
+          rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
+        }
+      } catch (error) {
+        rootStore.error = errorOf(error)
+      }
+      await fetchUsage()
+      notifyRoot()
+    }
+
+    /**
+     * Ask before deleting. The two clears are the only irreversible actions in
+     * the panel, so neither fires straight off a click: the kind is parked here
+     * and the dialog does the asking.
+     */
+    function openConfirm(kind) {
+      if (kind !== 'reports' && kind !== 'usage') return
+      // Captured before the dialog steals focus, so closing it can hand focus
+      // back to the button that opened it.
+      captureConfirmOpener()
+      rootStore.confirm = { kind }
+      notifyRoot()
+    }
+
+    function closeConfirm() {
+      rootStore.confirm = null
+      notifyRoot()
+    }
+
+    /** Run the parked destructive action, whichever it is, and close the dialog. */
+    async function confirmAction() {
+      const kind = rootStore.confirm !== null && typeof rootStore.confirm === 'object' ? rootStore.confirm.kind : null
+      rootStore.confirm = null
+      notifyRoot()
+      if (kind === 'reports') await clearAllRoot()
+      else if (kind === 'usage') await clearUsageHistory()
+    }
+
+    /**
+     * "What would Bootstrap do, and what would it cost?" — read-only, no model
+     * call. A failure leaves `preview` alone: the documented estimate stands in.
+     */
+    async function fetchBootstrapPreview() {
+      try {
+        const result = await api('/bootstrap-preview', { limit: 20 })
+        if (result !== null && typeof result === 'object' && result.ok === true) rootStore.preview = result
+      } catch {
+        // One missing hint line; the next mount tries again.
+      }
+      notifyRoot()
+    }
+
     /** Poll /state while a bootstrap runs so the counter moves; `apply` receives each snapshot. */
     function pollBootstrap(apply) {
       const tick = async () => {
@@ -1008,6 +1111,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       // here: a second call would only duplicate the one the batch already
       // makes worth issuing.
       await initRootStore()
+      // Fewer turns are eligible now, and the ledger has fresh measurements to
+      // price the next batch from.
+      await fetchBootstrapPreview()
     }
 
     async function editDirectives(payload) {
@@ -1083,54 +1189,68 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         })
     }
 
-    /** Run one /analyze call and settle when it finishes (batch building block). */
-    function analyzeTurnAsync(store, turn) {
-      return new Promise((resolve) => {
-        store.inFlight[String(turn)] = true
-        notify(store)
-        api('/analyze', { sessionId: store.sessionId, turn })
-          .then((result) => {
-            if (result !== null && typeof result === 'object' && result.ok && result.report !== null && typeof result.report === 'object') {
-              store.reports[String(turn)] = result.report
-              store.selection.delete(turn)
-              store.expanded.add(turn)
-              store.error = null
-            } else {
-              store.error = {
-                code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
-                detail: result !== null && typeof result === 'object' && typeof result.detail === 'string' ? result.detail : '',
-              }
-            }
-            if (result !== null && typeof result === 'object' && result.profile !== null && typeof result.profile === 'object') {
-              store.profile = result.profile
-            }
-          })
-          .catch((error) => {
-            store.error = errorOf(error)
-          })
-          .finally(() => {
-            delete store.inFlight[String(turn)]
-            notify(store)
-            resolve()
-          })
-      })
-    }
-
-    /** Coach every ticked prompt sequentially (the user-chosen 20). */
+    /**
+     * Coach every ticked prompt in ONE `/analyze-batch` call.
+     *
+     * The host runs the whole selection under a single ledger run, so the tab
+     * reports one price for the batch instead of N separate analyses — and the
+     * turns settle together rather than one row at a time.
+     */
     async function coachSelected(store) {
       if (store.batchRunning) return
       const turns = [...store.selection].sort((a, b) => a - b)
       if (turns.length === 0) return
       store.batchRunning = true
       store.error = null
+      store.notice = null
+      // Every ticked row shows its spinner for the whole call: the batch has no
+      // per-turn progress to report.
+      for (const turn of turns) store.inFlight[String(turn)] = true
       notify(store)
-      for (const turn of turns) {
-        if (store.inFlight[String(turn)]) continue
-        await analyzeTurnAsync(store, turn)
+      try {
+        const result = await api('/analyze-batch', { sessionId: store.sessionId, turns })
+        if (result !== null && typeof result === 'object' && result.ok) {
+          const results = Array.isArray(result.results) ? result.results : []
+          let analyzed = 0
+          let failure = null
+          for (const entry of results) {
+            if (entry === null || typeof entry !== 'object') continue
+            const turn = typeof entry.turn === 'number' ? entry.turn : null
+            if (entry.ok === true && entry.report !== null && typeof entry.report === 'object') {
+              if (turn !== null) {
+                store.reports[String(turn)] = entry.report
+                store.expanded.add(turn)
+              }
+              analyzed += 1
+              continue
+            }
+            // `busy` means an analysis of that turn was already running — a
+            // race with the auto-analyzer, not a failure of this batch.
+            const code = typeof entry.code === 'string' && entry.code.length > 0 ? entry.code : 'call-failed'
+            if (failure === null && code !== 'busy') failure = { code, detail: '' }
+          }
+          if (failure !== null) store.error = failure
+          if (result.profile !== null && typeof result.profile === 'object') store.profile = result.profile
+          // What the whole batch cost, from the run the host closed for it.
+          setStoreNotice(store, 'notice.batch', { analyzed: String(analyzed), requested: String(turns.length) }, result.run)
+        } else {
+          store.error = {
+            code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
+            detail: result !== null && typeof result === 'object' && typeof result.detail === 'string' ? result.detail : '',
+          }
+        }
+      } catch (error) {
+        store.error = errorOf(error)
       }
+      for (const turn of turns) delete store.inFlight[String(turn)]
+      store.selection.clear()
       store.batchRunning = false
       store.selecting = false
       notify(store)
+      // The batch just spent money, and analyzed turns stop being eligible for
+      // a bootstrap; the Settings page should say both.
+      fetchUsage()
+      fetchBootstrapPreview()
     }
 
     function toggleSelecting(store) {
@@ -1562,7 +1682,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
      * label carries no figure at all, and a batch whose billed calls all came
      * back unpriced says so through `usageSpend` rather than claiming `$0.0000`.
      */
-    function BootstrapButton(kit, { bootstrap, onClick }) {
+    function BootstrapButton(kit, { bootstrap, onClick, disabled }) {
       const { t } = kit
       const running = bootstrap !== null && bootstrap !== undefined && typeof bootstrap === 'object' && bootstrap.running === true
       const progress = running
@@ -1588,7 +1708,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         h('button', {
           type: 'button',
           className: 'tacit-btn tacit-btn-sm',
-          disabled: running,
+          // Also disabled when the caller knows there is nothing eligible left.
+          disabled: running || disabled === true,
           title: t('bootstrap.hint'),
           onClick,
         }, label()))
@@ -2105,6 +2226,66 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         h('div', { className: 'tacit-card-body', id: bodyId, hidden: !isOpen }, ...kids))
     }
 
+    // ── Confirm dialog (destructive actions) ───────────────────────────────
+
+    /**
+     * What had focus when a destructive action was requested.
+     *
+     * It is captured by the store action that opens the dialog rather than by
+     * the dialog itself: React focuses the `autoFocus`ed Cancel button while it
+     * commits, so by the time an effect runs the opener is already gone.
+     */
+    let confirmOpener = null
+
+    function captureConfirmOpener() {
+      confirmOpener = typeof document !== 'undefined' && document !== null ? document.activeElement : null
+    }
+
+    /**
+     * One small modal confirmation, rendered unconditionally by its owner (and
+     * `null` when closed) so React's hook count never changes between renders.
+     * Hook-free but for the focus restore, which is the one thing it cannot do
+     * with markup alone.
+     *
+     * Cancel comes first and takes focus: the safe answer is the one a keyboard
+     * or screen-reader user reaches without looking.
+     */
+    function ConfirmDialog(kit, { open, title, body, confirmLabel, onConfirm, onCancel }) {
+      const { t } = kit
+      const isOpen = open === true
+      useEffect(() => {
+        if (!isOpen || typeof document === 'undefined') return undefined
+        const opener = confirmOpener
+        return () => {
+          if (opener !== null && typeof opener.focus === 'function') opener.focus()
+        }
+      }, [isOpen])
+      if (!isOpen) return null
+      const cancel = typeof onCancel === 'function' ? onCancel : () => {}
+      return h('div', {
+        className: 'tacit-modal-backdrop',
+        onClick: cancel,
+        // Escape cancels from anywhere inside: keydown from either button
+        // bubbles here.
+        onKeyDown: (event) => {
+          if (event.key === 'Escape') cancel()
+        },
+      },
+      h('div', {
+        className: 'tacit-modal-card',
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-labelledby': 'tacit-confirm-title',
+        // A click on the card is not a click on the backdrop.
+        onClick: (event) => event.stopPropagation(),
+      },
+      h('h3', { className: 'tacit-modal-title', id: 'tacit-confirm-title' }, title),
+      h('p', { className: 'tacit-confirm-body' }, body),
+      h('div', { className: 'tacit-confirm-actions' },
+        h('button', { type: 'button', className: 'tacit-btn', autoFocus: true, onClick: cancel }, t('confirm.cancel')),
+        h('button', { type: 'button', className: 'tacit-btn tacit-btn-danger', onClick: onConfirm }, confirmLabel))))
+    }
+
     // ── Global panel (Settings → Tacit section) ────────────────────────────
 
     function DirectivesEditor(kit) {
@@ -2206,6 +2387,26 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
     }
 
+    /** Days offered by the retention select; the host clamps to 7–365 anyway. */
+    const RETENTION_DAYS = [7, 14, 30, 90, 180, 365]
+
+    /**
+     * The `/bootstrap-preview` envelope, narrowed. `null` for anything that is
+     * not a successful preview, so the Overview card falls back to the
+     * documented estimate rather than pricing an envelope it cannot read.
+     */
+    function previewOf(value) {
+      if (value === null || typeof value !== 'object' || value.ok !== true) return null
+      if (typeof value.eligible !== 'number' || !Number.isFinite(value.eligible)) return null
+      const estimate = value.estimate !== null && typeof value.estimate === 'object' ? value.estimate : {}
+      return {
+        eligible: Math.max(0, Math.floor(value.eligible)),
+        usd: typeof estimate.usd === 'number' && Number.isFinite(estimate.usd) ? estimate.usd : null,
+        basis: estimate.basis === 'measured' ? 'measured' : 'doc',
+        samples: typeof estimate.samples === 'number' && Number.isFinite(estimate.samples) ? Math.max(0, Math.floor(estimate.samples)) : 0,
+      }
+    }
+
     function CoachPanel(kit) {
       const { t, fmtTime } = kit
       const DirectivesEditorView = DirectivesEditor(kit)
@@ -2222,6 +2423,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         const [auto, setAuto] = useState(config !== null && config.autoAnalyze !== false)
         const [learnGood, setLearnGood] = useState(config !== null && config.learnFromGood !== false)
         const [live, setLive] = useState(config !== null && config.liveSuggestions !== false)
+        // The two USD thresholds follow the budget field's text-state + Apply
+        // pattern: money is typed a character at a time, and clamping mid-typing
+        // fights the user. `0` is a real value here (the warning off), so the
+        // fallback is `??`, never `||`.
+        const [dailyText, setDailyText] = useState(config !== null && typeof config.costWarnDailyUsd === 'number' ? String(config.costWarnDailyUsd) : '0')
+        const [monthlyText, setMonthlyText] = useState(config !== null && typeof config.costWarnMonthlyUsd === 'number' ? String(config.costWarnMonthlyUsd) : '0')
 
         useEffect(() => {
           if (config !== null) {
@@ -2230,6 +2437,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             if (typeof config.autoAnalyze === 'boolean') setAuto(config.autoAnalyze)
             if (typeof config.learnFromGood === 'boolean') setLearnGood(config.learnFromGood)
             if (typeof config.liveSuggestions === 'boolean') setLive(config.liveSuggestions)
+            if (typeof config.costWarnDailyUsd === 'number') setDailyText(String(config.costWarnDailyUsd))
+            if (typeof config.costWarnMonthlyUsd === 'number') setMonthlyText(String(config.costWarnMonthlyUsd))
           }
         }, [config])
 
@@ -2257,6 +2466,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           setLive(next)
           updateRootConfig({ liveSuggestions: next })
         }
+        /** One USD threshold: never negative, `0` = off, no rounding to whole dollars. */
+        const applyWarn = (key, text, setText) => {
+          const typed = Number(text)
+          const value = Math.max(0, Number.isFinite(typed) ? typed : 0)
+          setText(String(value))
+          updateRootConfig({ [key]: value })
+        }
 
         const coached = Array.isArray(rootStore.coached) ? rootStore.coached : []
         const error = rootStore.error
@@ -2275,6 +2491,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         // rather than calling a route of its own on every render.
         const usageReport = usageOf(rootStore.usage)
         const usagePricing = usageReport === null ? null : usageReport.pricing
+        const preview = previewOf(rootStore.preview)
+        const confirm = rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'usage'
+          ? 'usage'
+          : (rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'reports' ? 'reports' : null)
+        const retention = config !== null && typeof config.costHistoryDays === 'number' && RETENTION_DAYS.includes(config.costHistoryDays)
+          ? config.costHistoryDays
+          : 30
         /** Every card is titled by `card.<id>` and driven by `rootStore.sections`. */
         const card = (id, children, extra) => SectionCard(kit, {
           id,
@@ -2300,9 +2523,30 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 h('span', { className: 'tacit-chip' }, t('overview.model', { model: config.model })))
               : null,
             h('div', { className: 'tacit-settings-row' },
-              BootstrapButton(kit, { bootstrap: rootStore.bootstrap, onClick: () => bootstrapAll(t) }),
+              BootstrapButton(kit, {
+                bootstrap: rootStore.bootstrap,
+                // Only a loaded preview may disable the button: before one
+                // lands, "0 eligible" is an absence of data, not a fact.
+                disabled: preview !== null && preview.eligible === 0,
+                onClick: () => bootstrapAll(t),
+              }),
               h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
-            h('p', { className: 'tacit-panel-hint' }, t('bootstrap.estimateDoc')),
+            // What the run would actually cost, priced from the ledger once it
+            // holds enough analyses; until the preview lands, the documented
+            // figure stands in.
+            preview === null
+              ? h('p', { className: 'tacit-panel-hint' }, t('bootstrap.estimateDoc'))
+              : h('p', { className: 'tacit-panel-hint' },
+                // An estimate the host could not price says so; `fmtUsd(null)`
+                // would read `$0.0000` and claim the run is free.
+                t('bootstrap.preview', {
+                  eligible: String(preview.eligible),
+                  usd: preview.usd === null ? t('usage.priceUnavailable') : fmtUsd(preview.usd),
+                }),
+                ' ',
+                preview.basis === 'measured'
+                  ? t('bootstrap.previewMeasured', { samples: String(preview.samples) })
+                  : t('bootstrap.previewDoc')),
           ]),
           card('usage', [
             UsageCard(kit, {
@@ -2388,10 +2632,64 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             h('p', { className: 'tacit-panel-hint' }, t('panel.hint')),
           ], { count: coached.length }),
           card('privacy', [
-            h('div', { className: 'tacit-settings-row' },
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => clearAllRoot() }, t('settings.clear'))),
             h('p', { className: 'tacit-panel-hint' }, t('privacy.stored')),
-          ]))
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-retention' }, t('privacy.retention')),
+              h('select', {
+                id: 'tacit-retention',
+                className: 'tacit-select',
+                value: String(retention),
+                onChange: (event) => updateRootConfig({ costHistoryDays: Number(event.target.value) }),
+              },
+              ...RETENTION_DAYS.map((days) => h('option', { key: days, value: String(days) }, String(days))))),
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-daily' }, t('privacy.warnDaily')),
+              h('input', {
+                id: 'tacit-warn-daily',
+                className: 'tacit-input',
+                type: 'number',
+                min: 0,
+                step: '0.01',
+                value: dailyText,
+                onChange: (event) => setDailyText(event.target.value),
+              }),
+              h('button', {
+                type: 'button',
+                className: 'tacit-btn tacit-btn-sm',
+                onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
+              }, t('privacy.apply'))),
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-monthly' }, t('privacy.warnMonthly')),
+              h('input', {
+                id: 'tacit-warn-monthly',
+                className: 'tacit-input',
+                type: 'number',
+                min: 0,
+                step: '0.01',
+                value: monthlyText,
+                onChange: (event) => setMonthlyText(event.target.value),
+              }),
+              h('button', {
+                type: 'button',
+                className: 'tacit-btn tacit-btn-sm',
+                onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
+              }, t('privacy.apply'))),
+            h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),
+            // Both clears are irreversible, so both go through the dialog.
+            h('div', { className: 'tacit-settings-row' },
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('reports') }, t('settings.clear')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('usage') }, t('privacy.clearUsage'))),
+          ]),
+          // Always rendered (null while closed) so its one effect keeps this
+          // component's hook count stable.
+          ConfirmDialog(kit, {
+            open: confirm !== null,
+            title: t(confirm === 'usage' ? 'confirm.usageTitle' : 'confirm.reportsTitle'),
+            body: t(confirm === 'usage' ? 'confirm.usageBody' : 'confirm.reportsBody'),
+            confirmLabel: t('confirm.clear'),
+            onConfirm: () => confirmAction(),
+            onCancel: () => closeConfirm(),
+          }))
       }
     }
 
@@ -2403,6 +2701,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           initRootStore()
           // Fresh read so freshly distilled style rules appear on open.
           refreshRootState()
+          // What a bootstrap would cost right now, priced from the ledger.
+          fetchBootstrapPreview()
           // One shared 10s /usage poll while any Tacit settings page is mounted.
           startUsagePolling()
           return stopUsagePolling
@@ -2876,6 +3176,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-btn{font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;cursor:pointer;padding:4px 10px}.tacit-btn:hover{border-color:var(--dsw-alias-label-primary)}.tacit-btn:disabled{opacity:.55;cursor:default}'
       + '.tacit-btn-primary{background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground);border-color:transparent}.tacit-btn-primary:hover{border-color:transparent;filter:brightness(1.1)}'
       + '.tacit-btn-sm{padding:2px 8px;font-size:11px}'
+      + '.tacit-btn-danger{color:var(--dsw-alias-state-error-primary);border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 45%, transparent)}.tacit-btn-danger:hover{border-color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent)}'
       + '.tacit-row{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:10px 12px;margin-bottom:10px}'
       + '.tacit-row-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}.tacit-row-heading{display:flex;align-items:baseline;gap:8px;font-weight:600}.tacit-row-turn{font-size:13px}.tacit-row-time{color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:400}.tacit-row-live{color:var(--dsw-alias-state-success-primary);font-size:11px;font-weight:600}'
       + '.tacit-row-chips{display:flex;flex-wrap:wrap;gap:4px;margin-left:auto}.tacit-chip{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);border-radius:4px;padding:1px 7px;font-size:11px}.tacit-chip-warn{color:var(--dsw-alias-state-warn-primary)}'
@@ -2910,13 +3211,15 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + ''
       + '.tacit-modal-backdrop{z-index:200;background:#00000073;display:flex;justify-content:center;align-items:center;position:fixed;inset:0}'
       + '.tacit-modal-card{box-sizing:border-box;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);width:min(760px,100vw - 48px);max-height:min(84vh,800px);box-shadow:var(--dsw-shadow-lv3,0 12px 32px #0006);color:var(--dsw-alias-label-primary);border-radius:12px;padding:16px 18px 18px;font-size:13px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}'
-      + '.tacit-modal-head{display:flex;align-items:baseline;gap:8px}.tacit-modal-title{font-size:14px;font-weight:600;margin-right:auto}.tacit-modal-close{color:var(--dsw-alias-label-secondary);cursor:pointer;background:none;border:0;border-radius:6px;padding:2px 8px;font-family:inherit;font-size:18px;line-height:1}.tacit-modal-close:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}'
+      + '.tacit-modal-head{display:flex;align-items:baseline;gap:8px}.tacit-modal-title{font-size:14px;font-weight:600;margin:0 auto 0 0}.tacit-modal-close{color:var(--dsw-alias-label-secondary);cursor:pointer;background:none;border:0;border-radius:6px;padding:2px 8px;font-family:inherit;font-size:18px;line-height:1}.tacit-modal-close:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}'
       + '.tacit-modal-pending{color:var(--dsw-alias-label-secondary);padding:16px 0;text-align:center}'
       + '.tacit-modal-unchanged{color:var(--dsw-alias-label-primary);padding:16px 0;text-align:center}'
       + '.tacit-modal-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tacit-modal-col{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);padding:8px 10px;min-width:0;max-height:300px;overflow-y:auto}'
       + '.tacit-modal-col-title{font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);margin-bottom:6px}'
       + '.tacit-modal-rationale-text{font-size:12px;color:var(--dsw-alias-label-primary);line-height:1.6}.tacit-modal-savings{color:var(--dsw-alias-state-success-primary);font-size:12px;font-weight:600}'
       + '.tacit-modal-actions{display:flex;gap:8px;justify-content:flex-end}'
+      + '.tacit-confirm-body{margin:0;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-primary)}'
+      + '.tacit-confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}'
       + '.tacit-feedback{display:flex;justify-content:center;align-items:center;margin:0 2px 8px;font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;gap:8px;transition:opacity .35s ease}.tacit-feedback-fading{opacity:0}'
       + '.tacit-feedback-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tacit-feedback-title{color:var(--dsw-alias-label-secondary)}'
       + '.tacit-feedback-vote{font:inherit;font-size:14px;line-height:1;cursor:pointer;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:999px;padding:3px 8px}.tacit-feedback-vote:hover{border-color:var(--dsw-alias-brand-primary)}.tacit-feedback-vote-active{border-color:var(--dsw-alias-state-warn-primary);background:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent)}'
@@ -3062,6 +3365,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         stopUsagePolling,
         setUsageSeries,
         refreshPricing,
+        openConfirm,
+        closeConfirm,
+        fetchBootstrapPreview,
         runNotice,
         fmtRate,
         UsageCard,

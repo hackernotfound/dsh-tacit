@@ -99,6 +99,26 @@
       }
     }
 
+    /** Days offered by the retention select; the host clamps to 7–365 anyway. */
+    const RETENTION_DAYS = [7, 14, 30, 90, 180, 365]
+
+    /**
+     * The `/bootstrap-preview` envelope, narrowed. `null` for anything that is
+     * not a successful preview, so the Overview card falls back to the
+     * documented estimate rather than pricing an envelope it cannot read.
+     */
+    function previewOf(value) {
+      if (value === null || typeof value !== 'object' || value.ok !== true) return null
+      if (typeof value.eligible !== 'number' || !Number.isFinite(value.eligible)) return null
+      const estimate = value.estimate !== null && typeof value.estimate === 'object' ? value.estimate : {}
+      return {
+        eligible: Math.max(0, Math.floor(value.eligible)),
+        usd: typeof estimate.usd === 'number' && Number.isFinite(estimate.usd) ? estimate.usd : null,
+        basis: estimate.basis === 'measured' ? 'measured' : 'doc',
+        samples: typeof estimate.samples === 'number' && Number.isFinite(estimate.samples) ? Math.max(0, Math.floor(estimate.samples)) : 0,
+      }
+    }
+
     function CoachPanel(kit) {
       const { t, fmtTime } = kit
       const DirectivesEditorView = DirectivesEditor(kit)
@@ -115,6 +135,12 @@
         const [auto, setAuto] = useState(config !== null && config.autoAnalyze !== false)
         const [learnGood, setLearnGood] = useState(config !== null && config.learnFromGood !== false)
         const [live, setLive] = useState(config !== null && config.liveSuggestions !== false)
+        // The two USD thresholds follow the budget field's text-state + Apply
+        // pattern: money is typed a character at a time, and clamping mid-typing
+        // fights the user. `0` is a real value here (the warning off), so the
+        // fallback is `??`, never `||`.
+        const [dailyText, setDailyText] = useState(config !== null && typeof config.costWarnDailyUsd === 'number' ? String(config.costWarnDailyUsd) : '0')
+        const [monthlyText, setMonthlyText] = useState(config !== null && typeof config.costWarnMonthlyUsd === 'number' ? String(config.costWarnMonthlyUsd) : '0')
 
         useEffect(() => {
           if (config !== null) {
@@ -123,6 +149,8 @@
             if (typeof config.autoAnalyze === 'boolean') setAuto(config.autoAnalyze)
             if (typeof config.learnFromGood === 'boolean') setLearnGood(config.learnFromGood)
             if (typeof config.liveSuggestions === 'boolean') setLive(config.liveSuggestions)
+            if (typeof config.costWarnDailyUsd === 'number') setDailyText(String(config.costWarnDailyUsd))
+            if (typeof config.costWarnMonthlyUsd === 'number') setMonthlyText(String(config.costWarnMonthlyUsd))
           }
         }, [config])
 
@@ -150,6 +178,13 @@
           setLive(next)
           updateRootConfig({ liveSuggestions: next })
         }
+        /** One USD threshold: never negative, `0` = off, no rounding to whole dollars. */
+        const applyWarn = (key, text, setText) => {
+          const typed = Number(text)
+          const value = Math.max(0, Number.isFinite(typed) ? typed : 0)
+          setText(String(value))
+          updateRootConfig({ [key]: value })
+        }
 
         const coached = Array.isArray(rootStore.coached) ? rootStore.coached : []
         const error = rootStore.error
@@ -168,6 +203,13 @@
         // rather than calling a route of its own on every render.
         const usageReport = usageOf(rootStore.usage)
         const usagePricing = usageReport === null ? null : usageReport.pricing
+        const preview = previewOf(rootStore.preview)
+        const confirm = rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'usage'
+          ? 'usage'
+          : (rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'reports' ? 'reports' : null)
+        const retention = config !== null && typeof config.costHistoryDays === 'number' && RETENTION_DAYS.includes(config.costHistoryDays)
+          ? config.costHistoryDays
+          : 30
         /** Every card is titled by `card.<id>` and driven by `rootStore.sections`. */
         const card = (id, children, extra) => SectionCard(kit, {
           id,
@@ -193,9 +235,30 @@
                 h('span', { className: 'tacit-chip' }, t('overview.model', { model: config.model })))
               : null,
             h('div', { className: 'tacit-settings-row' },
-              BootstrapButton(kit, { bootstrap: rootStore.bootstrap, onClick: () => bootstrapAll(t) }),
+              BootstrapButton(kit, {
+                bootstrap: rootStore.bootstrap,
+                // Only a loaded preview may disable the button: before one
+                // lands, "0 eligible" is an absence of data, not a fact.
+                disabled: preview !== null && preview.eligible === 0,
+                onClick: () => bootstrapAll(t),
+              }),
               h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
-            h('p', { className: 'tacit-panel-hint' }, t('bootstrap.estimateDoc')),
+            // What the run would actually cost, priced from the ledger once it
+            // holds enough analyses; until the preview lands, the documented
+            // figure stands in.
+            preview === null
+              ? h('p', { className: 'tacit-panel-hint' }, t('bootstrap.estimateDoc'))
+              : h('p', { className: 'tacit-panel-hint' },
+                // An estimate the host could not price says so; `fmtUsd(null)`
+                // would read `$0.0000` and claim the run is free.
+                t('bootstrap.preview', {
+                  eligible: String(preview.eligible),
+                  usd: preview.usd === null ? t('usage.priceUnavailable') : fmtUsd(preview.usd),
+                }),
+                ' ',
+                preview.basis === 'measured'
+                  ? t('bootstrap.previewMeasured', { samples: String(preview.samples) })
+                  : t('bootstrap.previewDoc')),
           ]),
           card('usage', [
             UsageCard(kit, {
@@ -281,10 +344,64 @@
             h('p', { className: 'tacit-panel-hint' }, t('panel.hint')),
           ], { count: coached.length }),
           card('privacy', [
-            h('div', { className: 'tacit-settings-row' },
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => clearAllRoot() }, t('settings.clear'))),
             h('p', { className: 'tacit-panel-hint' }, t('privacy.stored')),
-          ]))
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-retention' }, t('privacy.retention')),
+              h('select', {
+                id: 'tacit-retention',
+                className: 'tacit-select',
+                value: String(retention),
+                onChange: (event) => updateRootConfig({ costHistoryDays: Number(event.target.value) }),
+              },
+              ...RETENTION_DAYS.map((days) => h('option', { key: days, value: String(days) }, String(days))))),
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-daily' }, t('privacy.warnDaily')),
+              h('input', {
+                id: 'tacit-warn-daily',
+                className: 'tacit-input',
+                type: 'number',
+                min: 0,
+                step: '0.01',
+                value: dailyText,
+                onChange: (event) => setDailyText(event.target.value),
+              }),
+              h('button', {
+                type: 'button',
+                className: 'tacit-btn tacit-btn-sm',
+                onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
+              }, t('privacy.apply'))),
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-monthly' }, t('privacy.warnMonthly')),
+              h('input', {
+                id: 'tacit-warn-monthly',
+                className: 'tacit-input',
+                type: 'number',
+                min: 0,
+                step: '0.01',
+                value: monthlyText,
+                onChange: (event) => setMonthlyText(event.target.value),
+              }),
+              h('button', {
+                type: 'button',
+                className: 'tacit-btn tacit-btn-sm',
+                onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
+              }, t('privacy.apply'))),
+            h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),
+            // Both clears are irreversible, so both go through the dialog.
+            h('div', { className: 'tacit-settings-row' },
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('reports') }, t('settings.clear')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('usage') }, t('privacy.clearUsage'))),
+          ]),
+          // Always rendered (null while closed) so its one effect keeps this
+          // component's hook count stable.
+          ConfirmDialog(kit, {
+            open: confirm !== null,
+            title: t(confirm === 'usage' ? 'confirm.usageTitle' : 'confirm.reportsTitle'),
+            body: t(confirm === 'usage' ? 'confirm.usageBody' : 'confirm.reportsBody'),
+            confirmLabel: t('confirm.clear'),
+            onConfirm: () => confirmAction(),
+            onCancel: () => closeConfirm(),
+          }))
       }
     }
 
@@ -296,6 +413,8 @@
           initRootStore()
           // Fresh read so freshly distilled style rules appear on open.
           refreshRootState()
+          // What a bootstrap would cost right now, priced from the ledger.
+          fetchBootstrapPreview()
           // One shared 10s /usage poll while any Tacit settings page is mounted.
           startUsagePolling()
           return stopUsagePolling
