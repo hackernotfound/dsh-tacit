@@ -1692,6 +1692,11 @@ test('analyze: a provider failure never leaks a raw code into the envelope', asy
     ['a synthesized error code with an auth message', { kind: 'error', failure: { code: 'ERROR', message: 'invalid api key' } }, 'no-api-key'],
     ['an upstream 429', { kind: 'error', failure: { code: 'TOO_MANY_REQUESTS', message: 'quota exceeded' } }, 'rate-limited'],
     ['an unknown provider code', { kind: 'error', failure: { code: 'UPSTREAM_5XX', message: 'bad gateway' } }, 'call-failed'],
+    // "gene-rate": a bare /rate/ would have called this one rate-limited.
+    ['a message that merely contains the letters r-a-t-e', { kind: 'error', failure: { code: 'ERROR', message: 'failed to generate a response' } }, 'call-failed'],
+    ['an underscored rate-limit code', { kind: 'error', failure: { code: 'RATE_LIMIT_EXCEEDED', message: 'slow down' } }, 'rate-limited'],
+    ['an unseparated rate-limit code', { kind: 'error', failure: { code: 'ratelimit', message: 'slow down' } }, 'rate-limited'],
+    ['a bare HTTP status message', { kind: 'error', failure: { code: 'UPSTREAM', message: '429 Too Many Requests' } }, 'rate-limited'],
   ]
   for (const [name, reason, expected] of cases) {
     const sessionId = 'usage-code-' + expected
