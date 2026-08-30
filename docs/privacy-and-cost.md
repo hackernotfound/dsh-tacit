@@ -194,10 +194,12 @@ Honest list — these are v0.2 behaviours, not hidden surprises:
 - **`dsh-cost-meter` has no weekend rule.** Its price table carries no
   Beijing-weekend off-peak override, so on a weekend a bundled-table figure
   and a `dsh-cost-meter` figure for the same call can differ.
-- **The measured bootstrap estimate uses only flushed day files.** It reads
-  the priced attempts already written to disk, not an in-flight run's own
-  live counters — a batch that just finished may not move the next preview's
-  estimate until the debounced flush (250 ms) has written it.
+- **The measured bootstrap estimate uses only day files on disk.** It reads
+  the priced attempts already written to disk, not an in-flight run's own live
+  counters. A run that has *finished* is already there — `endRun` writes its
+  day file synchronously — so only a run **still in flight** lags: its
+  attempts do not move the estimate until the debounced flush (250 ms) has
+  written them.
 
 ---
 
