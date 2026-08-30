@@ -518,6 +518,7 @@ test('the directives editor shows trial / active / retired status chips', () => 
       { id: 'c', text: 'On trial.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 4, messy: 1, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0.1, startedAt: 1 } },
       { id: 'a', text: 'Proven.', enabled: true, source: 'distilled', createdAt: 2, status: 'active' },
       { id: 'r', text: 'Dropped.', enabled: false, source: 'distilled', createdAt: 3, status: 'retired', retiredReason: 'messy turns 20% → 45% while active' },
+      { id: 'q', text: 'Next up.', enabled: true, source: 'distilled', createdAt: 4, status: 'queued' },
     ],
   }
   const Section = slotEntries.find((e) => e.name === 'settings.section').registration.component
@@ -526,6 +527,7 @@ test('the directives editor shows trial / active / retired status chips', () => 
   assert.ok(markup.includes('active'))
   assert.ok(markup.includes('retired'))
   assert.ok(markup.includes('20% → 45%'))
+  assert.ok(markup.includes('waiting for trial'))
   rootStore.profile = null
 })
 

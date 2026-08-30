@@ -390,15 +390,17 @@ test('classifyDirectives rejects directives that make the agent ask the user', (
   assert.deepEqual(classifyDirectives(JSON.stringify({ directives: ['Get approval from the user first.'] })).kept, [])
 })
 
-test('renderSteeringSection renders candidates and active directives but never retired ones', () => {
+test('renderSteeringSection renders candidates and active directives but never retired or queued ones', () => {
   const text = renderSteeringSection({ directives: [
     { id: 'a', text: 'Active one.', enabled: true, source: 'distilled', createdAt: 1, status: 'active' },
     { id: 'c', text: 'Candidate one.', enabled: true, source: 'distilled', createdAt: 2, status: 'candidate' },
     { id: 'r', text: 'Retired one.', enabled: true, source: 'distilled', createdAt: 3, status: 'retired' },
+    { id: 'q', text: 'Queued one.', enabled: true, source: 'distilled', createdAt: 4, status: 'queued' },
   ] })
   assert.ok(text.includes('Active one.'))
   assert.ok(text.includes('Candidate one.'))
   assert.ok(!text.includes('Retired one.'))
+  assert.ok(!text.includes('Queued one.'))
 })
 
 test('clipDirective never cuts mid-word: sentence end first, then word boundary with an ellipsis', () => {

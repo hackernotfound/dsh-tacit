@@ -80,6 +80,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.remove': '删除',
       'steer.preview': '实际注入的文本',
       'steer.distilled': '自动提炼',
+      'steer.queued': '等待试用',
       'steer.trial': '试用 {n}/{total}',
       'steer.active': '已生效',
       'steer.retired': '已淘汰 · {reason}',
@@ -325,6 +326,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.remove': 'Remove',
       'steer.preview': 'Exact text injected',
       'steer.distilled': 'distilled',
+      'steer.queued': 'waiting for trial',
       'steer.trial': 'trial {n}/{total}',
       'steer.active': 'active',
       'steer.retired': 'retired · {reason}',
@@ -2362,14 +2364,16 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 typeof entry.workspace === 'string' && entry.workspace.length > 0
                   ? h('span', { className: 'tacit-chip tacit-chip-scope', title: entry.workspace }, t('steer.workspace', { name: labelOf(entry.workspace) }))
                   : null,
-                entry.status === 'candidate'
-                  ? h('span', { className: 'tacit-chip tacit-chip-trial' }, t('steer.trial', {
-                    n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
-                    total: String(config !== null && typeof config.directiveTrialTurns === 'number' ? config.directiveTrialTurns : 10),
-                  }))
-                  : entry.status === 'retired'
-                    ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('steer.retired', { reason: String(entry.retiredReason || '') }))
-                    : h('span', { className: 'tacit-chip tacit-chip-ok' }, t('steer.active')),
+                entry.status === 'queued'
+                  ? h('span', { className: 'tacit-chip tacit-chip-muted' }, t('steer.queued'))
+                  : entry.status === 'candidate'
+                    ? h('span', { className: 'tacit-chip tacit-chip-trial' }, t('steer.trial', {
+                      n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
+                      total: String(config !== null && typeof config.directiveTrialTurns === 'number' ? config.directiveTrialTurns : 10),
+                    }))
+                    : entry.status === 'retired'
+                      ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('steer.retired', { reason: String(entry.retiredReason || '') }))
+                      : h('span', { className: 'tacit-chip tacit-chip-ok' }, t('steer.active')),
                 h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))))),
           h('div', { className: 'tacit-settings-row' },
             h('input', {
