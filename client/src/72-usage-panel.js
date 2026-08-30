@@ -3,7 +3,7 @@
     /** Every run type and op the ledger can tag, in the order the filters list them. */
     const USAGE_RUN_TYPES = ['bootstrap', 'analysis', 'analysis-batch', 'improve', 'directive-distillation', 'style-distillation', 'prompt-enrichment']
     const USAGE_RANGES = ['today', '7d', '30d', 'month', 'all']
-    const USAGE_STATUSES = ['success', 'partial', 'failed']
+    const USAGE_STATUSES = ['running', 'success', 'partial', 'failed']
     const USAGE_COLUMNS = ['time', 'op', 'scope', 'model', 'status', 'calls', 'tokens', 'cost']
 
     /** One label/value tile; `note` is the small "n unpriced" line under the value. */

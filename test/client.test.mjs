@@ -937,6 +937,17 @@ test('the usage filters render the six controls with the active values selected'
   resetUsage()
 })
 
+test('the runs status filter offers running, which flushed live runs report as', () => {
+  const rootStore = seedUsage()
+  rootStore.usageFilters = { ...rootStore.usageFilters, status: 'running' }
+  const markup = renderSettings()
+  assert.ok(markup.includes('<option value="running" selected="">' + EN()['status.running'] + '</option>'),
+    'the filter takes running and reports it back translated')
+  const statuses = [...markup.matchAll(/<option value="(running|success|partial|failed)"/g)].map((match) => match[1])
+  assert.deepEqual(statuses, ['running', 'success', 'partial', 'failed'], 'in the lifecycle order the run record uses')
+  resetUsage()
+})
+
 test('the runs table is a role=table with an expandable first cell and a pager', () => {
   const rootStore = seedUsage()
   rootStore.usage.runs = { items: [sampleRun], page: 2, pageSize: 20, total: 45 }
