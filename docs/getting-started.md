@@ -57,8 +57,9 @@ Nothing else to do. Tacit reacts to two things, in the background:
 | Your next message reads as a **correction** (short, starts with "no", "wrong", "I meant", "不对"…) | *"no, I meant the Next.js app under apps/web"* | the *previous* prompt is analyzed, with your correction as evidence |
 
 After every 3 analyses Tacit distills what it learned into 1–4 **directives**. A
-new directive is a *candidate* for 10 finished turns; if your messy-turn rate does
-not get worse it becomes *active*, otherwise it is *retired*. Directives are
+new directive is a *candidate* for 10 finished turns (one per scope at a time;
+the others wait as *queued*); if you do not correct the agent more often it
+becomes *active*, otherwise it is *retired*. Directives are
 injected into the system prompt of every **new** conversation (not the running
 one). The exact text is visible under **Settings → Tacit → Exact text injected**.
 
@@ -76,11 +77,11 @@ expand or collapse it:
 
 | Card | Holds |
 | --- | --- |
-| **Overview** | learned-from count, auto-learning status (today / cap), *Learn from my last 20 turns* (all conversations) with a live cost estimate, the measured trend (messy-turn rate and tokens per turn, first 20 turns vs. latest 20 — appears after 40 finished turns) |
+| **Overview** | learned-from count, auto-learning status (today / cap), *Learn from my last 20 turns* (all conversations) with a live cost estimate, the measured trend (how often you correct the agent, messy-turn rate and tokens per turn, first 20 turns vs. latest 20 — appears after 40 finished turns) |
 | **Usage** | the cost dashboard: today / this month / last 30 days / lifetime spend tiles, a daily spend bar chart (7 d or 30 d), spend by operation, budget warning bars, filters (range, operation, status, model, workspace, session), and a paginated run list — expand a run to see its individual attempts |
 | **Pricing** | the list price per 1M tokens for both models at each tier, which tier is in force right now, the price source (bundled table or `dsh-cost-meter`) and a *Refresh prices* button |
 | **Learning** | analysis model (`deepseek-v4-flash` / `deepseek-v4-pro`); *Auto-analyze messy turns*; *Also learn from a clean prompt right after a messy turn*; *Daily cap on automatic analyses* |
-| **Agent guidance** | every directive with its state chip (*trial 3/10*, *active*, *retired · reason*) and source chip (*yours* / *distilled*); toggle / remove / add directives; *Inject learned directives into the system prompt* and *Add learned context before each send*; *Exact text injected* |
+| **Agent guidance** | every directive with its state chip (*waiting for trial*, *trial 3/10*, *active*, *retired · reason*) and source chip (*yours* / *distilled*); toggle / remove / add directives; *Inject learned directives into the system prompt* and *Add learned context before each send*; *Exact text injected* |
 | **Improve & feedback** | *Enable the composer Improve button*; *Learned style rules* |
 | **Analysis history** | the latest analyzed prompts, across every conversation |
 | **Data & privacy** | what one usage record holds; *Keep detailed usage history (days)* (7 / 14 / 30 / 90 / 180 / 365); *Warn above this daily/monthly spend (USD)* — Tacit warns at 80 % of the amount and marks it exceeded above it; *Clear all analysis reports* and *Clear usage history* — both open a confirmation dialog (Escape cancels) before deleting anything |

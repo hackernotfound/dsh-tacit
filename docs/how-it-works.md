@@ -15,8 +15,8 @@ flowchart TD
   A["Analysis<br/>1 small model call"] --> R["Report + mistake patterns<br/>saved locally"]
   R -->|"every 3 analyses"| X["Distillation<br/>1 model call → 1–4 directives"]
   X --> C["Candidate directive<br/>on trial for 10 finished turns"]
-  C -->|"messy-turn rate did not get worse"| OK["Active"]
-  C -->|"messy-turn rate rose by more than 15 points"| RT["Retired"]
+  C -->|"you did not correct it more often"| OK["Active"]
+  C -->|"correction rate rose by more than 15 points"| RT["Retired"]
   C --> S
   OK --> S["Steering section<br/>in the system prompt of every new conversation"]
   I["✨ Improve a draft<br/>1 model call"] --> F["👍 / 👎 + reason"]
@@ -49,6 +49,12 @@ A finished turn is messy when any of these is true:
 | at least one context compaction | yes | yes |
 | the turn was cancelled or rejected | yes | yes |
 | 15 or more model steps (`autoMinSteps`) | yes | **no** — long-but-successful work is never held against a directive |
+
+Messy turns are the secondary signal. The headline for both the trend (§10)
+and the trial verdict (§6) is how often you *correct* the agent: a turn counts
+as corrected when your next message in the same conversation reads as a
+correction (the same detector as the correction trigger in §3); the last turn
+of a conversation counts as not corrected.
 
 ## 3. Triggers
 
@@ -107,30 +113,38 @@ Rules applied to the result:
 
 - directives that would make the agent *ask you* instead of compensating are dropped;
 - a directive you typed yourself is kept untouched and listed first;
-- a re-emitted directive keeps its identity (state, trial, on/off);
-- a genuinely new one becomes a **candidate** (a workspace-scoped one is judged
-  against that workspace's own messy-turn rate when it has 20 finished turns);
+- a directive the model keeps or rewords (returned with its id, or with the
+  identical text) keeps its identity: id, state, trial counters, on/off;
+- a genuinely new one is **queued**; one queued directive per scope (global, or
+  one workspace) is on trial at a time, and becomes the **candidate** when the
+  slot is free, with baselines measured at that moment (a workspace-scoped one
+  against that workspace's own turns when it has 20 finished ones);
+- retired directives are kept (the last 6) and shown to the distiller as *do
+  not re-propose*; one that comes back anyway, by id or by text, stays retired;
 - each directive is one sentence of at most 25 words; a longer one is cut at its
   last sentence or word boundary, never mid-word;
 - a distillation replaces the global distilled set and the distilled set of every
   workspace it mentioned; distilled directives of other workspaces are kept;
-- at most 8 global directives and 4 per workspace.
+- at most 8 global directives and 4 per workspace, plus the last 6 retired ones.
 
 ## 6. Trials
 
 | State | How you get there | Injected into new conversations? | Shown as |
 | --- | --- | --- | --- |
-| **candidate** | freshly distilled | yes | *trial n/10* (n counts finished turns in conversations that were steered by it) |
-| **active** | 10 finished turns later (`directiveTrialTurns`), messy-turn rate ≤ baseline + 0.15 (`directiveWorseBy`); or you typed it; or you re-enabled a retired one | yes | *active* |
-| **retired** | messy-turn rate during the trial rose by more than 15 percentage points over the baseline | no | *retired · messy turns 20% → 40% while active* |
+| **queued** | freshly distilled while another directive of its scope is on trial | no | *waiting for trial* (greyed) |
+| **candidate** | freshly distilled into a free slot, or next in its scope's queue when the previous trial ended | yes | *trial n/10* (n counts finished turns in conversations that were steered by it) |
+| **active** | 10 finished turns later (`directiveTrialTurns`), correction rate ≤ baseline + 0.15 (`directiveWorseBy`) and messy-turn rate ≤ baseline + 0.30; or you typed it; or you re-enabled a retired one | yes | *active* |
+| **retired** | correction rate during the trial rose by more than 15 percentage points over the baseline, or the messy-turn rate by more than 30 | no | *retired · corrections 10% → 30% while active* (or *messy turns 20% → 60% while active*) |
 | **off** | you untick it | no | greyed out |
 
-The baseline is the messy-turn rate over the latest 20 finished turns at the
-moment the candidate was created. Trials are a *trend check*, not an A/B test:
-a candidate is judged on every finished turn of every conversation whose frozen
-steering text contained it, with no control group. Conversations that started
-before the candidate existed (or before Tacit was restarted) never contained it
-and count toward nothing.
+A trial counts, for every finished turn of every conversation whose frozen
+steering text contained the candidate, whether the turn was messy and whether
+your next message corrected it. The baselines are the correction rate and the
+messy-turn rate over the latest 20 finished turns at the moment the trial
+starts. Trials are a *trend check*, not an A/B test: there is no control group,
+which is why only one directive per scope is on trial at a time (its counters
+answer for it alone). Conversations that started before the candidate existed
+(or before Tacit was restarted) never contained it and count toward nothing.
 
 ## 7. Steering section
 
@@ -186,10 +200,11 @@ marks those patterns as applied.
 
 ## 10. The measured trend
 
-**Settings → Tacit** shows the messy-turn rate and tokens per turn for the first
-20 finished turns versus the latest 20, across all loaded conversations (only
-turns still within the retained window). The chips appear once 40 finished turns
-exist. Steps are not counted as messy here (see §2).
+**Settings → Tacit** shows how often you corrected the agent, the messy-turn
+rate and tokens per turn for the first 20 finished turns versus the latest 20,
+across all loaded conversations (only turns still within the retained window).
+The chips appear once 40 finished turns exist. Steps are not counted as messy
+here (see §2).
 
 ## Glossary
 
@@ -198,12 +213,12 @@ exist. Steps are not counted as messy here (see §2).
 | **turn** | one user message and everything the agent did until it answered |
 | **digest** | Tacit's bounded summary of a turn (§1) |
 | **messy turn** | a turn with retries, tool errors, compactions, a cancel/reject, or — for auto-analysis only — 15+ steps |
-| **correction** | a short follow-up message that tells the agent it got it wrong |
+| **correction** | a short follow-up message that tells the agent it got it wrong; the headline signal for trials and the trend |
 | **continuation** | a bare "continue / ok / yes" — never analyzed |
 | **report** | the result of one analysis: problems, improved prompt, explanation |
 | **pattern** | a recurring problem kind aggregated across reports, with trust counters |
-| **directive** | one sentence the agent follows on your behalf; *candidate → active / retired* |
-| **trial** | the 10-turn probation of a candidate directive |
+| **directive** | one sentence the agent follows on your behalf; *queued → candidate → active / retired* |
+| **trial** | the 10-turn probation of a candidate directive, graded on how often you correct the agent; one per scope at a time |
 | **steering section** | the system-prompt block that carries the directives |
 | **style rule** | a rewrite preference distilled from your 👎 reasons; used only by ✨ Improve |
 | **enrichment** | the opt-in note appended before a send (§8) |
