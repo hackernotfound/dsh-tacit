@@ -1616,6 +1616,65 @@ test('the stylesheet carries the destructive-action rules', () => {
 })
 
 /**
+ * `ConfirmDialog` owns a hook, so it is rendered through a throwaway component
+ * to give it a dispatcher; the returned tree keeps the handlers that
+ * `renderToStaticMarkup` throws away.
+ */
+function confirmTree(props) {
+  let tree = null
+  const Probe = () => {
+    tree = testKit.ConfirmDialog({ t: tr }, props)
+    return tree
+  }
+  renderToStaticMarkup(React.createElement(Probe))
+  return tree
+}
+
+test('Tab cycles between the two buttons instead of walking out of the confirm dialog', () => {
+  const tree = confirmTree({
+    open: true,
+    title: tr('confirm.usageTitle'),
+    body: tr('confirm.usageBody'),
+    confirmLabel: tr('confirm.clear'),
+    onConfirm: () => {},
+    onCancel: () => {},
+  })
+  const buttons = collectElements(tree, (node) => node.type === 'button')
+  assert.deepEqual(buttons.map((button) => button.props.id), ['tacit-confirm-cancel', 'tacit-confirm-accept'],
+    'both stops are addressable without a ref')
+
+  const focused = []
+  const prevented = []
+  const stops = {
+    'tacit-confirm-cancel': { focus: () => focused.push('cancel') },
+    'tacit-confirm-accept': { focus: () => focused.push('accept') },
+  }
+  globalThis.document = {
+    activeElement: stops['tacit-confirm-cancel'],
+    getElementById: (id) => (stops[id] === undefined ? null : stops[id]),
+  }
+  try {
+    const press = (key, shiftKey) => tree.props.onKeyDown({
+      key,
+      shiftKey,
+      preventDefault: () => prevented.push(key),
+    })
+    press('Tab', false)
+    assert.deepEqual(focused, ['accept'], 'Tab off Cancel reaches the danger button')
+    globalThis.document.activeElement = stops['tacit-confirm-accept']
+    press('Tab', false)
+    assert.deepEqual(focused, ['accept', 'cancel'], 'and wraps back rather than escaping the dialog')
+    press('Tab', true)
+    assert.deepEqual(focused, ['accept', 'cancel', 'cancel'], 'Shift+Tab off the danger button also stays inside')
+    assert.deepEqual(prevented, ['Tab', 'Tab', 'Tab'], 'the browser is never left to move focus as well')
+    press('Enter', false)
+    assert.equal(focused.length, 3, 'and any other key is left alone')
+  } finally {
+    delete globalThis.document
+  }
+})
+
+/**
  * Run `body` with every /api/tacit call answered from `routes` (anything not
  * listed answers a bare ok envelope), handing it the list of paths called in
  * order. The suite's throwing fetch is always put back.
