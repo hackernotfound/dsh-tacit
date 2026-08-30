@@ -55,9 +55,9 @@ already configured in the harness (Tacit never reads it).
 | **Measured, not guessed** | Settings shows your real trend — messy-turn rate and tokens per turn, first 20 turns vs. latest 20 — and Tacit's own spend: every call metered and priced at list price, shown in Settings | free |
 
 <p align="center">
-  <img alt="Tacit settings with automatic learning controls and an editable active directive" src="https://raw.githubusercontent.com/hackernotfound/dsh-tacit/main/docs/assets/tacit-settings.png" width="960">
+  <img alt="Settings → Tacit: the Overview card with automatic learning status and the Usage card with spend tiles, a daily spend chart, spend by operation and the run list" src="https://raw.githubusercontent.com/hackernotfound/dsh-tacit/main/docs/assets/tacit-settings.png" width="960">
 </p>
-<p align="center"><sub>Settings → Tacit, captured from a clean local profile with a synthetic example directive. (Predates the eight-card layout and the usage/cost dashboard — pending a recapture.)</sub></p>
+<p align="center"><sub>Settings → Tacit with Overview and Usage expanded, captured from a clean local profile seeded with synthetic runs and directives.</sub></p>
 
 ## How it works
 
