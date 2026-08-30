@@ -351,6 +351,21 @@ test('normalizeCostMeterState: missing windows/peakEnabled/effectiveAt fall back
   assert.equal(normalized.effectiveAtMs, 0)
 })
 
+test('normalizeCostMeterState: peakEffectiveAt is accepted as an ISO string as well as epoch ms', () => {
+  const iso = '2026-08-22T16:00:00Z'
+  assert.equal(normalizeCostMeterState({ prices: {}, peakEffectiveAt: iso }).effectiveAtMs, Date.parse(iso))
+  assert.equal(normalizeCostMeterState({ prices: {}, peakEffectiveAt: 1234 }).effectiveAtMs, 1234)
+  assert.equal(normalizeCostMeterState({ prices: {}, peakEffectiveAt: 'not a date' }).effectiveAtMs, 0)
+  assert.equal(normalizeCostMeterState({ prices: {}, peakEffectiveAt: null }).effectiveAtMs, 0)
+})
+
+test('normalizeCostMeterState: a peakWindows array that filters down to nothing falls back to the bundled windows', () => {
+  const junk = normalizeCostMeterState({ prices: {}, peakWindows: [{ start: 'x', end: 4 }, null, 7] })
+  assert.deepEqual(junk.windows, PEAK_WINDOWS_UTC, 'no usable window is the same as none given')
+  assert.deepEqual(normalizeCostMeterState({ prices: {}, peakWindows: [] }).windows, PEAK_WINDOWS_UTC)
+  assert.deepEqual(normalizeCostMeterState({ prices: {}, peakWindows: [{ start: 2, end: 3 }] }).windows, [{ start: 2, end: 3 }])
+})
+
 // ── pricing source (lib/pricing-source.js) ───────────────────────────────
 
 const costMeterState = {
@@ -410,6 +425,31 @@ test('pricing source: a valid costMeter state becomes the snapshot', async () =>
   assert.equal(priced.usd, 1.8)
   // a proxy route the table knows about is priced flat
   assert.equal(source.priceCall({ model: 'deepseek-v4-flash', provider: 'my-proxy', atMs: weekday(2), usage: { outputTokens: 1e6 } }).usd, 2)
+})
+
+test('pricing source: status().tierNow follows the snapshot the calls are priced against', async () => {
+  const now = () => weekday(2) // inside both the bundled and the snapshot peak window
+  const offPeakState = { ...costMeterState, config: { ...costMeterState.config, peakEnabled: false } }
+  const source = createPricingSource(ctxWith({ getState: () => offPeakState }), { now })
+  await source.refresh()
+  assert.equal(source.status().tierNow, 'offPeak', 'a snapshot with peak pricing off is off-peak everywhere')
+  assert.equal(
+    source.priceCall({ model: 'deepseek-v4-flash', provider: 'deepseek', atMs: weekday(2), usage: { outputTokens: 1e6 } }).tier,
+    source.status().tierNow,
+    'the card agrees with how the call was priced',
+  )
+
+  // A snapshot whose windows differ from the bundled ones is read, not ignored.
+  const shifted = { ...costMeterState, config: { ...costMeterState.config, peakWindows: [{ start: 12, end: 14 }] } }
+  const shiftedSource = createPricingSource(ctxWith({ getState: () => shifted }), { now: () => weekday(12) })
+  await shiftedSource.refresh()
+  assert.equal(shiftedSource.status().tierNow, 'peak', 'noon is peak under the snapshot even though the bundle says otherwise')
+
+  // Not effective yet → off-peak, however the windows read.
+  const later = { ...costMeterState, config: { ...costMeterState.config, peakEffectiveAt: weekday(23) } }
+  const laterSource = createPricingSource(ctxWith({ getState: () => later }), { now })
+  await laterSource.refresh()
+  assert.equal(laterSource.status().tierNow, 'offPeak')
 })
 
 test('pricing source: an async getState is awaited', async () => {
