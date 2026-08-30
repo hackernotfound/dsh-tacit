@@ -303,6 +303,41 @@ test('normalizeCostMeterState: a provider entry {input, cachedInput, output} con
   assert.deepEqual(normalized.providers['custom-provider']['deepseek-v4-pro'], { cacheMiss: 0.5, cacheHit: 0.5, output: 1.5 })
 })
 
+test('a provider table is matched whatever case either side spells the id in', () => {
+  // The cost-meter table is a foreign, duck-typed schema: its provider keys are
+  // whatever that plugin's user typed. A casing mismatch must not silently drop
+  // the call through to bundled pricing (or to unpriced).
+  const normalized = normalizeCostMeterState({
+    prices: {
+      currency: 'USD',
+      providers: { OpenRouter: { models: { 'deepseek-v4-flash': { input: 1, cachedInput: 0.5, output: 2 } } } },
+    },
+  })
+  assert.deepEqual(Object.keys(normalized.providers), ['openrouter'], 'the normalized keys are case-folded')
+
+  for (const provider of ['openrouter', 'OpenRouter', 'OPENROUTER']) {
+    const found = ratesFor({ model: 'deepseek-v4-flash', provider, atMs: weekday(12), table: normalized })
+    assert.equal(found?.source, 'costMeter', provider)
+    assert.equal(found?.tier, 'flat', provider)
+    assert.deepEqual(found?.rates, { cacheMiss: 1, cacheHit: 0.5, output: 2 }, provider)
+  }
+  assert.equal(ratesFor({ model: 'deepseek-v4-flash', provider: 'other-proxy', atMs: weekday(12), table: normalized }), null)
+})
+
+test('normalizeCostMeterState: provider keys that differ only by case merge, first one wins', () => {
+  const normalized = normalizeCostMeterState({
+    prices: {
+      currency: 'USD',
+      providers: {
+        OpenRouter: { models: { 'deepseek-v4-flash': { input: 1, cachedInput: 0.5, output: 2 } } },
+        openrouter: { models: { 'deepseek-v4-flash': { input: 9, cachedInput: 9, output: 9 } } },
+      },
+    },
+  })
+  assert.deepEqual(Object.keys(normalized.providers), ['openrouter'])
+  assert.deepEqual(normalized.providers.openrouter['deepseek-v4-flash'], { cacheMiss: 1, cacheHit: 0.5, output: 2 })
+})
+
 test('normalizeCostMeterState: CNY prices are divided by exchangeRate', () => {
   const state = {
     prices: {
