@@ -50,6 +50,9 @@
         // `shiftKey` needs no branch of its own.
         onKeyDown: (event) => {
           if (event.key === 'Escape') {
+            // Stopped here: the host's Settings modal also closes on Escape, and
+            // cancelling a confirm must not take the whole settings page with it.
+            if (typeof event.stopPropagation === 'function') event.stopPropagation()
             cancel()
             return
           }

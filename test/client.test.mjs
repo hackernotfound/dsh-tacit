@@ -1767,6 +1767,22 @@ test('Tab cycles between the two buttons instead of walking out of the confirm d
   }
 })
 
+test('Escape cancels the confirm dialog without closing the settings page around it', () => {
+  let cancelled = 0
+  const tree = confirmTree({
+    open: true,
+    title: tr('confirm.usageTitle'),
+    body: tr('confirm.usageBody'),
+    confirmLabel: tr('confirm.clear'),
+    onConfirm: () => {},
+    onCancel: () => { cancelled += 1 },
+  })
+  let stopped = 0
+  tree.props.onKeyDown({ key: 'Escape', stopPropagation: () => { stopped += 1 }, preventDefault: () => {} })
+  assert.equal(cancelled, 1, 'Escape cancels')
+  assert.equal(stopped, 1, 'and the keydown never reaches the host modal, which closes on Escape too')
+})
+
 /**
  * Run `body` with every /api/tacit call answered from `routes` (anything not
  * listed answers a bare ok envelope), handing it the list of paths called in
