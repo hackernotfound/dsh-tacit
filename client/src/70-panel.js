@@ -211,9 +211,15 @@
         const confirm = rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'usage'
           ? 'usage'
           : (rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'reports' ? 'reports' : null)
-        const retention = config !== null && typeof config.costHistoryDays === 'number' && RETENTION_DAYS.includes(config.costHistoryDays)
+        const retention = config !== null && typeof config.costHistoryDays === 'number' && Number.isFinite(config.costHistoryDays) && config.costHistoryDays > 0
           ? config.costHistoryDays
           : 30
+        // A value set by hand in the YAML need not be one of the offered days.
+        // It gets an option of its own, in place, rather than being displayed
+        // as a neighbour it is not.
+        const retentionDays = RETENTION_DAYS.includes(retention)
+          ? RETENTION_DAYS
+          : [...RETENTION_DAYS, retention].sort((a, b) => a - b)
         /** Every card is titled by `card.<id>` and driven by `rootStore.sections`. */
         const card = (id, children, extra) => SectionCard(kit, {
           id,
@@ -356,7 +362,7 @@
                 value: String(retention),
                 onChange: (event) => updateRootConfig({ costHistoryDays: Number(event.target.value) }),
               },
-              ...RETENTION_DAYS.map((days) => h('option', { key: days, value: String(days) }, String(days))))),
+              ...retentionDays.map((days) => h('option', { key: days, value: String(days) }, String(days))))),
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-daily' }, t('privacy.warnDaily')),
               h('input', {

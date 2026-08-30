@@ -1442,6 +1442,19 @@ test('the retention select is bound to the configured costHistoryDays', () => {
   }
 })
 
+test('a retention value outside the offered days gets an option of its own', () => {
+  try {
+    seedPrivacy({ costHistoryDays: 45 })
+    const markup = renderSettings()
+    assert.match(markup, /<option[^>]*value="45"[^>]*selected=""/, 'the YAML-set 45 is what the select reports')
+    assert.equal(/<option[^>]*value="30"[^>]*selected=""/.test(markup), false, 'not the 30 it used to fall back to')
+    const options = [...markup.matchAll(/<option[^>]*value="(\d+)"/g)].map((match) => match[1])
+    assert.deepEqual(options, ['7', '14', '30', '45', '90', '180', '365'], 'and it sorts into place')
+  } finally {
+    resetPrivacy()
+  }
+})
+
 test('the two USD threshold rows carry the configured amounts and the 80 % hint', () => {
   try {
     seedPrivacy()
