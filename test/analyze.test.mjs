@@ -326,6 +326,28 @@ test('computeTrend reports not-enough data below two windows and never divides b
   assert.equal(trend.enough, false)
   assert.equal(trend.recent.n, 0)
   assert.equal(trend.recent.messyRate, 0)
+  assert.equal(trend.recent.correctionRate, 0)
+})
+
+import { markCorrections } from '../lib/analyze.js'
+
+test('markCorrections flags a turn when the next message in the same conversation corrects it; the last turn never is', () => {
+  const mk = (i, prompt, finished = true) => ({ ...sampleTurn, turn: i, prompt, finished, endedAt: i * 1000 })
+  const marked = markCorrections([mk(1, 'Add the login page.'), mk(2, 'No, the signup page.'), mk(3, 'Now add tests.'), mk(4, 'why did you delete the fixture?', false), null])
+  assert.deepEqual(marked.map((turn) => turn.corrected), [true, false, true, false])
+  assert.equal(marked.length, 4)
+  assert.deepEqual(markCorrections(undefined), [])
+})
+
+test('computeTrend reports the correction rate of marked turns', () => {
+  const mk = (i, prompt) => ({ ...sampleTurn, turn: i, prompt, endedAt: i * 1000, retries: 0, steps: 2, endReason: 'success' })
+  const turns = markCorrections([
+    ...Array.from({ length: 10 }, (_, i) => mk(i + 1, i % 2 === 0 ? 'do the thing' : 'no, not that')),
+    ...Array.from({ length: 10 }, (_, i) => mk(i + 11, 'do the next thing')),
+  ])
+  const trend = computeTrend(turns, { window: 10 })
+  assert.equal(trend.early.correctionRate, 0.5)
+  assert.equal(trend.recent.correctionRate, 0)
 })
 
 // ── Context-aware analysis / directive hygiene ─────────────────────────────
