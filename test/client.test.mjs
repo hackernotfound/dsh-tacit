@@ -515,7 +515,7 @@ test('the directives editor shows trial / active / retired status chips', () => 
     analyzedCount: 4,
     patterns: [],
     directives: [
-      { id: 'c', text: 'On trial.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 4, messy: 1, baselineRate: 0.2, startedAt: 1 } },
+      { id: 'c', text: 'On trial.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 4, messy: 1, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0.1, startedAt: 1 } },
       { id: 'a', text: 'Proven.', enabled: true, source: 'distilled', createdAt: 2, status: 'active' },
       { id: 'r', text: 'Dropped.', enabled: false, source: 'distilled', createdAt: 3, status: 'retired', retiredReason: 'messy turns 20% → 45% while active' },
     ],
