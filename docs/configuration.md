@@ -33,7 +33,7 @@ winning over YAML until you change it again in the UI (patch keys are never remo
 | `steerAgent` | `true` | boolean | inject the learned directives into every new conversation's system prompt | Inject learned directives into the system prompt |
 | `directiveEvery` | `3` | 1–100 | new analyses between two directive distillations | — |
 | `directiveTrialTurns` | `10` | 1–500 | finished turns a candidate directive stays on trial | — |
-| `directiveWorseBy` | `0.15` | 0–1 | retire a candidate when its trial messy-turn rate exceeds the baseline by more than this | — |
+| `directiveWorseBy` | `0.15` | 0–1 | retire a candidate when its trial correction rate exceeds the baseline by more than this (or its messy-turn rate by more than twice this) | — |
 | `bootstrapConcurrency` | `1` | 1–4 | analyses run at once during *Learn from my last 20 turns*; same calls and cost, less waiting | — |
 | `costHistoryDays` | `30` | 7–365 | days of detailed usage runs kept; older day files are deleted | Keep detailed usage history (days) |
 | `costWarnDailyUsd` | `0` | 0–10000 | visual warning at 80 %/100 % of this daily Tacit spend; `0` disables | Warn above this daily spend (USD) |

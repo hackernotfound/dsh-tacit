@@ -1097,27 +1097,57 @@ test('every analysis carries the previous finished turn as context (auto and man
   assert.ok(captured[captured.length - 1].messages[0].content[0].text.includes('Manual previous prompt.'))
 })
 
-// ── Directive trials (candidate → active | retired) ────────────────────────
+// ── Directive trials (queued → candidate → active | retired) ───────────────
 
-test('freshly distilled directives start as candidates with a baseline messy rate', async () => {
-  const { routes, service } = steeringHarness({ config: { directiveEvery: 1 }, profile: seedDirectives([]) })
+const trialTurn = (turn, { prompt = 'Add the next endpoint.', toolErrors = 0, finished = true } = {}) => ({
+  ...sampleTurn, turn, prompt, toolErrors, retries: 0, compactions: 0, steps: 2, endReason: 'success', finished, startedAt: Date.now() - 1000, endedAt: finished ? Date.now() : 0,
+})
+const trialSeed = (id, text) => ({ id, text, enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 0, messy: 0, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0, startedAt: 1 } })
+
+test('one distillation puts one directive on trial per scope; the next queued one starts after its verdict', async () => {
+  const { routes, service, sections, fireProjectionChange } = steeringHarness({
+    config: { directiveEvery: 1, directiveTrialTurns: 4, directiveWorseBy: 0.15, autoAnalyze: false },
+    profile: seedDirectives([]),
+  })
+  const stateOf = () => callRoute(routes.find((r) => r.path === '/api/tacit/state'), {}).then((r) => r.body)
   fs.rmSync(path.join(tmpHome, 'storages', 'tacit', 'reports', 'session-1'), { recursive: true, force: true })
   await callRoute(routes.find((r) => r.path === '/api/tacit/analyze'), { sessionId: 'session-1', turn: 2 })
   await service.flushAuto()
-  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
-  const distilled = state.body.profile.directives.filter((d) => d.source === 'distilled')
-  assert.ok(distilled.length >= 1)
-  for (const entry of distilled) {
-    assert.equal(entry.status, 'candidate')
-    assert.equal(entry.trial.turns, 0)
-    assert.equal(typeof entry.trial.baselineRate, 'number')
+  let state = await stateOf()
+  let [first, second] = state.profile.directives.filter((d) => d.source === 'distilled')
+  assert.equal(first.status, 'candidate')
+  assert.deepEqual(first.trial, { ...first.trial, turns: 0, messy: 0, corrected: 0 })
+  assert.equal(typeof first.trial.baselineMessyRate, 'number')
+  assert.equal(typeof first.trial.baselineCorrectionRate, 'number')
+  assert.equal(second.status, 'queued')
+  assert.equal(second.trial, undefined)
+  assert.ok(state.steering.text.includes(first.text), 'the candidate is injected during its trial')
+  assert.ok(!state.steering.text.includes(second.text), 'the queued one waits')
+
+  sections[0].text({ agent: { session: { id: 'session-1' } } })
+  const turns = []
+  for (let i = 1; i <= 4; i += 1) {
+    turns.push(trialTurn(800 + i))
+    fireProjectionChange({ id: 'session-1' }, [...turns], i)
   }
-  assert.ok(state.body.steering.text.includes(distilled[0].text), 'candidates are injected during their trial')
+  state = await stateOf()
+  ;[first, second] = state.profile.directives.filter((d) => d.source === 'distilled')
+  assert.equal(first.status, 'active')
+  assert.equal(second.status, 'candidate', 'the verdict on the first starts the second')
+  assert.equal(second.trial.turns, 0)
+  assert.ok(second.trial.startedAt > first.trial.startedAt)
+  assert.ok(state.steering.text.includes(second.text))
+
+  sections[0].text({ agent: { session: { id: 'session-2' } } })
+  fireProjectionChange({ id: 'session-2' }, [trialTurn(810), trialTurn(811)], 20)
+  state = await stateOf()
+  ;[first, second] = state.profile.directives.filter((d) => d.source === 'distilled')
+  assert.deepEqual([first.trial.turns, second.trial.turns], [4, 2], 'each trial counts only its own steered turns')
 })
 
 test('a candidate that coincides with more messy turns retires itself; a clean trial activates it', async () => {
   const mkTurn = (turn, messy) => ({ ...sampleTurn, turn, retries: messy ? 1 : 0, toolErrors: 0, compactions: 0, steps: 2, endReason: 'success', startedAt: Date.now() - 1000, endedAt: Date.now() })
-  const seed = (id, text) => ({ id, text, enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 0, messy: 0, baselineRate: 0.2, startedAt: 1 } })
+  const seed = (id, text) => ({ id, text, enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 0, messy: 0, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0, startedAt: 1 } })
   const { routes, sections, fireProjectionChange } = steeringHarness({
     config: { directiveTrialTurns: 4, directiveWorseBy: 0.15, autoAnalyze: false },
     profile: seedDirectives([seed('bad', 'Directive on trial that makes things worse.')]),
@@ -1158,7 +1188,7 @@ test('a candidate that coincides with more messy turns retires itself; a clean t
 
 test('trial turns only count from conversations whose frozen steering contained the candidate', async () => {
   const mkTurn = (turn) => ({ ...sampleTurn, turn, retries: 1, toolErrors: 0, compactions: 0, steps: 2, endReason: 'success', startedAt: Date.now() - 1000, endedAt: Date.now() })
-  const seed = (id, text) => ({ id, text, enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 0, messy: 0, baselineRate: 0.2, startedAt: 1 } })
+  const seed = (id, text) => ({ id, text, enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 0, messy: 0, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0, startedAt: 1 } })
   const { routes, sections, fireProjectionChange } = steeringHarness({
     config: { directiveTrialTurns: 4, directiveWorseBy: 0.15, autoAnalyze: false },
     profile: seedDirectives([]),
@@ -1188,6 +1218,75 @@ test('trial turns only count from conversations whose frozen steering contained 
   entry = await state()
   assert.equal(entry.trial.turns, 4)
   assert.equal(entry.status, 'retired', 'four messy steered turns vs a 20% baseline retire it')
+})
+
+test('a distillation replaying the same evidence tells the model about a retired directive and keeps it retired when it comes back anyway', async () => {
+  const retired = { id: 'r', text: 'Grep the repo before asking for file paths.', enabled: false, source: 'distilled', createdAt: 1, status: 'retired', retiredReason: 'corrections 0% → 50% while active' }
+  const { routes, service, captured } = steeringHarness({ config: { directiveEvery: 1, autoAnalyze: false }, profile: seedDirectives([retired]) })
+  fs.rmSync(path.join(tmpHome, 'storages', 'tacit', 'reports', 'session-1'), { recursive: true, force: true })
+  await callRoute(routes.find((r) => r.path === '/api/tacit/analyze'), { sessionId: 'session-1', turn: 2 })
+  await service.flushAuto()
+  const prompt = captured.find((c) => c.system.includes('directives')).messages[0].content[0].text
+  assert.ok(prompt.slice(prompt.indexOf('=== RETIRED')).includes('- Grep the repo before asking for file paths.'))
+  assert.ok(!prompt.includes('[r]'), 'a retired directive is not offered as one to keep')
+  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  const back = state.body.profile.directives.find((d) => d.id === 'r')
+  assert.deepEqual([back.status, back.enabled, back.retiredReason], ['retired', false, retired.retiredReason])
+  assert.equal(state.body.profile.directives.filter((d) => d.text === retired.text).length, 1, 'the re-emitted text does not become a second entry')
+  assert.ok(!state.body.steering.text.includes(retired.text))
+  assert.equal(state.body.profile.directives.find((d) => d.text === 'Treat "what do you think" as opinion-only.').status, 'candidate')
+})
+
+test('a candidate whose steered turns hit tool errors but drew no corrections is activated', async () => {
+  const { routes, sections, fireProjectionChange } = steeringHarness({
+    config: { directiveTrialTurns: 4, directiveWorseBy: 0.15, autoAnalyze: false },
+    profile: seedDirectives([trialSeed('c', 'Candidate that errors but is never corrected.')]),
+  })
+  sections[0].text({ agent: { session: { id: 'session-1' } } })
+  const turns = []
+  for (let i = 1; i <= 4; i += 1) {
+    turns.push(trialTurn(600 + i, { toolErrors: i % 2 })) // 50% messy: past the old 15-point bar, inside the 30-point guard
+    fireProjectionChange({ id: 'session-1' }, [...turns], i)
+  }
+  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  const entry = state.body.profile.directives.find((d) => d.id === 'c')
+  assert.equal(entry.status, 'active')
+  assert.deepEqual([entry.trial.turns, entry.trial.messy, entry.trial.corrected], [4, 2, 0])
+})
+
+test('a candidate from a profile written before corrections were graded gets its correction baseline on the next counted turn', async () => {
+  const { routes, sections, fireProjectionChange } = steeringHarness({
+    config: { autoAnalyze: false },
+    profile: seedDirectives([{ id: 'c', text: 'Old candidate.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 2, messy: 0, baselineRate: 0.2, startedAt: 1 } }]),
+  })
+  sections[0].text({ agent: { session: { id: 'session-1' } } })
+  fireProjectionChange({ id: 'session-1' }, [trialTurn(650)], 1)
+  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  const entry = state.body.profile.directives.find((d) => d.id === 'c')
+  assert.deepEqual(entry.trial, { ...entry.trial, turns: 3, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0 })
+})
+
+test('a candidate whose steered turns keep drawing corrections is retired on the correction rate', async () => {
+  const { routes, sections, fireProjectionChange } = steeringHarness({
+    config: { directiveTrialTurns: 4, directiveWorseBy: 0.15, autoAnalyze: false },
+    profile: seedDirectives([trialSeed('c', 'Candidate the user keeps correcting.')]),
+  })
+  sections[0].text({ agent: { session: { id: 'session-1' } } })
+  const done = []
+  let seq = 0
+  for (let i = 1; i <= 4; i += 1) {
+    const next = trialTurn(700 + i, { prompt: i === 1 ? 'Add the next endpoint.' : 'no, not that one' })
+    // The correction of turn i is known as soon as turn i+1 starts, before it finishes.
+    fireProjectionChange({ id: 'session-1' }, [...done, { ...next, finished: false, endedAt: 0 }], seq += 1)
+    done.push(next)
+    fireProjectionChange({ id: 'session-1' }, [...done], seq += 1)
+  }
+  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  const entry = state.body.profile.directives.find((d) => d.id === 'c')
+  assert.equal(entry.status, 'retired')
+  assert.equal(entry.enabled, false)
+  assert.equal(entry.retiredReason, 'corrections 0% → 75% while active')
+  assert.deepEqual([entry.trial.turns, entry.trial.messy, entry.trial.corrected], [4, 0, 3])
 })
 
 // ── Bootstrap: learn from the last N turns now ─────────────────────────────

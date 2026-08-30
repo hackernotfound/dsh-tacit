@@ -50,6 +50,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'status.autoOn': '自动学习已开启 · 今日 {today}/{budget}',
       'status.autoOff': '自动学习已关闭 — 仅在你点击「分析」时学习。',
       'status.autoHint': '混乱的轮次（重试、工具错误、压缩）以及你纠正智能体的下一条消息会被自动分析，无需点击。',
+      'status.trendCorrections': '你纠正智能体：{a} → {b}',
       'status.trendMessy': '混乱轮次：{a} → {b}',
       'status.trendTokens': '每轮 tokens：{a} → {b}',
       'status.trendHint': '（最早 {n} 轮 vs 最近 {n} 轮，真实数据）',
@@ -80,6 +81,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.remove': '删除',
       'steer.preview': '实际注入的文本',
       'steer.distilled': '自动提炼',
+      'steer.queued': '等待试用',
       'steer.trial': '试用 {n}/{total}',
       'steer.active': '已生效',
       'steer.retired': '已淘汰 · {reason}',
@@ -298,6 +300,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'status.autoOn': 'Auto-learning on · {today}/{budget} today',
       'status.autoOff': 'Auto-learning off — Tacit only learns when you click Analyze.',
       'status.autoHint': 'Messy turns (retries, tool errors, compactions) and turns you correct in your next message are analyzed automatically — no clicks.',
+      'status.trendCorrections': 'You corrected the agent: {a} → {b}',
       'status.trendMessy': 'Messy turns: {a} → {b}',
       'status.trendTokens': 'Tokens/turn: {a} → {b}',
       'status.trendHint': '(first {n} turns vs. latest {n}, measured)',
@@ -328,6 +331,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.remove': 'Remove',
       'steer.preview': 'Exact text injected',
       'steer.distilled': 'distilled',
+      'steer.queued': 'waiting for trial',
       'steer.trial': 'trial {n}/{total}',
       'steer.active': 'active',
       'steer.retired': 'retired · {reason}',
@@ -1755,6 +1759,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         h('div', { className: 'tacit-progress-text' }, autoOn ? t('status.autoHint') : t('status.autoOff')),
         hasTrend
           ? h('div', { className: 'tacit-trend' },
+            h('span', { className: 'tacit-chip' }, t('status.trendCorrections', { a: pct(trend.early.correctionRate), b: pct(trend.recent.correctionRate) })),
             h('span', { className: 'tacit-chip' }, t('status.trendMessy', { a: pct(trend.early.messyRate), b: pct(trend.recent.messyRate) })),
             h('span', { className: 'tacit-chip' }, t('status.trendTokens', { a: fmt(trend.early.tokensPerTurn), b: fmt(trend.recent.tokensPerTurn) })),
             h('span', { className: 'tacit-progress-text' }, t('status.trendHint', { n: String(trend.window) })))
@@ -2387,14 +2392,16 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 typeof entry.workspace === 'string' && entry.workspace.length > 0
                   ? h('span', { className: 'tacit-chip tacit-chip-scope', title: entry.workspace }, t('steer.workspace', { name: labelOf(entry.workspace) }))
                   : null,
-                entry.status === 'candidate'
-                  ? h('span', { className: 'tacit-chip tacit-chip-trial' }, t('steer.trial', {
-                    n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
-                    total: String(config !== null && typeof config.directiveTrialTurns === 'number' ? config.directiveTrialTurns : 10),
-                  }))
-                  : entry.status === 'retired'
-                    ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('steer.retired', { reason: String(entry.retiredReason || '') }))
-                    : h('span', { className: 'tacit-chip tacit-chip-ok' }, t('steer.active')),
+                entry.status === 'queued'
+                  ? h('span', { className: 'tacit-chip tacit-chip-muted' }, t('steer.queued'))
+                  : entry.status === 'candidate'
+                    ? h('span', { className: 'tacit-chip tacit-chip-trial' }, t('steer.trial', {
+                      n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
+                      total: String(config !== null && typeof config.directiveTrialTurns === 'number' ? config.directiveTrialTurns : 10),
+                    }))
+                    : entry.status === 'retired'
+                      ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('steer.retired', { reason: String(entry.retiredReason || '') }))
+                      : h('span', { className: 'tacit-chip tacit-chip-ok' }, t('steer.active')),
                 h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))))),
           h('div', { className: 'tacit-settings-row' },
             h('input', {

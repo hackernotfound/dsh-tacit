@@ -274,6 +274,62 @@ test('classifyDirectives parses the tool payload into clipped, deduped imperativ
   assert.deepEqual(classifyDirectives('nonsense').kept, [])
 })
 
+import { mergeDirectives, capDirectives, MAX_RETIRED } from '../lib/analyze.js'
+
+const distilledEntry = (id, text, extra = {}) => ({ id, text, enabled: true, source: 'distilled', createdAt: 1, status: 'active', ...extra })
+const trialOf = (turns) => ({ turns, messy: 1, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0.1, startedAt: 1 })
+const mergeInto = (directives, items) => mergeDirectives({ directives }, items, { nextId: () => 'new' }).directives
+
+test('mergeDirectives keeps an entry the model returns by id, updating only its text', () => {
+  const [kept] = mergeInto(
+    [distilledEntry('c1', 'Grep the repo before asking.', { status: 'candidate', trial: trialOf(7), enabled: false })],
+    [{ id: 'c1', text: 'Grep the repository for the feature before asking for paths.' }],
+  )
+  assert.deepEqual(kept, { ...distilledEntry('c1', 'Grep the repository for the feature before asking for paths.', { status: 'candidate', trial: trialOf(7), enabled: false }) })
+})
+
+test('mergeDirectives still matches on identical text when the model returns no id', () => {
+  const [kept] = mergeInto([distilledEntry('a1', 'Run the tests first.', { trial: trialOf(10) })], [{ text: ' run the tests first. ' }])
+  assert.equal(kept.id, 'a1')
+  assert.equal(kept.status, 'active')
+  assert.equal(kept.trial.turns, 10)
+})
+
+test('mergeDirectives queues a genuinely new directive and leaves a retired one retired even when its id comes back', () => {
+  const retired = distilledEntry('r1', 'Always rewrite the whole file.', { status: 'retired', enabled: false, retiredReason: 'corrections 10% → 40% while active' })
+  const out = mergeInto([retired], [{ id: 'r1', text: 'Rewrite whole files rather than patching.' }, { text: 'Prefer small patches.' }])
+  assert.deepEqual(out.map((entry) => [entry.id, entry.status, entry.text]), [
+    ['new', 'queued', 'Prefer small patches.'],
+    ['r1', 'retired', 'Always rewrite the whole file.'],
+  ])
+  assert.equal(out[0].trial, undefined)
+})
+
+test('capDirectives keeps retired directives outside the live caps, the last MAX_RETIRED of them', () => {
+  const live = Array.from({ length: 8 }, (_, i) => distilledEntry('a' + i, 'Live ' + i + '.'))
+  const retired = Array.from({ length: MAX_RETIRED + 2 }, (_, i) => distilledEntry('r' + i, 'Retired ' + i + '.', { status: 'retired' }))
+  const out = capDirectives([...retired, ...live, distilledEntry('a9', 'One too many.')])
+  assert.deepEqual(out.filter((entry) => entry.status === 'retired').map((entry) => entry.id), ['r2', 'r3', 'r4', 'r5', 'r6', 'r7'])
+  assert.deepEqual(out.filter((entry) => entry.status !== 'retired').map((entry) => entry.id), live.map((entry) => entry.id))
+})
+
+test('classifyDirectives passes a non-empty id through and drops an empty one', () => {
+  const { kept } = classifyDirectives(JSON.stringify({ directives: [{ id: 'c1', text: 'Keep me.' }, { id: '  ', text: 'New one.' }] }))
+  assert.deepEqual(kept, [{ text: 'Keep me.', id: 'c1' }, { text: 'New one.' }])
+})
+
+test('buildDirectiveUserText lists current directives with their ids and retired ones under a do-not-re-propose block', () => {
+  const text = buildDirectiveUserText({ patterns: [], styleRules: [], directives: [
+    distilledEntry('c1', 'Current one.', { status: 'candidate' }),
+    distilledEntry('r1', 'Retired one.', { status: 'retired' }),
+  ] })
+  const current = text.slice(text.indexOf('=== CURRENT DIRECTIVES'), text.indexOf('=== RETIRED'))
+  assert.ok(current.includes('- [c1] Current one.'))
+  assert.ok(current.includes('return it with its [id]'))
+  assert.ok(!current.includes('Retired one.'))
+  assert.ok(text.slice(text.indexOf('=== RETIRED (made things worse while active; do not re-propose these) ===')).includes('- Retired one.'))
+})
+
 test('buildDirectiveUserText feeds patterns, examples, style rules and recent corrections to the distiller', () => {
   const text = buildDirectiveUserText({
     patterns: [{ kind: 'missing-context', count: 3, lastExample: 'no file paths given' }],
@@ -326,6 +382,28 @@ test('computeTrend reports not-enough data below two windows and never divides b
   assert.equal(trend.enough, false)
   assert.equal(trend.recent.n, 0)
   assert.equal(trend.recent.messyRate, 0)
+  assert.equal(trend.recent.correctionRate, 0)
+})
+
+import { markCorrections } from '../lib/analyze.js'
+
+test('markCorrections flags a turn when the next message in the same conversation corrects it; the last turn never is', () => {
+  const mk = (i, prompt, finished = true) => ({ ...sampleTurn, turn: i, prompt, finished, endedAt: i * 1000 })
+  const marked = markCorrections([mk(1, 'Add the login page.'), mk(2, 'No, the signup page.'), mk(3, 'Now add tests.'), mk(4, 'why did you delete the fixture?', false), null])
+  assert.deepEqual(marked.map((turn) => turn.corrected), [true, false, true, false])
+  assert.equal(marked.length, 4)
+  assert.deepEqual(markCorrections(undefined), [])
+})
+
+test('computeTrend reports the correction rate of marked turns', () => {
+  const mk = (i, prompt) => ({ ...sampleTurn, turn: i, prompt, endedAt: i * 1000, retries: 0, steps: 2, endReason: 'success' })
+  const turns = markCorrections([
+    ...Array.from({ length: 10 }, (_, i) => mk(i + 1, i % 2 === 0 ? 'do the thing' : 'no, not that')),
+    ...Array.from({ length: 10 }, (_, i) => mk(i + 11, 'do the next thing')),
+  ])
+  const trend = computeTrend(turns, { window: 10 })
+  assert.equal(trend.early.correctionRate, 0.5)
+  assert.equal(trend.recent.correctionRate, 0)
 })
 
 // ── Context-aware analysis / directive hygiene ─────────────────────────────
@@ -368,15 +446,17 @@ test('classifyDirectives rejects directives that make the agent ask the user', (
   assert.deepEqual(classifyDirectives(JSON.stringify({ directives: ['Get approval from the user first.'] })).kept, [])
 })
 
-test('renderSteeringSection renders candidates and active directives but never retired ones', () => {
+test('renderSteeringSection renders candidates and active directives but never retired or queued ones', () => {
   const text = renderSteeringSection({ directives: [
     { id: 'a', text: 'Active one.', enabled: true, source: 'distilled', createdAt: 1, status: 'active' },
     { id: 'c', text: 'Candidate one.', enabled: true, source: 'distilled', createdAt: 2, status: 'candidate' },
     { id: 'r', text: 'Retired one.', enabled: true, source: 'distilled', createdAt: 3, status: 'retired' },
+    { id: 'q', text: 'Queued one.', enabled: true, source: 'distilled', createdAt: 4, status: 'queued' },
   ] })
   assert.ok(text.includes('Active one.'))
   assert.ok(text.includes('Candidate one.'))
   assert.ok(!text.includes('Retired one.'))
+  assert.ok(!text.includes('Queued one.'))
 })
 
 test('clipDirective never cuts mid-word: sentence end first, then word boundary with an ellipsis', () => {

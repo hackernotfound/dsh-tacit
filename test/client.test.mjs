@@ -482,10 +482,10 @@ test('the status card shows the measured trend when enough turns exist', () => {
   const rootStore = testKit.rootStore
   rootStore.config = { model: 'deepseek-v4-flash', liveSuggestions: true, autoAnalyze: true, autoDailyBudget: 30, steerAgent: true }
   rootStore.profile = { analyzedCount: 4, patterns: [] }
-  rootStore.trend = { enough: true, window: 20, early: { n: 20, messyRate: 0.4, tokensPerTurn: 12000 }, recent: { n: 20, messyRate: 0.2, tokensPerTurn: 9000 } }
+  rootStore.trend = { enough: true, window: 20, early: { n: 20, correctionRate: 0.3, messyRate: 0.4, tokensPerTurn: 12000 }, recent: { n: 20, correctionRate: 0.1, messyRate: 0.2, tokensPerTurn: 9000 } }
   const Section = slotEntries.find((e) => e.name === 'settings.section').registration.component
   const markup = renderToStaticMarkup(React.createElement(Section, {}))
-  assert.ok(markup.includes('Messy turns: 40% → 20%'))
+  assert.ok(markup.indexOf('You corrected the agent: 30% → 10%') < markup.indexOf('Messy turns: 40% → 20%'), 'the correction rate leads')
   assert.ok(markup.includes('12.0k → 9.0k'))
   rootStore.profile = null
   rootStore.trend = null
@@ -515,9 +515,10 @@ test('the directives editor shows trial / active / retired status chips', () => 
     analyzedCount: 4,
     patterns: [],
     directives: [
-      { id: 'c', text: 'On trial.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 4, messy: 1, baselineRate: 0.2, startedAt: 1 } },
+      { id: 'c', text: 'On trial.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: { turns: 4, messy: 1, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0.1, startedAt: 1 } },
       { id: 'a', text: 'Proven.', enabled: true, source: 'distilled', createdAt: 2, status: 'active' },
       { id: 'r', text: 'Dropped.', enabled: false, source: 'distilled', createdAt: 3, status: 'retired', retiredReason: 'messy turns 20% → 45% while active' },
+      { id: 'q', text: 'Next up.', enabled: true, source: 'distilled', createdAt: 4, status: 'queued' },
     ],
   }
   const Section = slotEntries.find((e) => e.name === 'settings.section').registration.component
@@ -526,6 +527,7 @@ test('the directives editor shows trial / active / retired status chips', () => 
   assert.ok(markup.includes('active'))
   assert.ok(markup.includes('retired'))
   assert.ok(markup.includes('20% → 45%'))
+  assert.ok(markup.includes('waiting for trial'))
   rootStore.profile = null
 })
 

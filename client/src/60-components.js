@@ -68,6 +68,7 @@
         h('div', { className: 'tacit-progress-text' }, autoOn ? t('status.autoHint') : t('status.autoOff')),
         hasTrend
           ? h('div', { className: 'tacit-trend' },
+            h('span', { className: 'tacit-chip' }, t('status.trendCorrections', { a: pct(trend.early.correctionRate), b: pct(trend.recent.correctionRate) })),
             h('span', { className: 'tacit-chip' }, t('status.trendMessy', { a: pct(trend.early.messyRate), b: pct(trend.recent.messyRate) })),
             h('span', { className: 'tacit-chip' }, t('status.trendTokens', { a: fmt(trend.early.tokensPerTurn), b: fmt(trend.recent.tokensPerTurn) })),
             h('span', { className: 'tacit-progress-text' }, t('status.trendHint', { n: String(trend.window) })))

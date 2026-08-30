@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Directive trials are now graded on how often you *correct* the agent: a
+  candidate is retired when its correction rate rises more than
+  `directiveWorseBy` above the baseline (*retired · corrections 10% → 30% while
+  active*); the messy-turn rate only retires it past twice that margin, so tool
+  errors alone no longer sink a directive you never pushed back on.
+- One directive per scope (global, or one workspace) is on trial at a time; the
+  rest of a distillation waits as *queued* (greyed, not injected) and starts
+  its own trial, with fresh baselines, when the previous verdict lands.
+- A distillation that rewords a directive keeps its identity — id, state, trial
+  progress and on/off — instead of restarting it as a new candidate; retired
+  directives (the last 6) are kept and handed to the distiller as *do not
+  re-propose*, and one that comes back anyway stays retired.
+- The measured trend in Settings → Tacit leads with your correction rate, then
+  messy turns and tokens per turn.
 - A provider that has run out of credit now says so. `insufficient_quota` and
   `INSUFFICIENT_BALANCE` used to surface as the generic "the model call
   failed", or worse as a rate limit you could wait out; they are their own

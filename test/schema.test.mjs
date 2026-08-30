@@ -129,6 +129,14 @@ test('a directive may carry the workspace it is scoped to, and a report the conv
   assert.equal(report.cwd, '/repos/alpha')
 })
 
+test('a trial written before corrections were graded parses: baselineRate becomes the messy baseline, the correction baseline is unknown', () => {
+  const profile = profileSchema.parse({
+    analyzedCount: 0, patterns: [], updatedAt: 1, styleRules: [], feedbackLog: [], pendingDistill: 0, analysesSinceDirectives: 0,
+    directives: [{ id: 'c', text: 'Old candidate.', createdAt: 1, status: 'candidate', trial: { turns: 3, messy: 1, baselineRate: 0.2, startedAt: 1 } }],
+  })
+  assert.deepEqual(profile.directives[0].trial, { turns: 3, messy: 1, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: -1, startedAt: 1 })
+})
+
 // ── Usage ledger schemas ────────────────────────────────────────────────────
 
 test('configPatchSchema keeps the three cost keys', () => {

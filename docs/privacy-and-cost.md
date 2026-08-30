@@ -184,6 +184,9 @@ Honest list — these are v0.2 behaviours, not hidden surprises:
   from conversations whose frozen steering text actually contained it; conversations
   started before it existed (or before a restart) contribute nothing, so a trial can
   take more than `directiveTrialTurns` turns of wall-clock time to conclude.
+- **Corrections are detected by a heuristic.** A turn counts as corrected when your
+  next message matches the correction markers (How it works, §3); a correction phrased
+  differently is missed, and a conversation's last turn is never counted as corrected.
 - **"Messy" means two slightly different things.** Auto-analysis also counts 15+
   steps as messy; the trend and the trial verdict do not (long-but-successful work is
   never held against a directive).
