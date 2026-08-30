@@ -30,6 +30,10 @@
       + '.tacit-settings{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px}'
       + '.tacit-settings-title{font-size:12px;font-weight:600}.tacit-settings-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tacit-settings-label{font-size:12px;color:var(--dsw-alias-label-secondary);min-width:150px}'
       + '.tacit-settings-notice{font-size:11px;color:var(--dsw-alias-state-success-primary)}'
+      // The idle live region has to stay mounted to announce, but as an empty
+      // flex item it still claims one of the panel's 10px gaps; -5px a side
+      // gives that back.
+      + '.tacit-panel>.tacit-settings-notice:empty{margin-block:-5px}'
       + '.tacit-select,.tacit-input{font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:3px 8px}.tacit-input{width:90px}'
       + '.tacit-improve-btn{font:inherit;font-size:13px;font-weight:500;line-height:20px;color:var(--dsw-alias-label-secondary);background:transparent;border:0;border-radius:24px;cursor:pointer;height:28px;padding:0 8px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}.tacit-improve-btn:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}'
       + '.tacit-check{width:14px;height:14px;accent-color:var(--dsw-alias-brand-primary);flex:none;margin:2px 4px 0 0}'

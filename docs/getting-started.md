@@ -86,11 +86,6 @@ expand or collapse it:
 | **Analysis history** | the latest analyzed prompts, across every conversation |
 | **Data & privacy** | what one usage record holds; *Keep detailed usage history (days)* (7 / 14 / 30 / 90 / 180 / 365); *Warn above this daily/monthly spend (USD)* — Tacit warns at 80 % of the amount and marks it exceeded above it; *Clear all analysis reports* and *Clear usage history* — both open a confirmation dialog (Escape cancels) before deleting anything |
 
-> The Settings screenshot in the [README](../README.md)
-> (`docs/assets/tacit-settings.png`) predates this eight-card layout and the
-> usage/cost dashboard; it needs to be recaptured. The file is left in place
-> until then.
-
 ## Troubleshooting
 
 **Nothing is being analyzed.**

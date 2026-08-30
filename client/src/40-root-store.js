@@ -30,7 +30,6 @@
       usageFilters: { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 },
       usageRuns: {}, // runId → the full run (attempts included), fetched on first expand
       usageExpanded: new Set(), // runIds whose attempt rows are open
-      usageLoading: false,
       usageSeries: '30', // '7' | '30' — which sparkline the strip shows
       pricingRefreshing: false, // a /pricing-refresh call is in flight
       initStarted: false,
@@ -150,14 +149,12 @@
 
     /** Read the whole cost panel in one call; a failure keeps the last envelope. */
     async function fetchUsage() {
-      rootStore.usageLoading = true
       try {
         const result = await api('/usage', usageQuery())
         if (result !== null && typeof result === 'object' && result.ok === true) rootStore.usage = result
       } catch {
         // A stale panel beats a blank one; the next poll tries again.
       }
-      rootStore.usageLoading = false
       notifyRoot()
     }
 

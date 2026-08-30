@@ -9,6 +9,13 @@
      */
     let confirmOpener = null
 
+    /**
+     * The two focus stops of the dialog, addressed by id rather than by ref:
+     * refs would add hooks to a component whose hook count must not move.
+     */
+    const CONFIRM_CANCEL_ID = 'tacit-confirm-cancel'
+    const CONFIRM_ACCEPT_ID = 'tacit-confirm-accept'
+
     function captureConfirmOpener() {
       confirmOpener = typeof document !== 'undefined' && document !== null ? document.activeElement : null
     }
@@ -37,10 +44,25 @@
       return h('div', {
         className: 'tacit-modal-backdrop',
         onClick: cancel,
-        // Escape cancels from anywhere inside: keydown from either button
-        // bubbles here.
+        // Escape and Tab are both handled here: a keydown from either button
+        // bubbles to the backdrop. With exactly two stops in the dialog,
+        // forward and backward tabbing both land on the other button, so
+        // `shiftKey` needs no branch of its own.
         onKeyDown: (event) => {
-          if (event.key === 'Escape') cancel()
+          if (event.key === 'Escape') {
+            // Stopped here: the host's Settings modal also closes on Escape, and
+            // cancelling a confirm must not take the whole settings page with it.
+            if (typeof event.stopPropagation === 'function') event.stopPropagation()
+            cancel()
+            return
+          }
+          if (event.key !== 'Tab' || typeof document === 'undefined' || document === null) return
+          const cancelButton = document.getElementById(CONFIRM_CANCEL_ID)
+          const acceptButton = document.getElementById(CONFIRM_ACCEPT_ID)
+          if (cancelButton === null || acceptButton === null) return
+          const next = document.activeElement === acceptButton ? cancelButton : acceptButton
+          event.preventDefault()
+          if (typeof next.focus === 'function') next.focus()
         },
       },
       h('div', {
@@ -54,7 +76,7 @@
       h('h3', { className: 'tacit-modal-title', id: 'tacit-confirm-title' }, title),
       h('p', { className: 'tacit-confirm-body' }, body),
       h('div', { className: 'tacit-confirm-actions' },
-        h('button', { type: 'button', className: 'tacit-btn', autoFocus: true, onClick: cancel }, t('confirm.cancel')),
-        h('button', { type: 'button', className: 'tacit-btn tacit-btn-danger', onClick: onConfirm }, confirmLabel))))
+        h('button', { type: 'button', id: CONFIRM_CANCEL_ID, className: 'tacit-btn', autoFocus: true, onClick: cancel }, t('confirm.cancel')),
+        h('button', { type: 'button', id: CONFIRM_ACCEPT_ID, className: 'tacit-btn tacit-btn-danger', onClick: onConfirm }, confirmLabel))))
     }
 

@@ -1799,6 +1799,9 @@ test('analyze: a provider failure never leaks a raw code into the envelope', asy
     // `_` is a word character, so a trailing \b after "quota" could never match here.
     ['an underscored quota code with no message', { kind: 'error', failure: { code: 'quota_exceeded', message: '' } }, 'rate-limited'],
     ['an upper-cased quota code', { kind: 'error', failure: { code: 'QUOTA_EXCEEDED', message: '' } }, 'rate-limited'],
+    ['an out-of-credit provider code', { kind: 'error', failure: { code: 'insufficient_quota', message: '' } }, 'no-credit'],
+    ['an out-of-balance message', { kind: 'error', failure: { code: 'ERROR', message: 'INSUFFICIENT_BALANCE' } }, 'no-credit'],
+    ['OpenAI-style quota exhaustion', { kind: 'error', failure: { code: 'ERROR', message: 'You exceeded your current quota, please check your plan and billing details.' } }, 'no-credit'],
     // "quota" as a prefix of a longer word is not a quota error.
     ['a message that merely starts a word with q-u-o-t-a', { kind: 'error', failure: { code: 'ERROR', message: 'quotation mismatch' } }, 'call-failed'],
   ]
@@ -2540,4 +2543,35 @@ test('/analyze-batch rejects an empty or unknown request', async () => {
   assert.equal(missing.body.run, null)
   assert.deepEqual(missing.body.results, [])
   assert.deepEqual(usageRuns(), [], 'an unknown session opens no run')
+})
+
+test('usage: /state drops the bootstrap runId when the run ends and resets everything when nothing is eligible', async () => {
+  const sessionId = 'usage-bootstrap-state'
+  const mk = (turn, prompt) => ({ ...sampleTurn, turn, prompt, endedAt: turn * 1000, retries: 0, steps: 2, endReason: 'success' })
+  const { byPath } = usageHarness({
+    sessionId,
+    turns: [mk(1, 'First real prompt here.'), mk(2, 'Second real prompt here.')],
+    config: { directiveEvery: 1000 },
+  })
+
+  const first = await callRoute(byPath('/bootstrap'), { sessionId, limit: 20 })
+  assert.equal(first.body.analyzed, 2)
+  const after = (await callRoute(byPath('/state'), {})).body.bootstrap
+  assert.equal(after.running, false)
+  assert.equal(after.runId, '', 'a finished run is no longer reported as the live one')
+  assert.equal(after.done, 2, 'the last run\'s counters stay on the tile')
+  assert.equal(after.total, 2)
+  assert.ok(after.usdKnown > 0)
+  assert.ok(after.billedCalls >= 2)
+
+  // Every turn now has a report, so the second bootstrap has nothing to do.
+  const second = await callRoute(byPath('/bootstrap'), { sessionId, limit: 20 })
+  assert.equal(second.body.ok, true)
+  assert.equal(second.body.analyzed, 0)
+  const idle = (await callRoute(byPath('/state'), {})).body.bootstrap
+  assert.deepEqual(
+    { running: idle.running, done: idle.done, total: idle.total, runId: idle.runId, billedCalls: idle.billedCalls, unpricedCalls: idle.unpricedCalls, usdKnown: idle.usdKnown, tokensTotal: idle.tokensTotal },
+    { running: false, done: 0, total: 0, runId: '', billedCalls: 0, unpricedCalls: 0, usdKnown: 0, tokensTotal: 0 },
+    'a no-op bootstrap does not leave the previous run on the tile',
+  )
 })

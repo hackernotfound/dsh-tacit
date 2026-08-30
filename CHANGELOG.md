@@ -16,6 +16,28 @@
   re-propose*, and one that comes back anyway stays retired.
 - The measured trend in Settings → Tacit leads with your correction rate, then
   messy turns and tokens per turn.
+- A provider that has run out of credit now says so. `insufficient_quota` and
+  `INSUFFICIENT_BALANCE` used to surface as the generic "the model call
+  failed", or worse as a rate limit you could wait out; they are their own
+  message in both languages now.
+- The cost panel is cheaper to leave open. Day files are parsed once and reused
+  until they change, so the ten-second poll re-reads nothing, and the rolling
+  summary's per-day buckets stop at 400 days instead of growing for good.
+- *Today* no longer loses a run that crossed midnight. Such a run bills into
+  two days, and it is now listed under today whenever any of its calls happened
+  today, so the tile and the run list agree on the same work.
+- The runs filter can ask for *running*, which is what a live run in the table
+  actually is.
+- *Learn from my last 20 turns* stops showing the previous batch's figures when
+  there is nothing to analyze, and stops calling a finished batch the live one.
+- The retention selector shows a `costHistoryDays` set by hand in YAML even
+  when it is not one of the offered values; it used to display a neighbour.
+- The Pricing rate table stays in the page while its card is collapsed, so
+  find-in-page reaches it.
+- Tab stays inside the confirm dialog instead of walking out of it, the run
+  list calls a bootstrap's scope *all sessions* rather than leaving it blank,
+  and the expanded attempt rows carry the column span assistive technology
+  needs.
 
 ## 0.3.0 — 2026-08-30
 
