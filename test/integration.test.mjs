@@ -19,6 +19,7 @@ process.env.DSH_HOME = tmpHome
 const { apply } = await import('../lib/index.js')
 const { CoachStore, dayKey } = await import('../lib/store.js')
 const { BUNDLED_PRICES, costOf, tierAt } = await import('../lib/pricing.js')
+const { COACH_ERROR_CODES } = await import('../lib/schema.js')
 
 function makeFakeCtx({ llm, sessions, snapshotValue }) {
   const provided = new Map()
@@ -1656,22 +1657,40 @@ test('usage: a failed call that was already billed is recorded as a failed attem
   const rateLimitedLlm = {
     async *stream() {
       yield { type: 'usage', usage: FAKE_USAGE }
-      yield { type: 'finish', reason: { kind: 'error', failure: { code: 'rate-limited', message: 'slow down' } } }
+      yield { type: 'finish', reason: { kind: 'error', failure: { code: 'RATE_LIMIT', message: 'slow down' } } }
     },
   }
   const { byPath } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 2 }], llm: rateLimitedLlm })
   const result = await callRoute(byPath('/analyze'), { sessionId, turn: 2 })
   assert.equal(result.body.ok, false)
-  assert.equal(result.body.code, 'rate-limited')
+  assert.equal(result.body.code, 'rate-limited', 'a raw provider code is mapped to one the client can render')
   const runs = runsOf(sessionId)
   assert.equal(runs.length, 1)
   assert.equal(runs[0].status, 'failed')
   assert.deepEqual(runs[0].results, { ok: 0 })
   const [attempt] = runs[0].attempts
   assert.equal(attempt.status, 'failed')
-  assert.equal(attempt.code, 'rate-limited')
+  assert.equal(attempt.code, 'RATE_LIMIT', 'the attempt keeps the raw provider code as a diagnostic')
   assert.equal(attempt.finish, 'error')
   assert.ok(attempt.priced.usd > 0, 'a failed call that consumed tokens is still billed')
+})
+
+test('analyze: a provider failure never leaks a raw code into the envelope', async () => {
+  const cases = [
+    ['aborted', { kind: 'aborted' }, 'timeout'],
+    ['a synthesized error code with an auth message', { kind: 'error', failure: { code: 'ERROR', message: 'invalid api key' } }, 'no-api-key'],
+    ['an upstream 429', { kind: 'error', failure: { code: 'TOO_MANY_REQUESTS', message: 'quota exceeded' } }, 'rate-limited'],
+    ['an unknown provider code', { kind: 'error', failure: { code: 'UPSTREAM_5XX', message: 'bad gateway' } }, 'call-failed'],
+  ]
+  for (const [name, reason, expected] of cases) {
+    const sessionId = 'usage-code-' + expected
+    const llm = { async *stream() { yield { type: 'finish', reason } } }
+    const { byPath } = usageHarness({ sessionId, turns: [{ ...sampleTurn, turn: 2 }], llm })
+    const result = await callRoute(byPath('/analyze'), { sessionId, turn: 2 })
+    assert.equal(result.body.ok, false, name)
+    assert.equal(result.body.code, expected, name)
+    assert.ok(COACH_ERROR_CODES.includes(result.body.code), name + ': the client has an err.* key for it')
+  }
 })
 
 test('usage: a call that reports no usage is unmetered, never $0.00', async () => {

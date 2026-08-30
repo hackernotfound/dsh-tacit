@@ -12,6 +12,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { COACH_ERROR_CODES } from '../lib/schema.js'
 
 // No real network in SSR tests: the bundle's fire-and-forget calls
 // (/applied, /feedback) reject and are swallowed by their .catch handlers.
@@ -560,7 +561,8 @@ test('the zh and en dictionaries carry identical key sets (the host only checks 
 
 test('every error code the client can render has a message in both dictionaries', () => {
   const dicts = localeDicts['dsh-tacit']
-  for (const code of ['bad-request', 'no-session', 'not-retained', 'busy', 'continuation', 'no-api-key', 'timeout', 'network', 'internal']) {
+  const codes = ['bad-request', 'no-session', 'not-retained', 'busy', 'continuation', 'network', 'internal', ...COACH_ERROR_CODES]
+  for (const code of codes) {
     assert.equal(typeof dicts.en['err.' + code], 'string', code)
     assert.equal(typeof dicts.zh['err.' + code], 'string', code)
   }
