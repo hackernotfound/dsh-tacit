@@ -156,6 +156,74 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'card.collapse': '收起这一节',
       'overview.model': '模型：{model}',
       'usage.pending': '用量与花费数字会在接入用量账本后出现在这里。',
+      'usage.empty': '还没有计费调用——用量从 {since} 开始记录。',
+      'usage.today': '今日',
+      'usage.month': '本月',
+      'usage.last30': '最近 30 天',
+      'usage.since': '自 {day} 起',
+      'usage.calls': '计费调用（30 天）',
+      'usage.avgAnalysis': '单次分析中位成本',
+      'usage.cachedRate': '输入缓存命中率（30 天）',
+      'usage.unpriced': '无价目调用（30 天）',
+      'usage.unpricedShort': '{n} 次无价目',
+      'usage.priceUnavailable': '无价目',
+      'usage.chartLabel': '每日花费，最近 {n} 天',
+      'usage.chartSummary': '最近 {n} 天：合计 {total}；最高 {day} {max}',
+      'usage.barTitle': '{day} · {usd} · {calls} 次调用',
+      'usage.series7': '7 天',
+      'usage.series30': '30 天',
+      'usage.breakdown': '按操作分类（最近 30 天）',
+      'usage.filters': '筛选',
+      'usage.loading': '正在载入这次运行的调用明细…',
+      'usage.page': '第 {page} / {pages} 页',
+      'usage.prev': '上一页',
+      'usage.next': '下一页',
+      'usage.label': '真实用量 · 按目录价计算',
+      'usage.col.time': '时间',
+      'usage.col.op': '操作',
+      'usage.col.scope': '范围',
+      'usage.col.model': '模型',
+      'usage.col.status': '状态',
+      'usage.col.calls': '计费调用',
+      'usage.col.tokens': 'Tokens',
+      'usage.col.cost': '花费',
+      'filter.range': '时间范围',
+      'filter.type': '操作',
+      'filter.status': '状态',
+      'filter.model': '模型',
+      'filter.workspace': '工作区',
+      'filter.session': '会话 ID',
+      'filter.all': '全部',
+      'range.today': '今日',
+      'range.7d': '最近 7 天',
+      'range.30d': '最近 30 天',
+      'range.month': '本月',
+      'range.all': '全部保留期',
+      'runtype.bootstrap': '引导批量',
+      'runtype.analysis': '分析',
+      'runtype.analysis-batch': '批量分析',
+      'runtype.improve': '改进',
+      'runtype.directive-distillation': '指令提炼',
+      'runtype.style-distillation': '风格提炼',
+      'runtype.prompt-enrichment': '提示词补充',
+      'op.analysis': '分析',
+      'op.analysis-repair': '分析修复',
+      'op.directive-distillation': '指令提炼',
+      'op.style-distillation': '风格提炼',
+      'op.improve': '改进',
+      'op.improve-repair': '改进修复',
+      'op.enrichment': '上下文补充',
+      'status.success': '成功',
+      'status.partial': '部分成功',
+      'status.failed': '失败',
+      'status.ok': '成功',
+      'status.unmetered': '未计量',
+      'attempt.effort': '推理强度 {effort}',
+      'attempt.finish': '结束 {finish} {code}',
+      'attempt.source': '{source} · {tier}',
+      'attempt.duration': '{ms} 毫秒',
+      'warn.daily': '今日 {spent} / 每日上限 {limit}（{pct}%）',
+      'warn.monthly': '本月 {spent} / 每月上限 {limit}（{pct}%）',
       'improve.explain': '「改进」会在你发送前重写草稿。给某次重写点 👎 并写一句原因，Tacit 会从中提炼出持久的风格规则。',
       'privacy.stored': '分析报告、指令和风格规则只保存在本机的 Tacit 数据目录里；清除操作只会删除 Tacit 自己的文件。',
       'notice.bootstrap': '引导完成 · 已分析 {analyzed} 条 · 跳过 {skipped} 条',
@@ -287,6 +355,74 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'card.collapse': 'Collapse this section',
       'overview.model': 'Model: {model}',
       'usage.pending': 'Token and cost figures land here once the usage ledger is wired up.',
+      'usage.empty': 'No billed calls yet — usage has been tracked since {since}.',
+      'usage.today': 'Today',
+      'usage.month': 'This month',
+      'usage.last30': 'Last 30 days',
+      'usage.since': 'Since {day}',
+      'usage.calls': 'Billed calls (30 d)',
+      'usage.avgAnalysis': 'Median cost per analysis',
+      'usage.cachedRate': 'Cached input rate (30 d)',
+      'usage.unpriced': 'Unpriced calls (30 d)',
+      'usage.unpricedShort': '{n} unpriced',
+      'usage.priceUnavailable': 'No price',
+      'usage.chartLabel': 'Daily spend, last {n} days',
+      'usage.chartSummary': 'Last {n} days: total {total}; highest {day} {max}',
+      'usage.barTitle': '{day} · {usd} · {calls} calls',
+      'usage.series7': '7 d',
+      'usage.series30': '30 d',
+      'usage.breakdown': 'By operation (last 30 days)',
+      'usage.filters': 'Filters',
+      'usage.loading': 'Loading this run\u2019s calls…',
+      'usage.page': 'Page {page} of {pages}',
+      'usage.prev': 'Previous',
+      'usage.next': 'Next',
+      'usage.label': 'Measured usage · list-price cost',
+      'usage.col.time': 'Time',
+      'usage.col.op': 'Operation',
+      'usage.col.scope': 'Scope',
+      'usage.col.model': 'Model',
+      'usage.col.status': 'Status',
+      'usage.col.calls': 'Billed calls',
+      'usage.col.tokens': 'Tokens',
+      'usage.col.cost': 'Cost',
+      'filter.range': 'Range',
+      'filter.type': 'Operation',
+      'filter.status': 'Status',
+      'filter.model': 'Model',
+      'filter.workspace': 'Workspace',
+      'filter.session': 'Session id',
+      'filter.all': 'All',
+      'range.today': 'Today',
+      'range.7d': 'Last 7 days',
+      'range.30d': 'Last 30 days',
+      'range.month': 'This month',
+      'range.all': 'Everything retained',
+      'runtype.bootstrap': 'Bootstrap batch',
+      'runtype.analysis': 'Analysis',
+      'runtype.analysis-batch': 'Analysis batch',
+      'runtype.improve': 'Improve',
+      'runtype.directive-distillation': 'Directive distillation',
+      'runtype.style-distillation': 'Style distillation',
+      'runtype.prompt-enrichment': 'Prompt enrichment',
+      'op.analysis': 'analysis',
+      'op.analysis-repair': 'analysis repair',
+      'op.directive-distillation': 'directive distillation',
+      'op.style-distillation': 'style distillation',
+      'op.improve': 'improve',
+      'op.improve-repair': 'improve repair',
+      'op.enrichment': 'enrichment',
+      'status.success': 'success',
+      'status.partial': 'partial',
+      'status.failed': 'failed',
+      'status.ok': 'ok',
+      'status.unmetered': 'unmetered',
+      'attempt.effort': 'effort {effort}',
+      'attempt.finish': 'finish {finish} {code}',
+      'attempt.source': '{source} · {tier}',
+      'attempt.duration': '{ms} ms',
+      'warn.daily': 'Today {spent} of the {limit} daily cap ({pct}%)',
+      'warn.monthly': 'This month {spent} of the {limit} monthly cap ({pct}%)',
       'improve.explain': 'Improve rewrites your draft before you send it. Rate a rewrite 👎 with a one-line reason and Tacit distills a durable style rule from it.',
       'privacy.stored': 'Analysis reports, directives, and style rules are stored on this machine only, in Tacit’s own data directory; clearing only ever removes Tacit’s own files.',
       'notice.bootstrap': 'Bootstrap complete · {analyzed} analyzed · {skipped} skipped',
@@ -419,6 +555,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         privacy: false,
       },
       notice: null, // {text} — a short-lived result line, cleared after 5s
+      usage: null, // the last /usage envelope
+      usageFilters: { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 },
+      usageRuns: {}, // runId → the full run (attempts included), fetched on first expand
+      usageExpanded: new Set(), // runIds whose attempt rows are open
+      usageLoading: false,
+      usageSeries: '30', // '7' | '30' — which sparkline the strip shows
       initStarted: false,
       initDone: false,
       error: null,
@@ -454,6 +596,108 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         rootStore.notice = null
         notifyRoot()
       }, 5000)
+      unrefTimer(noticeTimer)
+    }
+
+    /**
+     * Node hands back a Timeout object that keeps the process alive; the
+     * browser hands back a number. Unref'ing where it exists means a test that
+     * merely touches one of these paths can never hold the runner open.
+     */
+    function unrefTimer(handle) {
+      if (handle !== null && typeof handle === 'object' && typeof handle.unref === 'function') handle.unref()
+    }
+
+    // ── Usage ledger (the Settings → Usage card) ───────────────────────────
+
+    /** The filter payload for `/usage`: defaults always, empty strings never. */
+    function usageQuery() {
+      const filters = rootStore.usageFilters !== null && typeof rootStore.usageFilters === 'object' ? rootStore.usageFilters : {}
+      const query = {
+        range: typeof filters.range === 'string' && filters.range.length > 0 ? filters.range : '30d',
+        page: typeof filters.page === 'number' && filters.page > 0 ? Math.floor(filters.page) : 1,
+        pageSize: typeof filters.pageSize === 'number' && filters.pageSize > 0 ? Math.floor(filters.pageSize) : 20,
+      }
+      for (const key of ['type', 'status', 'model', 'workspace', 'sessionId']) {
+        const value = filters[key]
+        if (typeof value === 'string' && value.length > 0) query[key] = value
+      }
+      return query
+    }
+
+    /** Read the whole cost panel in one call; a failure keeps the last envelope. */
+    async function fetchUsage() {
+      rootStore.usageLoading = true
+      try {
+        const result = await api('/usage', usageQuery())
+        if (result !== null && typeof result === 'object' && result.ok === true) rootStore.usage = result
+      } catch {
+        // A stale panel beats a blank one; the next poll tries again.
+      }
+      rootStore.usageLoading = false
+      notifyRoot()
+    }
+
+    /** Narrow the runs list. Any change but an explicit page jump goes back to page 1. */
+    function setUsageFilter(patch) {
+      if (patch === null || typeof patch !== 'object') return
+      const next = { ...rootStore.usageFilters, ...patch }
+      if (patch.page === undefined) next.page = 1
+      rootStore.usageFilters = next
+      notifyRoot()
+      fetchUsage()
+    }
+
+    /** Open/close one run's attempt rows, fetching its detail the first time. */
+    async function toggleUsageRun(runId) {
+      const key = String(runId)
+      if (key.length === 0) return
+      if (rootStore.usageExpanded.has(key)) {
+        rootStore.usageExpanded.delete(key)
+        notifyRoot()
+        return
+      }
+      rootStore.usageExpanded.add(key)
+      notifyRoot()
+      if (rootStore.usageRuns[key] !== undefined) return
+      try {
+        const result = await api('/usage-run', { runId: key })
+        if (result !== null && typeof result === 'object' && result.ok === true
+          && result.run !== null && typeof result.run === 'object') {
+          rootStore.usageRuns[key] = result.run
+        }
+      } catch {
+        // The row keeps its loading line; closing and reopening retries.
+      }
+      notifyRoot()
+    }
+
+    /** Which sparkline the bar strip shows; anything unknown means 30 days. */
+    function setUsageSeries(value) {
+      rootStore.usageSeries = value === '7' ? '7' : '30'
+      notifyRoot()
+    }
+
+    /** One shared 10s poll, reference-counted so remounts never stack timers. */
+    let usageTimer = null
+    let usageMounts = 0
+
+    function startUsagePolling() {
+      usageMounts += 1
+      if (usageTimer !== null || typeof setInterval !== 'function') return
+      usageTimer = setInterval(() => {
+        // A hidden tab costs nothing: the next visible tick catches up.
+        if (typeof document !== 'undefined' && document !== null && document.hidden === true) return
+        fetchUsage()
+      }, 10000)
+      unrefTimer(usageTimer)
+    }
+
+    function stopUsagePolling() {
+      usageMounts = usageMounts > 0 ? usageMounts - 1 : 0
+      if (usageMounts > 0 || usageTimer === null) return
+      if (typeof clearInterval === 'function') clearInterval(usageTimer)
+      usageTimer = null
     }
 
     function useRootVersion() {
@@ -494,6 +738,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         rootStore.error = errorOf(error)
         rootStore.initDone = true
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -512,6 +757,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       } catch {
         // Stale view beats a broken panel.
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -530,6 +776,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      // The warning thresholds live in the config, so the bars may have moved.
+      fetchUsage()
       notifyRoot()
     }
 
@@ -545,6 +793,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -617,6 +866,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      fetchUsage()
       rootStore.initStarted = false
       rootStore.initDone = false
       await initRootStore()
@@ -635,6 +885,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -970,6 +1221,163 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
     }
 
+    // ── Usage formatting & narrowing (money is formatted ONLY here) ─────────
+
+    /**
+     * List-price money, always four decimals — a coach analysis costs a few
+     * hundredths of a cent, and two decimals would round every honest figure
+     * to `$0.00`. A positive amount too small to show at four decimals reads
+     * `< $0.0001` rather than a zero it is not.
+     */
+    function fmtUsd(n) {
+      const value = Number(n)
+      if (!Number.isFinite(value)) return '—'
+      if (value > 0 && value < 0.0001) return '< $0.0001'
+      if (value < 0) return '-$' + Math.abs(value).toFixed(4)
+      return '$' + value.toFixed(4)
+    }
+
+    /** Thousands-separated token counts, grouped here so no locale data is needed. */
+    function fmtTokens(n) {
+      const value = Number(n)
+      if (!Number.isFinite(value)) return '—'
+      const grouped = String(Math.round(Math.abs(value))).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+      return (value < 0 ? '-' : '') + grouped
+    }
+
+    /** A `YYYY-MM-DD` day, from either a day key (passed through) or an epoch ms. */
+    function fmtDay(day) {
+      if (typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)) return day
+      const value = Number(day)
+      if (!Number.isFinite(value) || value <= 0) return '—'
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return '—'
+      const pad = (part) => String(part).padStart(2, '0')
+      return String(date.getFullYear()) + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
+    }
+
+    /** A 0..1 ratio as a whole percentage; `null`/non-finite stays an em dash. */
+    function fmtPct(x) {
+      const value = Number(x)
+      if (!Number.isFinite(value)) return '—'
+      return String(Math.round(value * 100)) + '%'
+    }
+
+    /**
+     * Billed tokens in one bucket set: uncached input + output + cache reads +
+     * cache writes. `reasoningTokens` is a subset of `outputTokens`, so adding
+     * it would count every reasoning token twice.
+     */
+    function tokensTotal(buckets) {
+      if (buckets === null || typeof buckets !== 'object') return 0
+      const num = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
+      return num(buckets.inputTokens) + num(buckets.outputTokens) + num(buckets.cacheReadTokens) + num(buckets.cacheWriteTokens)
+    }
+
+    function usageNum(value) {
+      return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0
+    }
+
+    function usageTokens(value) {
+      const source = value !== null && typeof value === 'object' ? value : {}
+      return {
+        inputTokens: usageNum(source.inputTokens),
+        outputTokens: usageNum(source.outputTokens),
+        cacheReadTokens: usageNum(source.cacheReadTokens),
+        cacheWriteTokens: usageNum(source.cacheWriteTokens),
+        reasoningTokens: usageNum(source.reasoningTokens),
+      }
+    }
+
+    /** One period card, zero-filled; the two derived figures stay nullable. */
+    function usagePeriod(value) {
+      const source = value !== null && typeof value === 'object' ? value : {}
+      return {
+        attempts: usageNum(source.attempts),
+        billedCalls: usageNum(source.billedCalls),
+        unmeteredCalls: usageNum(source.unmeteredCalls),
+        unpricedCalls: usageNum(source.unpricedCalls),
+        tokens: usageTokens(source.tokens),
+        usdKnown: usageNum(source.usdKnown),
+        avgAnalysisUsd: typeof source.avgAnalysisUsd === 'number' && Number.isFinite(source.avgAnalysisUsd) ? source.avgAnalysisUsd : null,
+        cachedInputRate: typeof source.cachedInputRate === 'number' && Number.isFinite(source.cachedInputRate) ? source.cachedInputRate : null,
+      }
+    }
+
+    function usageBuckets(value) {
+      const out = {}
+      if (value === null || typeof value !== 'object') return out
+      for (const [key, totals] of Object.entries(value)) out[key] = usagePeriod(totals)
+      return out
+    }
+
+    function usageSeries(value) {
+      if (!Array.isArray(value)) return []
+      return value
+        .filter((point) => point !== null && typeof point === 'object' && typeof point.day === 'string')
+        .map((point) => ({ day: point.day, usdKnown: usageNum(point.usdKnown), billedCalls: usageNum(point.billedCalls) }))
+    }
+
+    function usageWarning(value) {
+      const source = value !== null && typeof value === 'object' ? value : {}
+      const level = source.level === 'warn' || source.level === 'exceeded' ? source.level : 'none'
+      return { limit: usageNum(source.limit), spent: usageNum(source.spent), level }
+    }
+
+    function usageRunItem(value) {
+      const source = value !== null && typeof value === 'object' ? value : {}
+      const text = (key) => (typeof source[key] === 'string' ? source[key] : '')
+      return {
+        runId: text('runId'),
+        type: text('type'),
+        status: text('status'),
+        attempts: usageNum(source.attempts),
+        billedCalls: usageNum(source.billedCalls),
+        unmeteredCalls: usageNum(source.unmeteredCalls),
+        unpricedCalls: usageNum(source.unpricedCalls),
+        tokens: usageTokens(source.tokens),
+        usdKnown: usageNum(source.usdKnown),
+        trigger: text('trigger'),
+        startedAt: usageNum(source.startedAt),
+        endedAt: usageNum(source.endedAt),
+        sessionId: text('sessionId'),
+        turn: typeof source.turn === 'number' ? source.turn : null,
+        workspace: text('workspace'),
+        model: text('model'),
+        provider: text('provider'),
+      }
+    }
+
+    /**
+     * The `/usage` envelope, narrowed. `null` for anything that is not a
+     * successful report, so the card can render its empty state instead of
+     * reaching into `undefined`.
+     */
+    function usageOf(value) {
+      if (value === null || typeof value !== 'object' || value.ok !== true) return null
+      const runs = value.runs !== null && typeof value.runs === 'object' ? value.runs : {}
+      const warnings = value.warnings !== null && typeof value.warnings === 'object' ? value.warnings : {}
+      return {
+        trackingSince: usageNum(value.trackingSince),
+        pricing: value.pricing !== null && typeof value.pricing === 'object' ? value.pricing : {},
+        today: usagePeriod(value.today),
+        month: usagePeriod(value.month),
+        last7: usagePeriod(value.last7),
+        last30: usagePeriod(value.last30),
+        lifetime: usagePeriod(value.lifetime),
+        byType: usageBuckets(value.byType),
+        byModel: usageBuckets(value.byModel),
+        series7: usageSeries(value.series7),
+        series30: usageSeries(value.series30),
+        warnings: { daily: usageWarning(warnings.daily), monthly: usageWarning(warnings.monthly) },
+        runs: {
+          items: (Array.isArray(runs.items) ? runs.items : []).map(usageRunItem),
+          page: usageNum(runs.page) > 0 ? Math.floor(usageNum(runs.page)) : 1,
+          pageSize: usageNum(runs.pageSize) > 0 ? Math.floor(usageNum(runs.pageSize)) : 20,
+          total: usageNum(runs.total),
+        },
+      }
+    }
     // ── Components ─────────────────────────────────────────────────────────
 
     function makeKit(t) {
@@ -1690,7 +2098,19 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               ? h('div', { className: 'tacit-settings-notice', role: 'status' }, notice.text)
               : null,
           ]),
-          card('usage', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
+          card('usage', [
+            UsageCard(kit, {
+              usage: rootStore.usage,
+              config,
+              filters: rootStore.usageFilters,
+              series: rootStore.usageSeries,
+              expanded: rootStore.usageExpanded,
+              runs: rootStore.usageRuns,
+              onFilter: (patch) => setUsageFilter(patch),
+              onToggleRun: (runId) => toggleUsageRun(runId),
+              onSeries: (value) => setUsageSeries(value),
+            }),
+          ]),
           card('pricing', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
           card('learning', [
             h('div', { className: 'tacit-settings-row' },
@@ -1770,6 +2190,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           initRootStore()
           // Fresh read so freshly distilled style rules appear on open.
           refreshRootState()
+          // One shared 10s /usage poll while any Tacit settings page is mounted.
+          startUsagePolling()
+          return stopUsagePolling
         }, [])
         return h('div', { className: 'tacit-root' },
           h('div', { className: 'tacit-head' }, h('div', { className: 'tacit-head-title' }, t('panel.title'))),
@@ -1777,6 +2200,336 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
     }
 
+    // ── Usage dashboard (Settings → Usage card) ────────────────────────────
+
+    /** Every run type and op the ledger can tag, in the order the filters list them. */
+    const USAGE_RUN_TYPES = ['bootstrap', 'analysis', 'analysis-batch', 'improve', 'directive-distillation', 'style-distillation', 'prompt-enrichment']
+    const USAGE_RANGES = ['today', '7d', '30d', 'month', 'all']
+    const USAGE_STATUSES = ['success', 'partial', 'failed']
+    const USAGE_COLUMNS = ['time', 'op', 'scope', 'model', 'status', 'calls', 'tokens', 'cost']
+
+    /**
+     * Spend for one bucket of calls. A period that billed calls but priced
+     * none of them says so — `$0.0000` would claim the calls were free, and an
+     * unmetered call is never `$0.00`. A genuinely idle period stays `$0.0000`.
+     */
+    function usageSpend(kit, totals) {
+      if (totals.billedCalls > 0 && totals.billedCalls === totals.unpricedCalls) return kit.t('usage.priceUnavailable')
+      return fmtUsd(totals.usdKnown)
+    }
+
+    /** One label/value tile; `note` is the small "n unpriced" line under the value. */
+    function UsageTile(key, label, value, note) {
+      return h('div', { key, className: 'tacit-tile' },
+        h('span', { className: 'tacit-tile-label' }, label),
+        h('span', { className: 'tacit-tile-value' }, value),
+        typeof note === 'string' && note.length > 0 ? h('span', { className: 'tacit-tile-note' }, note) : null)
+    }
+
+    /** Money tile: the period's spend plus its unpriced-call footnote. */
+    function SpendTile(kit, id, label, totals) {
+      const note = totals.unpricedCalls > 0 ? kit.t('usage.unpricedShort', { n: String(totals.unpricedCalls) }) : ''
+      return UsageTile(id, label, usageSpend(kit, totals), note)
+    }
+
+    /**
+     * Daily spend as a bar per day. `role="img"` with one `<title>` per rect
+     * carries the detail to a pointer; the visually hidden paragraph under it
+     * carries the same shape to a screen reader, which cannot read the bars.
+     */
+    function BarStrip(kit, { series, which, onSeries }) {
+      const { t } = kit
+      const days = Array.isArray(series) ? series : []
+      const count = days.length
+      let max = 0
+      let total = 0
+      let peak = null
+      for (const point of days) {
+        if (point.usdKnown > max) max = point.usdKnown
+        total += point.usdKnown
+        if (peak === null || point.usdKnown > peak.usdKnown) peak = point
+      }
+      const bars = days.map((point, index) => {
+        // A day with any spend at all keeps a visible 1px stub.
+        const height = point.usdKnown > 0 && max > 0 ? Math.max(1, Math.round((point.usdKnown / max) * 46)) : 0
+        return h('rect', {
+          key: point.day,
+          className: 'tacit-bar',
+          x: String(index * 10 + 1),
+          y: String(48 - height),
+          width: '8',
+          height: String(height),
+        }, h('title', null, t('usage.barTitle', {
+          day: fmtDay(point.day),
+          usd: fmtUsd(point.usdKnown),
+          calls: String(point.billedCalls),
+        })))
+      })
+      const summary = t('usage.chartSummary', {
+        n: String(count),
+        total: fmtUsd(total),
+        day: peak === null ? '—' : fmtDay(peak.day),
+        max: peak === null ? '—' : fmtUsd(peak.usdKnown),
+      })
+      const seriesButton = (value, label) => h('button', {
+        key: value,
+        type: 'button',
+        className: 'tacit-btn tacit-btn-sm',
+        'aria-pressed': which === value,
+        onClick: () => onSeries(value),
+      }, label)
+      return h('div', { className: 'tacit-usage-chart' },
+        h('svg', {
+          className: 'tacit-bars',
+          role: 'img',
+          'aria-label': t('usage.chartLabel', { n: String(count) }),
+          viewBox: '0 0 ' + String(count * 10) + ' 48',
+          preserveAspectRatio: 'none',
+        }, bars),
+        h('p', { className: 'tacit-visually-hidden' }, summary),
+        h('div', { className: 'tacit-series-toggle' },
+          seriesButton('7', t('usage.series7')),
+          seriesButton('30', t('usage.series30'))))
+    }
+
+    /** Spend per operation, costliest first, each row ending in a share bar. */
+    function UsageBreakdown(kit, { byType }) {
+      const { t } = kit
+      const rows = Object.entries(byType).sort((a, b) => b[1].usdKnown - a[1].usdKnown)
+      if (rows.length === 0) return null
+      const top = rows[0][1].usdKnown
+      return h('div', { className: 'tacit-usage-breakdown' },
+        h('div', { className: 'tacit-report-title' }, t('usage.breakdown')),
+        rows.map(([type, totals]) => {
+          const share = top > 0 ? Math.round((totals.usdKnown / top) * 100) : 0
+          return h('div', { key: type, className: 'tacit-breakdown-row' },
+            h('span', { className: 'tacit-breakdown-name' }, t('runtype.' + type)),
+            h('span', { className: 'tacit-breakdown-calls' }, fmtTokens(totals.billedCalls)),
+            h('span', { className: 'tacit-breakdown-tokens' }, fmtTokens(tokensTotal(totals.tokens))),
+            h('span', { className: 'tacit-breakdown-usd' }, usageSpend(kit, totals)),
+            h('div', { className: 'tacit-share-track' },
+              h('div', { className: 'tacit-share', style: { width: String(share) + '%' } })))
+        }))
+    }
+
+    /** One budget bar; nothing at all when that threshold is switched off (`limit` 0). */
+    function WarnBar(kit, { id, warning }) {
+      const { t } = kit
+      if (!(warning.limit > 0)) return null
+      const pct = Math.round((warning.spent / warning.limit) * 100)
+      const label = t('warn.' + id, { spent: fmtUsd(warning.spent), limit: fmtUsd(warning.limit), pct: String(pct) })
+      return h('div', {
+        key: id,
+        className: 'tacit-warn-bar tacit-warn-' + warning.level,
+        role: 'progressbar',
+        'aria-valuemin': 0,
+        'aria-valuemax': warning.limit,
+        'aria-valuenow': warning.spent,
+        'aria-label': label,
+      },
+      h('span', { className: 'tacit-warn-label' }, label),
+      h('div', { className: 'tacit-warn-track' },
+        h('div', { className: 'tacit-warn-fill', style: { width: String(Math.min(100, pct)) + '%' } })))
+    }
+
+    /** Range/type/status/model selects plus the two free-text scopes. */
+    function UsageFilters(kit, { filters, models, onFilter }) {
+      const { t } = kit
+      const select = (name, value, options) => h('label', { className: 'tacit-filter' },
+        h('span', { className: 'tacit-filter-label' }, t('filter.' + name)),
+        h('select', {
+          className: 'tacit-select',
+          value,
+          onChange: (event) => onFilter({ [name]: event.target.value }),
+        }, options.map((option) => h('option', { key: option.value, value: option.value }, option.label))))
+      // A text scope applies on Enter or on leaving the field — not per keystroke,
+      // which would fire a /usage call for every character typed.
+      const text = (name, value) => h('label', { className: 'tacit-filter' },
+        h('span', { className: 'tacit-filter-label' }, t('filter.' + name)),
+        h('input', {
+          className: 'tacit-input',
+          type: 'text',
+          key: name + '-' + value,
+          defaultValue: value,
+          onBlur: (event) => {
+            if (event.target.value !== value) onFilter({ [name]: event.target.value.trim() })
+          },
+          onKeyDown: (event) => {
+            if (event.key === 'Enter') onFilter({ [name]: event.target.value.trim() })
+          },
+        }))
+      const all = { value: '', label: t('filter.all') }
+      return h('div', { className: 'tacit-usage-filters' },
+        h('div', { className: 'tacit-report-title' }, t('usage.filters')),
+        h('div', { className: 'tacit-filter-row' },
+          select('range', filters.range, USAGE_RANGES.map((value) => ({ value, label: t('range.' + value) }))),
+          select('type', filters.type, [all, ...USAGE_RUN_TYPES.map((value) => ({ value, label: t('runtype.' + value) }))]),
+          select('status', filters.status, [all, ...USAGE_STATUSES.map((value) => ({ value, label: t('status.' + value) }))]),
+          select('model', filters.model, [all, ...models.map((value) => ({ value, label: value }))]),
+          text('workspace', filters.workspace),
+          text('session', filters.sessionId)))
+    }
+
+    /** The five token buckets of one attempt, in the order the adapter reports them. */
+    function attemptTokens(usage) {
+      if (usage === null || typeof usage !== 'object') return '—'
+      return 'in ' + fmtTokens(usage.inputTokens)
+        + ' · out ' + fmtTokens(usage.outputTokens)
+        + ' · cacheRead ' + fmtTokens(usage.cacheReadTokens)
+        + ' · cacheWrite ' + fmtTokens(usage.cacheWriteTokens)
+        + ' · reasoning ' + fmtTokens(usage.reasoningTokens)
+    }
+
+    /** One `run()` of the coach model: what it was, how it ended, what it cost. */
+    function AttemptRow(kit, attempt) {
+      const { t } = kit
+      const priced = attempt.priced !== null && typeof attempt.priced === 'object' ? attempt.priced : null
+      const finish = String(attempt.finish || '')
+      const code = String(attempt.code || '')
+      return h('div', { key: String(attempt.id), className: 'tacit-attempt' },
+        h('span', { className: 'tacit-chip' }, t('op.' + String(attempt.op))),
+        typeof attempt.reasoningEffort === 'string' && attempt.reasoningEffort.length > 0
+          ? h('span', { className: 'tacit-attempt-meta' }, t('attempt.effort', { effort: attempt.reasoningEffort }))
+          : null,
+        h('span', { className: 'tacit-chip tacit-status-' + String(attempt.status) }, t('status.' + String(attempt.status))),
+        h('span', { className: 'tacit-attempt-meta' }, t('attempt.finish', { finish, code })),
+        h('span', { className: 'tacit-attempt-meta' }, priced === null
+          ? t('usage.priceUnavailable')
+          : t('attempt.source', { source: String(priced.source), tier: String(priced.tier) })),
+        h('span', { className: 'tacit-attempt-tokens' }, attemptTokens(attempt.usage)),
+        h('span', { className: 'tacit-attempt-meta' }, t('attempt.duration', { ms: fmtTokens(attempt.durationMs) })),
+        h('span', { className: 'tacit-attempt-usd' }, priced === null ? t('usage.priceUnavailable') : fmtUsd(priced.usd)))
+    }
+
+    /** The expanded detail row of one run: its attempts, or the loading line. */
+    function AttemptsRow(kit, { runId, run }) {
+      const { t } = kit
+      const attempts = run !== null && run !== undefined && typeof run === 'object' && Array.isArray(run.attempts)
+        ? run.attempts.filter((attempt) => attempt !== null && typeof attempt === 'object')
+        : null
+      return h('div', { className: 'tacit-usage-attempts', id: 'tacit-run-' + runId, role: 'row' },
+        h('div', { className: 'tacit-usage-cell tacit-usage-attempts-cell', role: 'cell' },
+          attempts === null
+            ? h('p', { className: 'tacit-panel-hint' }, t('usage.loading'))
+            : attempts.map((attempt) => AttemptRow(kit, attempt))))
+    }
+
+    /** One run row; the first cell is the disclosure button for its attempts. */
+    function RunRow(kit, { item, open, onToggleRun }) {
+      const { t, fmtTime } = kit
+      const scope = item.workspace.length > 0 && item.turn !== null
+        ? item.workspace + ' · #' + String(item.turn)
+        : (item.workspace.length > 0 ? item.workspace : (item.turn !== null ? '#' + String(item.turn) : '—'))
+      const cell = (key, child) => h('span', { key, className: 'tacit-usage-cell', role: 'cell' }, child)
+      return h('div', { className: 'tacit-usage-row', role: 'row' },
+        cell('time', h('button', {
+          type: 'button',
+          className: 'tacit-btn tacit-btn-sm tacit-run-toggle',
+          'aria-expanded': open,
+          'aria-controls': 'tacit-run-' + item.runId,
+          onClick: () => onToggleRun(item.runId),
+        }, (open ? '▾ ' : '▸ ') + fmtTime(item.startedAt))),
+        cell('op', t('runtype.' + item.type)),
+        cell('scope', scope),
+        cell('model', item.model.length > 0 ? item.model : '—'),
+        cell('status', h('span', { className: 'tacit-chip tacit-status-' + item.status }, t('status.' + item.status))),
+        cell('calls', fmtTokens(item.billedCalls)),
+        cell('tokens', fmtTokens(tokensTotal(item.tokens))),
+        cell('cost', usageSpend(kit, item)))
+    }
+
+    /** The runs table plus its pager. */
+    function UsageRuns(kit, { runs, expanded, runDetails, onToggleRun, onFilter }) {
+      const { t } = kit
+      const pages = Math.max(1, Math.ceil(runs.total / Math.max(1, runs.pageSize)))
+      const page = Math.min(Math.max(1, runs.page), pages)
+      return h('div', { className: 'tacit-usage-runs' },
+        h('div', { className: 'tacit-usage-table', role: 'table', 'aria-label': t('card.usage') },
+          h('div', { className: 'tacit-usage-row tacit-usage-head', role: 'row' },
+            USAGE_COLUMNS.map((column) => h('span', {
+              key: column,
+              className: 'tacit-usage-cell',
+              role: 'columnheader',
+            }, t('usage.col.' + column)))),
+          runs.items.map((item) => {
+            const open = expanded.has(item.runId)
+            return h(React.Fragment, { key: item.runId },
+              RunRow(kit, { item, open, onToggleRun }),
+              open ? AttemptsRow(kit, { runId: item.runId, run: runDetails[item.runId] }) : null)
+          })),
+        h('div', { className: 'tacit-pager' },
+          h('button', {
+            type: 'button',
+            className: 'tacit-btn tacit-btn-sm',
+            disabled: page <= 1,
+            onClick: () => onFilter({ page: page - 1 }),
+          }, t('usage.prev')),
+          h('span', { className: 'tacit-pager-label' }, t('usage.page', { page: String(page), pages: String(pages) })),
+          h('button', {
+            type: 'button',
+            className: 'tacit-btn tacit-btn-sm',
+            disabled: page >= pages,
+            onClick: () => onFilter({ page: page + 1 }),
+          }, t('usage.next'))))
+    }
+
+    /**
+     * The whole Usage card. A plain renderer, not a component: it is called
+     * from `CoachPanelView`'s render, so it must never own hooks — every bit
+     * of its state lives in `rootStore` and arrives as a prop.
+     */
+    function UsageCard(kit, props) {
+      const { t } = kit
+      const usage = usageOf(props.usage)
+      const since = fmtDay(usage === null ? 0 : usage.trackingSince)
+      if (usage === null || usage.lifetime.billedCalls === 0) {
+        return h('div', { className: 'tacit-usage' },
+          h('p', { className: 'tacit-panel-hint' }, t('usage.empty', { since })))
+      }
+      const filters = props.filters !== null && typeof props.filters === 'object' ? props.filters : {}
+      const value = (key) => (typeof filters[key] === 'string' ? filters[key] : '')
+      const expanded = props.expanded instanceof Set ? props.expanded : new Set()
+      const runDetails = props.runs !== null && typeof props.runs === 'object' ? props.runs : {}
+      const which = props.series === '7' ? '7' : '30'
+      const last30 = usage.last30
+      return h('div', { className: 'tacit-usage' },
+        h('p', { className: 'tacit-panel-hint' }, t('usage.label')),
+        h('div', { className: 'tacit-tiles' },
+          SpendTile(kit, 'today', t('usage.today'), usage.today),
+          SpendTile(kit, 'month', t('usage.month'), usage.month),
+          SpendTile(kit, 'last30', t('usage.last30'), last30),
+          SpendTile(kit, 'lifetime', t('usage.since', { day: since }), usage.lifetime)),
+        h('div', { className: 'tacit-tiles' },
+          UsageTile('calls', t('usage.calls'), fmtTokens(last30.billedCalls)),
+          UsageTile('avg', t('usage.avgAnalysis'), last30.avgAnalysisUsd === null
+            ? t('usage.priceUnavailable')
+            : fmtUsd(last30.avgAnalysisUsd)),
+          UsageTile('cached', t('usage.cachedRate'), fmtPct(last30.cachedInputRate)),
+          UsageTile('unpriced', t('usage.unpriced'), fmtTokens(last30.unpricedCalls))),
+        BarStrip(kit, { series: which === '7' ? usage.series7 : usage.series30, which, onSeries: props.onSeries }),
+        UsageBreakdown(kit, { byType: usage.byType }),
+        WarnBar(kit, { id: 'daily', warning: usage.warnings.daily }),
+        WarnBar(kit, { id: 'monthly', warning: usage.warnings.monthly }),
+        UsageFilters(kit, {
+          filters: {
+            range: value('range').length > 0 ? value('range') : '30d',
+            type: value('type'),
+            status: value('status'),
+            model: value('model'),
+            workspace: value('workspace'),
+            sessionId: value('sessionId'),
+          },
+          models: Object.keys(usage.byModel).sort(),
+          onFilter: props.onFilter,
+        }),
+        UsageRuns(kit, {
+          runs: usage.runs,
+          expanded,
+          runDetails,
+          onToggleRun: props.onToggleRun,
+          onFilter: props.onFilter,
+        }))
+    }
     // ── CSS (injected once) ────────────────────────────────────────────────
 
     const css = '.tacit-root{box-sizing:border-box;height:100%;color:var(--dsw-alias-label-primary);padding:16px 20px 32px;font-size:13px;overflow-y:auto}'
@@ -1844,7 +2597,33 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-card-count{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);border-radius:4px;padding:1px 7px;font-size:11px;font-variant-numeric:tabular-nums}'
       + '.tacit-card-chevron{margin-left:auto;color:var(--dsw-alias-label-secondary);font-size:11px}'
       + '.tacit-card-body{padding:0 12px 12px}'
-      + '@media (max-width:640px){.tacit-settings-label{min-width:0;flex-basis:100%}.tacit-modal-cols{grid-template-columns:1fr}}'
+      + '.tacit-usage{display:flex;flex-direction:column;gap:10px}'
+      + '.tacit-tiles{display:flex;flex-wrap:wrap;gap:8px}'
+      + '.tacit-tile{flex:1 1 140px;display:flex;flex-direction:column;gap:2px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 10px;min-width:0}'
+      + '.tacit-tile-label{font-size:11px;color:var(--dsw-alias-label-secondary)}.tacit-tile-value{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.tacit-tile-note{font-size:10px;color:var(--dsw-alias-state-warn-primary)}'
+      + '.tacit-usage-chart{display:flex;flex-direction:column;gap:6px}.tacit-bars{width:100%;height:48px}.tacit-bar{fill:var(--dsw-alias-brand-primary)}'
+      + '.tacit-visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}'
+      + '.tacit-series-toggle{display:flex;gap:6px}.tacit-series-toggle button[aria-pressed=true]{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}'
+      + '.tacit-usage-breakdown{display:flex;flex-direction:column;gap:4px}'
+      + '.tacit-breakdown-row{display:grid;grid-template-columns:minmax(0,1.6fr) 4rem 5rem 5rem minmax(60px,1fr);align-items:center;gap:6px;font-size:12px;font-variant-numeric:tabular-nums}'
+      + '.tacit-breakdown-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tacit-breakdown-calls,.tacit-breakdown-tokens,.tacit-breakdown-usd{text-align:right;color:var(--dsw-alias-label-secondary)}'
+      + '.tacit-share-track{background:var(--dsw-alias-bg-layer-2);border-radius:3px;height:6px;overflow:hidden}.tacit-share{background:var(--dsw-alias-brand-primary);border-radius:3px;height:6px}'
+      + '.tacit-warn-bar{display:flex;flex-direction:column;gap:4px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;font-size:11px}'
+      + '.tacit-warn-label{color:var(--dsw-alias-label-secondary)}.tacit-warn-track{background:var(--dsw-alias-bg-layer-2);border-radius:3px;height:6px;overflow:hidden}.tacit-warn-fill{background:var(--dsw-alias-label-secondary);border-radius:3px;height:6px}'
+      + '.tacit-warn-warn{border-color:var(--dsw-alias-state-warn-primary)}.tacit-warn-warn .tacit-warn-label{color:var(--dsw-alias-state-warn-primary)}.tacit-warn-warn .tacit-warn-fill{background:var(--dsw-alias-state-warn-primary)}'
+      + '.tacit-warn-exceeded{border-color:var(--dsw-alias-state-error-primary)}.tacit-warn-exceeded .tacit-warn-label{color:var(--dsw-alias-state-error-primary)}.tacit-warn-exceeded .tacit-warn-fill{background:var(--dsw-alias-state-error-primary)}'
+      + '.tacit-usage-filters{display:flex;flex-direction:column;gap:6px}.tacit-filter-row{display:flex;flex-wrap:wrap;gap:8px}.tacit-filter{display:flex;flex-direction:column;gap:2px;min-width:0}.tacit-filter-label{font-size:10px;color:var(--dsw-alias-label-secondary)}'
+      + '.tacit-usage-runs{display:flex;flex-direction:column;gap:6px}'
+      + '.tacit-usage-table{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden}'
+      + '.tacit-usage-row{display:grid;grid-template-columns:minmax(90px,1fr) minmax(90px,1.2fr) minmax(80px,1.2fr) minmax(90px,1.2fr) 5rem 4rem 5rem 5rem;gap:6px;align-items:center;padding:5px 8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;font-variant-numeric:tabular-nums}'
+      + '.tacit-usage-table>.tacit-usage-row:first-child{border-top:0}.tacit-usage-head{color:var(--dsw-alias-label-secondary);font-weight:600;background:var(--dsw-alias-bg-layer-2)}'
+      + '.tacit-usage-cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      + '.tacit-run-toggle{width:100%;text-align:left}'
+      + '.tacit-usage-attempts{border-top:1px dashed var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);padding:6px 8px}.tacit-usage-attempts-cell{display:flex;flex-direction:column;gap:4px}'
+      + '.tacit-attempt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-primary)}.tacit-attempt-meta,.tacit-attempt-tokens{color:var(--dsw-alias-label-secondary)}.tacit-attempt-usd{margin-left:auto;font-variant-numeric:tabular-nums}'
+      + '.tacit-status-success,.tacit-status-ok{color:var(--dsw-alias-state-success-primary)}.tacit-status-partial,.tacit-status-unmetered{color:var(--dsw-alias-state-warn-primary)}.tacit-status-failed{color:var(--dsw-alias-state-error-primary)}'
+      + '.tacit-pager{display:flex;align-items:center;gap:8px}.tacit-pager-label{font-size:11px;color:var(--dsw-alias-label-secondary)}'
+      + '@media (max-width:640px){.tacit-settings-label{min-width:0;flex-basis:100%}.tacit-modal-cols{grid-template-columns:1fr}.tacit-usage-row{display:flex;flex-direction:column}.tacit-usage-cell{white-space:normal}.tacit-tile{flex-basis:45%}.tacit-breakdown-row{grid-template-columns:minmax(0,1fr) 4rem 5rem}}'
 
     function injectCss() {
       const tagId = 'dsh-tacit/styles.css'
@@ -1931,6 +2710,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         rootStore,
         toggleSection,
         setRootNotice,
+        fetchUsage,
+        setUsageFilter,
+        toggleUsageRun,
+        startUsagePolling,
+        stopUsagePolling,
+        setUsageSeries,
       },
     }
   },

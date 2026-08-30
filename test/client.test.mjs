@@ -697,3 +697,373 @@ test('the bootstrap hint states the real eligibility rule, not the old guess', (
   assert.match(en['bootstrap.hint'], /8 characters/)
   assert.equal(typeof en['bootstrap.estimateDoc'], 'string')
 })
+
+// ── Usage dashboard card ──────────────────────────────────────────────────
+
+const EN = () => localeDicts['dsh-tacit'].en
+
+/** The bound translator the bundle itself uses, so tests assert on real copy. */
+function tr(key, vars) {
+  const dict = EN()
+  let text = dict[key] !== undefined ? dict[key] : key
+  if (vars !== undefined) for (const k of Object.keys(vars)) text = text.split('{' + k + '}').join(String(vars[k]))
+  return text
+}
+
+const emptyTokens = () => ({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 })
+
+const period = (over) => ({
+  attempts: 0,
+  billedCalls: 0,
+  unmeteredCalls: 0,
+  unpricedCalls: 0,
+  tokens: emptyTokens(),
+  usdKnown: 0,
+  avgAnalysisUsd: null,
+  cachedInputRate: null,
+  ...(over === undefined ? {} : over),
+})
+
+/** `n` zero-filled days ending 2026-08-30, with a single visible peak on the 14th. */
+const seriesDays = (n) => Array.from({ length: n }, (_, index) => {
+  const dayNumber = 30 - n + 1 + index
+  const day = '2026-08-' + String(dayNumber).padStart(2, '0')
+  const peak = day === '2026-08-14'
+  return { day, usdKnown: peak ? 0.09 : 0.01, billedCalls: peak ? 9 : 1 }
+})
+
+const sampleRun = {
+  runId: 'run-1',
+  type: 'analysis',
+  status: 'partial',
+  attempts: 2,
+  billedCalls: 2,
+  unmeteredCalls: 0,
+  unpricedCalls: 0,
+  tokens: { inputTokens: 800, outputTokens: 200, cacheReadTokens: 100, cacheWriteTokens: 0, reasoningTokens: 50 },
+  usdKnown: 0.0004,
+  trigger: 'auto',
+  startedAt: 1756500000000,
+  endedAt: 1756500002000,
+  sessionId: 'session-ssr',
+  turn: 7,
+  workspace: 'dsh-tacit',
+  model: 'deepseek-v4-flash',
+  provider: 'deepseek-official',
+  results: {},
+}
+
+function usageEnvelope(over) {
+  return {
+    ok: true,
+    trackingSince: 1785585600000,
+    pricing: { source: 'bundled', asOf: '2026-08-22', refreshedAt: 0, tierNow: 'off-peak', error: '', rates: {}, label: 'Measured usage · list-price cost' },
+    today: period({ attempts: 4, billedCalls: 4, usdKnown: 0.0196, cachedInputRate: 0.25 }),
+    month: period({ attempts: 40, billedCalls: 38, unpricedCalls: 2, usdKnown: 0.3812 }),
+    last7: period({ attempts: 12, billedCalls: 12, usdKnown: 0.1234 }),
+    last30: period({
+      attempts: 42,
+      billedCalls: 40,
+      unpricedCalls: 2,
+      tokens: { inputTokens: 40000, outputTokens: 10000, cacheReadTokens: 4230, cacheWriteTokens: 0, reasoningTokens: 900 },
+      usdKnown: 0.36,
+      avgAnalysisUsd: 0.0196,
+      cachedInputRate: 0.5,
+    }),
+    lifetime: period({ attempts: 90, billedCalls: 88, usdKnown: 0.94 }),
+    byType: {
+      improve: period({ attempts: 10, billedCalls: 10, tokens: { ...emptyTokens(), inputTokens: 1000 }, usdKnown: 0.05 }),
+      analysis: period({
+        attempts: 30,
+        billedCalls: 30,
+        tokens: { inputTokens: 40000, outputTokens: 10000, cacheReadTokens: 4230, cacheWriteTokens: 0, reasoningTokens: 900 },
+        usdKnown: 0.3,
+      }),
+    },
+    byModel: { 'deepseek-v4-flash': period({ billedCalls: 40, usdKnown: 0.36 }) },
+    series7: seriesDays(7),
+    series30: seriesDays(30),
+    warnings: {
+      daily: { limit: 1, spent: 0.9, level: 'warn' },
+      monthly: { limit: 2, spent: 2.5, level: 'exceeded' },
+    },
+    runs: { items: [sampleRun], page: 1, pageSize: 20, total: 1 },
+    ...(over === undefined ? {} : over),
+  }
+}
+
+function seedUsage(over) {
+  const rootStore = seedSettings()
+  rootStore.usage = usageEnvelope(over)
+  rootStore.usageFilters = { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 }
+  rootStore.usageSeries = '30'
+  rootStore.usageExpanded = new Set()
+  rootStore.usageRuns = {}
+  return rootStore
+}
+
+function resetUsage() {
+  const rootStore = testKit.rootStore
+  rootStore.usage = null
+  rootStore.usageFilters = { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 }
+  rootStore.usageSeries = '30'
+  rootStore.usageExpanded = new Set()
+  rootStore.usageRuns = {}
+  rootStore.profile = null
+}
+
+test('the usage card shows spend tiles, stat tiles and the unpriced note', () => {
+  seedUsage()
+  const markup = renderSettings()
+  assert.ok(markup.includes('$0.0196'), 'today tile uses four-decimal money')
+  assert.ok(markup.includes('$0.3812'), 'this-month tile')
+  assert.ok(markup.includes('$0.3600'), 'last-30-days tile')
+  assert.ok(markup.includes('$0.9400'), 'lifetime tile')
+  assert.ok(markup.includes('2026-08-01'), 'the lifetime tile is labelled with the tracking-since day')
+  assert.ok(markup.includes('54,230'), 'token totals are grouped')
+  assert.ok(markup.includes(tr('usage.unpricedShort', { n: 2 })), 'unpriced note rides the tiles that have one')
+  assert.ok(markup.includes('50%'), 'cached-input rate is a percentage')
+  assert.ok(markup.includes(EN()['usage.label']))
+  assert.ok(!markup.includes('$0.00 '), 'no truncated two-decimal money')
+  resetUsage()
+})
+
+test('the usage card falls back to an empty state before anything is metered', () => {
+  const rootStore = seedSettings()
+  rootStore.usage = null
+  const before = renderSettings()
+  assert.ok(before.includes(tr('usage.empty', { since: '—' })), 'null envelope renders the empty hint')
+
+  rootStore.usage = usageEnvelope({ lifetime: period({}) })
+  const zeroed = renderSettings()
+  assert.ok(zeroed.includes(tr('usage.empty', { since: '2026-08-01' })), 'a zero-billed lifetime renders the empty hint')
+  assert.equal(/role="table"/.test(zeroed), false, 'no runs table in the empty state')
+  resetUsage()
+})
+
+test('the spend sparkline is an accessible SVG with one titled bar per day', () => {
+  seedUsage()
+  const markup = renderSettings()
+  assert.ok(markup.includes('role="img"'), 'the strip is an image role')
+  assert.ok(markup.includes('aria-label="' + tr('usage.chartLabel', { n: 30 }) + '"'))
+  assert.ok(markup.includes('viewBox="0 0 300 48"'))
+  assert.equal((markup.match(/<rect/g) || []).length, 30, 'one rect per day')
+  assert.equal((markup.match(/<title>/g) || []).length, 30, 'one title per rect')
+  assert.ok(markup.includes('<title>' + tr('usage.barTitle', { day: '2026-08-14', usd: '$0.0900', calls: 9 }) + '</title>'))
+  assert.ok(markup.includes(tr('usage.chartSummary', { n: 30, total: '$0.3800', day: '2026-08-14', max: '$0.0900' })), 'a visually hidden text equivalent')
+  assert.ok(markup.includes('tacit-visually-hidden'))
+  assert.ok(markup.includes('aria-pressed="true"'), 'the active series button is pressed')
+  resetUsage()
+})
+
+test('the 7-day series toggle narrows the strip to seven bars', () => {
+  const rootStore = seedUsage()
+  rootStore.usageSeries = '7'
+  const markup = renderSettings()
+  assert.equal((markup.match(/<rect/g) || []).length, 7)
+  assert.ok(markup.includes('viewBox="0 0 70 48"'))
+  assert.ok(markup.includes(tr('usage.chartLabel', { n: 7 })))
+  resetUsage()
+})
+
+test('the by-operation breakdown is ordered by spend, with share bars', () => {
+  seedUsage()
+  const markup = renderSettings()
+  const analysisAt = markup.indexOf(EN()['runtype.analysis'])
+  const improveAt = markup.indexOf(EN()['runtype.improve'])
+  assert.ok(analysisAt > -1 && improveAt > -1, 'both operation rows render')
+  assert.ok(analysisAt < improveAt, 'the costliest operation is listed first')
+  assert.ok(markup.includes('tacit-usage-breakdown'))
+  assert.ok(/class="tacit-share"[^>]*style="width:100%"/.test(markup), 'the top row fills its share bar')
+  resetUsage()
+})
+
+test('budget warnings render as progress bars carrying their level', () => {
+  seedUsage()
+  const markup = renderSettings()
+  assert.equal((markup.match(/role="progressbar"/g) || []).length, 2)
+  assert.ok(markup.includes('tacit-warn-warn'), 'the daily bar is at the warn level')
+  assert.ok(markup.includes('tacit-warn-exceeded'), 'the monthly bar is over its limit')
+  assert.ok(markup.includes('aria-valuemin="0"'))
+  assert.ok(markup.includes('aria-valuemax="1"'))
+  assert.ok(markup.includes('aria-valuenow="0.9"'))
+  assert.ok(markup.includes(tr('warn.daily', { spent: '$0.9000', limit: '$1.0000', pct: 90 })))
+
+  testKit.rootStore.usage = usageEnvelope({ warnings: { daily: { limit: 0, spent: 0.9, level: 'none' }, monthly: { limit: 0, spent: 2.5, level: 'none' } } })
+  assert.equal(/role="progressbar"/.test(renderSettings()), false, 'no bar without a configured limit')
+  resetUsage()
+})
+
+test('the usage filters render the six controls with the active values selected', () => {
+  const rootStore = seedUsage()
+  rootStore.usageFilters = { range: '7d', type: 'analysis', status: 'failed', model: 'deepseek-v4-flash', workspace: 'dsh-tacit', sessionId: 'session-ssr', page: 1, pageSize: 20 }
+  const markup = renderSettings()
+  assert.ok(markup.includes('<option value="7d" selected=""'), 'range keeps its value')
+  assert.ok(markup.includes('<option value="analysis" selected=""'), 'type keeps its value')
+  assert.ok(markup.includes('<option value="failed" selected=""'), 'status keeps its value')
+  assert.ok(markup.includes('<option value="deepseek-v4-flash" selected=""'), 'model comes from byModel')
+  assert.ok(markup.includes('value="dsh-tacit"'), 'workspace input is filled')
+  assert.ok(markup.includes('value="session-ssr"'), 'session input is filled')
+  assert.ok(markup.includes(EN()['filter.all']))
+  resetUsage()
+})
+
+test('the runs table is a role=table with an expandable first cell and a pager', () => {
+  const rootStore = seedUsage()
+  rootStore.usage.runs = { items: [sampleRun], page: 2, pageSize: 20, total: 45 }
+  const markup = renderSettings()
+  assert.ok(markup.includes('role="table"'))
+  assert.equal((markup.match(/role="columnheader"/g) || []).length, 8, 'eight column headers')
+  assert.ok(markup.includes(EN()['usage.col.time']))
+  assert.ok(markup.includes(EN()['usage.col.cost']))
+  assert.ok(markup.includes('aria-controls="tacit-run-run-1"'), 'the toggle points at its detail row')
+  assert.ok(markup.includes('aria-expanded="false"'))
+  assert.ok(markup.includes('tacit-status-partial'), 'the status chip carries the run status')
+  assert.ok(markup.includes('dsh-tacit · #7'), 'scope is workspace · turn')
+  assert.ok(markup.includes(tr('usage.page', { page: 2, pages: 3 })))
+  resetUsage()
+})
+
+test('an expanded run lists its attempts; a not-yet-fetched run says so', () => {
+  const rootStore = seedUsage()
+  rootStore.usageExpanded = new Set(['run-1'])
+  const pending = renderSettings()
+  assert.ok(pending.includes('id="tacit-run-run-1"'))
+  assert.ok(pending.includes('aria-expanded="true"'))
+  assert.ok(pending.includes(EN()['usage.loading']), 'a missing run detail renders the loading line')
+
+  rootStore.usageRuns = {
+    'run-1': {
+      ...sampleRun,
+      attempts: [
+        {
+          id: 'a1',
+          op: 'analysis',
+          startedAt: 1756500000000,
+          durationMs: 1234,
+          model: 'deepseek-v4-flash',
+          provider: 'deepseek-official',
+          reasoningEffort: 'medium',
+          finish: 'stop',
+          status: 'ok',
+          code: '',
+          sessionId: 'session-ssr',
+          turn: 7,
+          usage: { inputTokens: 800, outputTokens: 200, cacheReadTokens: 100, cacheWriteTokens: 0, reasoningTokens: 50 },
+          priced: { source: 'bundled', tier: 'off-peak', rates: { cacheHit: 0.007, cacheMiss: 0.22, output: 0.66 }, asOf: '2026-08-22', usd: 0.000308 },
+        },
+        {
+          id: 'a2',
+          op: 'analysis-repair',
+          startedAt: 1756500001000,
+          durationMs: 90,
+          model: 'deepseek-v4-flash',
+          provider: 'deepseek-official',
+          reasoningEffort: null,
+          finish: 'error',
+          status: 'failed',
+          code: 'rate-limited',
+          sessionId: 'session-ssr',
+          turn: 7,
+          usage: null,
+          priced: null,
+        },
+      ],
+    },
+  }
+  const markup = renderSettings()
+  assert.ok(markup.includes(EN()['op.analysis']))
+  assert.ok(markup.includes(EN()['op.analysis-repair']))
+  assert.ok(markup.includes(tr('attempt.source', { source: 'bundled', tier: 'off-peak' })))
+  assert.ok(markup.includes(tr('attempt.duration', { ms: '1,234' })))
+  assert.ok(markup.includes(tr('attempt.effort', { effort: 'medium' })))
+  assert.ok(markup.includes('rate-limited'), 'the failure code is shown')
+  assert.ok(markup.includes('$0.0003'), 'the priced attempt shows its cost')
+  assert.ok(markup.includes(EN()['usage.priceUnavailable']), 'the unmetered attempt never shows $0.00')
+  assert.ok(markup.includes('800'), 'the token buckets are listed')
+  assert.ok(!markup.includes(EN()['usage.loading']), 'the loading line is gone once the run is present')
+  resetUsage()
+})
+
+test('usage polling is reference-counted and never holds a runner open', () => {
+  const realSetInterval = globalThis.setInterval
+  const realClearInterval = globalThis.clearInterval
+  let started = 0
+  let cleared = 0
+  try {
+    globalThis.setInterval = () => {
+      started += 1
+      return { handle: started }
+    }
+    globalThis.clearInterval = () => {
+      cleared += 1
+    }
+    testKit.startUsagePolling()
+    testKit.startUsagePolling()
+    assert.equal(started, 1, 'the second mount reuses the running timer')
+    testKit.stopUsagePolling()
+    assert.equal(cleared, 0, 'one unmount leaves the timer running')
+    testKit.stopUsagePolling()
+    assert.equal(cleared, 1, 'the last unmount clears it')
+    testKit.startUsagePolling()
+    assert.equal(started, 2, 'a later mount starts a fresh timer')
+    testKit.stopUsagePolling()
+    assert.equal(cleared, 2)
+  } finally {
+    globalThis.setInterval = realSetInterval
+    globalThis.clearInterval = realClearInterval
+  }
+})
+
+test('the usage filter action resets paging and drops empty values', () => {
+  const rootStore = testKit.rootStore
+  rootStore.usageFilters = { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 4, pageSize: 20 }
+  testKit.setUsageFilter({ type: 'improve' })
+  assert.equal(rootStore.usageFilters.type, 'improve')
+  assert.equal(rootStore.usageFilters.page, 1, 'a new filter goes back to page one')
+  testKit.setUsageFilter({ page: 3 })
+  assert.equal(rootStore.usageFilters.page, 3, 'an explicit page is kept')
+  testKit.setUsageSeries('7')
+  assert.equal(rootStore.usageSeries, '7')
+  testKit.setUsageSeries('nonsense')
+  assert.equal(rootStore.usageSeries, '30', 'an unknown series falls back to 30 days')
+  resetUsage()
+})
+
+test('the stylesheet carries the usage dashboard rules', () => {
+  const sheet = String(testKit.css)
+  assert.match(sheet, /\.tacit-tiles\{display:flex;flex-wrap:wrap;gap:8px\}/)
+  assert.match(sheet, /\.tacit-tile\{flex:1 1 140px/)
+  assert.match(sheet, /\.tacit-bars\{width:100%;height:48px\}/)
+  assert.match(sheet, /\.tacit-visually-hidden\{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect\(0 0 0 0\);white-space:nowrap\}/)
+  assert.match(sheet, /\.tacit-usage-row\{display:grid;grid-template-columns:/)
+  assert.match(sheet, /\.tacit-warn-warn\{[^}]*--dsw-alias-state-warn-primary/)
+  assert.match(sheet, /\.tacit-warn-exceeded\{[^}]*--dsw-alias-state-error-primary/)
+  assert.match(sheet, /@media \(max-width:640px\)\{[\s\S]*?\.tacit-usage-row\{display:flex;flex-direction:column\}/)
+  assert.match(sheet, /@media \(max-width:640px\)\{[\s\S]*\.tacit-tile\{flex-basis:45%\}/)
+  assert.doesNotMatch(sheet, /tacit-progress-fill/)
+})
+
+test('every usage dictionary key exists in both dictionaries', () => {
+  const dicts = localeDicts['dsh-tacit']
+  const keys = [
+    'usage.empty', 'usage.today', 'usage.month', 'usage.last30', 'usage.since', 'usage.calls',
+    'usage.avgAnalysis', 'usage.cachedRate', 'usage.unpriced', 'usage.unpricedShort', 'usage.priceUnavailable',
+    'usage.chartLabel', 'usage.chartSummary', 'usage.barTitle', 'usage.series7', 'usage.series30', 'usage.breakdown',
+    'usage.filters', 'usage.loading', 'usage.page', 'usage.prev', 'usage.next', 'usage.label',
+    'usage.col.time', 'usage.col.op', 'usage.col.scope', 'usage.col.model', 'usage.col.status',
+    'usage.col.calls', 'usage.col.tokens', 'usage.col.cost',
+    'filter.range', 'filter.type', 'filter.status', 'filter.model', 'filter.workspace', 'filter.session', 'filter.all',
+    'range.today', 'range.7d', 'range.30d', 'range.month', 'range.all',
+    'status.success', 'status.partial', 'status.failed', 'status.ok', 'status.unmetered',
+    'attempt.effort', 'attempt.finish', 'attempt.source', 'attempt.duration',
+    'warn.daily', 'warn.monthly',
+  ]
+  for (const type of ['bootstrap', 'analysis', 'analysis-batch', 'improve', 'directive-distillation', 'style-distillation', 'prompt-enrichment']) keys.push('runtype.' + type)
+  for (const op of ['analysis', 'analysis-repair', 'directive-distillation', 'style-distillation', 'improve', 'improve-repair', 'enrichment']) keys.push('op.' + op)
+  for (const key of keys) {
+    assert.equal(typeof dicts.en[key], 'string', 'en ' + key)
+    assert.equal(typeof dicts.zh[key], 'string', 'zh ' + key)
+  }
+  assert.equal(dicts.en['usage.label'], 'Measured usage · list-price cost')
+})

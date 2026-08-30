@@ -192,7 +192,19 @@
               ? h('div', { className: 'tacit-settings-notice', role: 'status' }, notice.text)
               : null,
           ]),
-          card('usage', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
+          card('usage', [
+            UsageCard(kit, {
+              usage: rootStore.usage,
+              config,
+              filters: rootStore.usageFilters,
+              series: rootStore.usageSeries,
+              expanded: rootStore.usageExpanded,
+              runs: rootStore.usageRuns,
+              onFilter: (patch) => setUsageFilter(patch),
+              onToggleRun: (runId) => toggleUsageRun(runId),
+              onSeries: (value) => setUsageSeries(value),
+            }),
+          ]),
           card('pricing', [h('p', { className: 'tacit-panel-hint' }, t('usage.pending'))]),
           card('learning', [
             h('div', { className: 'tacit-settings-row' },
@@ -272,6 +284,9 @@
           initRootStore()
           // Fresh read so freshly distilled style rules appear on open.
           refreshRootState()
+          // One shared 10s /usage poll while any Tacit settings page is mounted.
+          startUsagePolling()
+          return stopUsagePolling
         }, [])
         return h('div', { className: 'tacit-root' },
           h('div', { className: 'tacit-head' }, h('div', { className: 'tacit-head-title' }, t('panel.title'))),

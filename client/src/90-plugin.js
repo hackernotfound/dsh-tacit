@@ -72,5 +72,11 @@
         rootStore,
         toggleSection,
         setRootNotice,
+        fetchUsage,
+        setUsageFilter,
+        toggleUsageRun,
+        startUsagePolling,
+        stopUsagePolling,
+        setUsageSeries,
       },
     }

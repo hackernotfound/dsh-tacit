@@ -22,6 +22,12 @@
         privacy: false,
       },
       notice: null, // {text} — a short-lived result line, cleared after 5s
+      usage: null, // the last /usage envelope
+      usageFilters: { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 },
+      usageRuns: {}, // runId → the full run (attempts included), fetched on first expand
+      usageExpanded: new Set(), // runIds whose attempt rows are open
+      usageLoading: false,
+      usageSeries: '30', // '7' | '30' — which sparkline the strip shows
       initStarted: false,
       initDone: false,
       error: null,
@@ -57,6 +63,108 @@
         rootStore.notice = null
         notifyRoot()
       }, 5000)
+      unrefTimer(noticeTimer)
+    }
+
+    /**
+     * Node hands back a Timeout object that keeps the process alive; the
+     * browser hands back a number. Unref'ing where it exists means a test that
+     * merely touches one of these paths can never hold the runner open.
+     */
+    function unrefTimer(handle) {
+      if (handle !== null && typeof handle === 'object' && typeof handle.unref === 'function') handle.unref()
+    }
+
+    // ── Usage ledger (the Settings → Usage card) ───────────────────────────
+
+    /** The filter payload for `/usage`: defaults always, empty strings never. */
+    function usageQuery() {
+      const filters = rootStore.usageFilters !== null && typeof rootStore.usageFilters === 'object' ? rootStore.usageFilters : {}
+      const query = {
+        range: typeof filters.range === 'string' && filters.range.length > 0 ? filters.range : '30d',
+        page: typeof filters.page === 'number' && filters.page > 0 ? Math.floor(filters.page) : 1,
+        pageSize: typeof filters.pageSize === 'number' && filters.pageSize > 0 ? Math.floor(filters.pageSize) : 20,
+      }
+      for (const key of ['type', 'status', 'model', 'workspace', 'sessionId']) {
+        const value = filters[key]
+        if (typeof value === 'string' && value.length > 0) query[key] = value
+      }
+      return query
+    }
+
+    /** Read the whole cost panel in one call; a failure keeps the last envelope. */
+    async function fetchUsage() {
+      rootStore.usageLoading = true
+      try {
+        const result = await api('/usage', usageQuery())
+        if (result !== null && typeof result === 'object' && result.ok === true) rootStore.usage = result
+      } catch {
+        // A stale panel beats a blank one; the next poll tries again.
+      }
+      rootStore.usageLoading = false
+      notifyRoot()
+    }
+
+    /** Narrow the runs list. Any change but an explicit page jump goes back to page 1. */
+    function setUsageFilter(patch) {
+      if (patch === null || typeof patch !== 'object') return
+      const next = { ...rootStore.usageFilters, ...patch }
+      if (patch.page === undefined) next.page = 1
+      rootStore.usageFilters = next
+      notifyRoot()
+      fetchUsage()
+    }
+
+    /** Open/close one run's attempt rows, fetching its detail the first time. */
+    async function toggleUsageRun(runId) {
+      const key = String(runId)
+      if (key.length === 0) return
+      if (rootStore.usageExpanded.has(key)) {
+        rootStore.usageExpanded.delete(key)
+        notifyRoot()
+        return
+      }
+      rootStore.usageExpanded.add(key)
+      notifyRoot()
+      if (rootStore.usageRuns[key] !== undefined) return
+      try {
+        const result = await api('/usage-run', { runId: key })
+        if (result !== null && typeof result === 'object' && result.ok === true
+          && result.run !== null && typeof result.run === 'object') {
+          rootStore.usageRuns[key] = result.run
+        }
+      } catch {
+        // The row keeps its loading line; closing and reopening retries.
+      }
+      notifyRoot()
+    }
+
+    /** Which sparkline the bar strip shows; anything unknown means 30 days. */
+    function setUsageSeries(value) {
+      rootStore.usageSeries = value === '7' ? '7' : '30'
+      notifyRoot()
+    }
+
+    /** One shared 10s poll, reference-counted so remounts never stack timers. */
+    let usageTimer = null
+    let usageMounts = 0
+
+    function startUsagePolling() {
+      usageMounts += 1
+      if (usageTimer !== null || typeof setInterval !== 'function') return
+      usageTimer = setInterval(() => {
+        // A hidden tab costs nothing: the next visible tick catches up.
+        if (typeof document !== 'undefined' && document !== null && document.hidden === true) return
+        fetchUsage()
+      }, 10000)
+      unrefTimer(usageTimer)
+    }
+
+    function stopUsagePolling() {
+      usageMounts = usageMounts > 0 ? usageMounts - 1 : 0
+      if (usageMounts > 0 || usageTimer === null) return
+      if (typeof clearInterval === 'function') clearInterval(usageTimer)
+      usageTimer = null
     }
 
     function useRootVersion() {
@@ -97,6 +205,7 @@
         rootStore.error = errorOf(error)
         rootStore.initDone = true
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -115,6 +224,7 @@
       } catch {
         // Stale view beats a broken panel.
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -133,6 +243,8 @@
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      // The warning thresholds live in the config, so the bars may have moved.
+      fetchUsage()
       notifyRoot()
     }
 
@@ -148,6 +260,7 @@
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -220,6 +333,7 @@
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      fetchUsage()
       rootStore.initStarted = false
       rootStore.initDone = false
       await initRootStore()
@@ -238,6 +352,7 @@
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      fetchUsage()
       notifyRoot()
     }
 
