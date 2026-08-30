@@ -66,26 +66,69 @@ keys, session ids, anything outside the clips above.
 ## Cost
 
 Every Tacit model call is metered from the model's own `usage` block (uncached
-input, output, cache-read and cache-write tokens) and grouped into *runs* — one
-bootstrap batch, one auto-analysis, one ✨ Improve, one distillation, one
-pre-send enrichment call. Reasoning tokens are always a subset of output
-tokens, never a separate quantity, so they are never billed twice.
+input, output, cache-read, cache-write and reasoning tokens) and folded into a
+content-free ledger under `usage/`. Reasoning tokens are always a subset of
+output tokens, never a separate quantity, so they are never billed twice.
 
-Each attempt is priced at list price: the bundled DeepSeek V4 table (dated
-`2026-08-22`), or the price table from the [`dsh-cost-meter`](https://www.npmjs.com/package/dsh-cost-meter)
-plugin's own service when that plugin is installed and hands back usable
-prices — its rates win over the bundled ones. Cost is
-`(uncachedInput · cacheMissRate + (cacheRead + cacheWrite) · cacheHitRate + output · outputRate) / 1,000,000`,
-in USD per 1M tokens. Peak hours are 01:00–04:00 and 06:00–10:00 UTC; every
-other UTC hour is off-peak. Since 2026-08-22T16:00 UTC, Beijing-calendar
-weekends (Saturday/Sunday at UTC+8) are always off-peak regardless of the
-hour. The tier is decided once, at the call's start time, so a call that
-straddles a tier boundary is still priced consistently.
+**Runs and attempts.** The ledger groups calls into *runs* — one bootstrap
+batch, one auto/manual/batch analysis, one ✨ Improve, one directive
+distillation, one style-rule distillation, one pre-send enrichment — and each
+underlying model call inside a run is an *attempt*. A run carries an id, its
+type, a trigger, start/end times, a derived status (`success` when every
+attempt billed, `partial` when some failed, `failed` when none did or it has
+no attempts, `running` while open), the session id and turn, the workspace
+**label** (never the path), the model/provider and its list of attempts. An
+attempt carries an id, the op (`analysis`, `analysis-repair`,
+`directive-distillation`, `style-distillation`, `improve`, `improve-repair`,
+`enrichment`), its timing, model, provider, reasoning effort, finish
+reason/code, a status (`ok` / `failed` / `unmetered`), the session id and
+turn, the five raw token buckets, and the priced result (`null` when nothing
+matched). None of it is ever a prompt, a response, a tool argument or an API
+key.
 
-A call on a route Tacit can't match to any price table — a proxy or custom
-provider the bundled table and `dsh-cost-meter` both know nothing about — has
-no computed price; it's counted separately as an unpriced call rather than
-assumed free.
+**Pricing sources and resolution order.** Each attempt is priced once, at the
+call's own start time, in this order:
+
+1. [`dsh-cost-meter`](https://www.npmjs.com/package/dsh-cost-meter)'s own
+   **model** rates for that model, when the call went through an official
+   DeepSeek route — tiered off-peak/peak the same way as the bundled table,
+   using `dsh-cost-meter`'s own peak windows/effective-at/weekend setting if
+   it supplies them.
+2. `dsh-cost-meter`'s **provider** rates for that provider + model, when the
+   above did not match — a flat rate, no tier, so a proxy or custom route can
+   still be priced when the meter knows its rate card.
+3. The bundled DeepSeek V4 list price (dated `2026-08-22`), for an official
+   route and an allowlisted model, when neither of the above applies.
+4. Otherwise: no price at all — see *Unpriced calls* below.
+
+`dsh-cost-meter`'s rates always win when they match; the bundled table is the
+fallback, never a ceiling. The plugin is entirely optional and duck-typed:
+Tacit never blocks a model call on it, and a `getState()` call that hangs,
+throws or returns nothing usable falls back to the bundled table within 5
+seconds, remembering why (shown in the Pricing card).
+
+**Formula.** For one attempt:
+
+```
+cost = (uncachedInput · cacheMissRate
+      + (cacheRead + cacheWrite) · cacheHitRate
+      + output · outputRate) / 1,000,000
+```
+
+in USD per 1M tokens.
+
+**Tiers.** Peak hours are 01:00–04:00 and 06:00–10:00 UTC; every other UTC
+hour is off-peak. Since 2026-08-22T16:00 UTC, Beijing-calendar weekends
+(Saturday/Sunday at UTC+8) are always off-peak regardless of the hour. The
+tier is decided once, at the call's start time, so a call that straddles a
+tier boundary is still priced consistently.
+
+**Unpriced calls.** A call on a route Tacit can't match to any price table —
+a proxy or custom provider neither the bundled table nor `dsh-cost-meter`
+know — has no computed price; it's counted separately as an *unpriced* call
+(shown in the Usage card) rather than assumed free. A call that never
+received a `usage` block at all (the adapter reported none) is *unmetered*,
+which is never shown as `$0.00`.
 
 Every call is also made with low reasoning effort and a tool schema (no prose
 to parse), and every one is tagged with the session id, so a cost plugin such
@@ -142,6 +185,16 @@ Honest list — these are v0.2 behaviours, not hidden surprises:
 - The distiller sees workspace **names** (the last path segment, e.g. `dsh-tacit`),
   never full paths; full paths stay in the local reports and profile.
 - A weekly digest is not implemented yet.
+- **Bundled prices are a snapshot**, dated `PRICES_AS_OF` (currently
+  `2026-08-22`). A DeepSeek price change is only reflected once this package
+  updates, or via `dsh-cost-meter`.
+- **`dsh-cost-meter` has no weekend rule.** Its price table carries no
+  Beijing-weekend off-peak override, so on a weekend a bundled-table figure
+  and a `dsh-cost-meter` figure for the same call can differ.
+- **The measured bootstrap estimate uses only flushed day files.** It reads
+  the priced attempts already written to disk, not an in-flight run's own
+  live counters — a batch that just finished may not move the next preview's
+  estimate until the debounced flush (250 ms) has written it.
 
 ---
 

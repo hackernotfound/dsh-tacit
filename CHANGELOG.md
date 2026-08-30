@@ -2,9 +2,29 @@
 
 ## Unreleased
 
-- Every Tacit model call is now metered (tokens + list-price cost) into a
-  local, content-free usage ledger; new `costHistoryDays`, `costWarnDailyUsd`,
-  `costWarnMonthlyUsd` settings.
+- Every Tacit model call is now metered (tokens + list-price cost, priced
+  from the bundled DeepSeek table or the optional `dsh-cost-meter` sibling)
+  into a local, content-free usage ledger, grouped into runs and their
+  attempts; new `costHistoryDays`, `costWarnDailyUsd`, `costWarnMonthlyUsd`
+  settings.
+- Four new routes for the ledger and the price source — `/api/tacit/usage`,
+  `/api/tacit/usage-run`, `/api/tacit/usage-clear`, `/api/tacit/pricing-refresh`
+  — plus `/api/tacit/bootstrap-preview` (what a bootstrap would cost) and
+  `/api/tacit/analyze-batch` (analyze exactly the turns you pick as one run).
+- Settings → Tacit is now eight collapsible section cards — Overview, Usage,
+  Pricing, Learning, Agent guidance, Improve & feedback, Analysis history,
+  Data & privacy — instead of one long page.
+- New Usage card: today / this month / last 30 days / lifetime spend tiles, a
+  daily spend bar chart, spend by operation, budget warning bars, filters and
+  a paginated, expandable run list. New Pricing card: the list-price rate
+  table for both models, the tier in force right now, the price source and a
+  manual *Refresh prices*.
+- New Data & Privacy card: what a usage record holds, a retention selector
+  (7/14/30/90/180/365 days), the two spend-warning thresholds (warns at 80 %,
+  marks exceeded above the limit), and a confirm-dialog-gated *Clear usage
+  history* alongside *Clear all analysis reports*. *Learn from my last 20
+  turns* now shows a live cost estimate (measured from the ledger once enough
+  analyses are priced, the documented figure until then).
 - ✨ Improve converges in one pass: the rewrite is checked against a fixed
   checklist (goal, context, scope, constraints, output format, efficiency) and
   pulls concrete facts from the recent turns, so one click reaches the finished
