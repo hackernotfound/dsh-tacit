@@ -881,3 +881,37 @@ test('range "today" lists a run that started before midnight and billed after it
   const month = usage.report({ filters: { range: '30d' } })
   assert.equal(month.runs.total, 1, 'a run matching on two days is listed once')
 })
+
+test('two trackers minting in the same millisecond do not overwrite each other', () => {
+  const { dir, store, clock } = setup()
+  const makeTracker = () => createUsageTracker({
+    store,
+    config: () => ({ costHistoryDays: 30 }),
+    pricing: fakePricing(),
+    now: () => clock.ms,
+    flushDelayMs: 60_000,
+  })
+  const realRandom = Math.random
+  const draws = [0.1, 0.9]
+  let at = 0
+  Math.random = () => draws[at++ % draws.length]
+  try {
+    const one = makeTracker()
+    const two = makeTracker()
+    const idOne = one.beginRun({ type: 'analysis' })
+    const idTwo = two.beginRun({ type: 'analysis' })
+    assert.notEqual(idOne, idTwo, 'the same clock and the same sequence still yield distinct ids')
+    assert.match(idOne, /^u[0-9a-z]+-[0-9a-z]+$/)
+
+    one.attemptSink(idOne, { op: 'analysis' })(record(clock))
+    two.attemptSink(idTwo, { op: 'analysis' })(record(clock))
+    one.endRun(idOne, {})
+    two.endRun(idTwo, {})
+    const { runs } = store.readUsageDay(dayKey(clock.ms))
+    assert.equal(runs.length, 2)
+    assert.deepEqual(new Set(runs.map((run) => run.runId)), new Set([idOne, idTwo]))
+    assert.ok(idOne.length <= 64, 'the id still fits usageRunArgSchema')
+  } finally {
+    Math.random = realRandom
+  }
+})
