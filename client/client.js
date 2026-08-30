@@ -866,9 +866,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       } catch (error) {
         rootStore.error = errorOf(error)
       }
-      fetchUsage()
       rootStore.initStarted = false
       rootStore.initDone = false
+      // `initRootStore` refetches the ledger itself; a second call here would
+      // only duplicate the request a bootstrap batch just made worth making.
       await initRootStore()
     }
 
@@ -2324,7 +2325,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         role: 'progressbar',
         'aria-valuemin': 0,
         'aria-valuemax': warning.limit,
-        'aria-valuenow': warning.spent,
+        // An overspend is real, but `aria-valuenow` past `aria-valuemax` is not a
+        // valid range: the bar pins at the cap and the true figure rides valuetext.
+        'aria-valuenow': Math.min(warning.spent, warning.limit),
+        'aria-valuetext': fmtUsd(warning.spent),
         'aria-label': label,
       },
       h('span', { className: 'tacit-warn-label' }, label),
@@ -2343,19 +2347,21 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           onChange: (event) => onFilter({ [name]: event.target.value }),
         }, options.map((option) => h('option', { key: option.value, value: option.value }, option.label))))
       // A text scope applies on Enter or on leaving the field — not per keystroke,
-      // which would fire a /usage call for every character typed.
-      const text = (name, value) => h('label', { className: 'tacit-filter' },
+      // which would fire a /usage call for every character typed. `name` is the
+      // dictionary key, `field` the store/wire key: the session scope is labelled
+      // `filter.session` but filtered on `sessionId`, which is what the server reads.
+      const text = (name, field, value) => h('label', { className: 'tacit-filter' },
         h('span', { className: 'tacit-filter-label' }, t('filter.' + name)),
         h('input', {
           className: 'tacit-input',
           type: 'text',
-          key: name + '-' + value,
+          key: field + '-' + value,
           defaultValue: value,
           onBlur: (event) => {
-            if (event.target.value !== value) onFilter({ [name]: event.target.value.trim() })
+            if (event.target.value !== value) onFilter({ [field]: event.target.value.trim() })
           },
           onKeyDown: (event) => {
-            if (event.key === 'Enter') onFilter({ [name]: event.target.value.trim() })
+            if (event.key === 'Enter') onFilter({ [field]: event.target.value.trim() })
           },
         }))
       const all = { value: '', label: t('filter.all') }
@@ -2366,8 +2372,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           select('type', filters.type, [all, ...USAGE_RUN_TYPES.map((value) => ({ value, label: t('runtype.' + value) }))]),
           select('status', filters.status, [all, ...USAGE_STATUSES.map((value) => ({ value, label: t('status.' + value) }))]),
           select('model', filters.model, [all, ...models.map((value) => ({ value, label: value }))]),
-          text('workspace', filters.workspace),
-          text('session', filters.sessionId)))
+          text('workspace', 'workspace', filters.workspace),
+          text('session', 'sessionId', filters.sessionId)))
     }
 
     /** The five token buckets of one attempt, in the order the adapter reports them. */
@@ -2716,6 +2722,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         startUsagePolling,
         stopUsagePolling,
         setUsageSeries,
+        UsageCard,
       },
     }
   },

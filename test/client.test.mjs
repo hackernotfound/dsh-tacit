@@ -886,8 +886,16 @@ test('budget warnings render as progress bars carrying their level', () => {
   assert.ok(markup.includes('tacit-warn-exceeded'), 'the monthly bar is over its limit')
   assert.ok(markup.includes('aria-valuemin="0"'))
   assert.ok(markup.includes('aria-valuemax="1"'))
-  assert.ok(markup.includes('aria-valuenow="0.9"'))
+  assert.ok(markup.includes('aria-valuenow="0.9"'), 'a bar under its cap reports the real figure')
+  assert.ok(markup.includes('aria-valuetext="$0.9000"'))
   assert.ok(markup.includes(tr('warn.daily', { spent: '$0.9000', limit: '$1.0000', pct: 90 })))
+  // $2.50 against a $2 cap: valuenow may never exceed valuemax, so it pins at the
+  // cap and the overspend is carried by valuetext (and by the label) instead.
+  assert.ok(markup.includes('aria-valuemax="2"'))
+  assert.ok(markup.includes('aria-valuenow="2"'), 'an exceeded budget clamps to its maximum')
+  assert.equal(markup.includes('aria-valuenow="2.5"'), false, 'never a valuenow past valuemax')
+  assert.ok(markup.includes('aria-valuetext="$2.5000"'), 'the true overspend stays announced')
+  assert.ok(markup.includes(tr('warn.monthly', { spent: '$2.5000', limit: '$2.0000', pct: 125 })))
 
   testKit.rootStore.usage = usageEnvelope({ warnings: { daily: { limit: 0, spent: 0.9, level: 'none' }, monthly: { limit: 0, spent: 2.5, level: 'none' } } })
   assert.equal(/role="progressbar"/.test(renderSettings()), false, 'no bar without a configured limit')
@@ -1027,6 +1035,56 @@ test('the usage filter action resets paging and drops empty values', () => {
   assert.equal(rootStore.usageSeries, '7')
   testKit.setUsageSeries('nonsense')
   assert.equal(rootStore.usageSeries, '30', 'an unknown series falls back to 30 days')
+  resetUsage()
+})
+
+/** Every element in a `h()` tree matching `predicate`, depth first. */
+function collectElements(node, predicate, found) {
+  const hits = found === undefined ? [] : found
+  if (node === null || node === undefined || typeof node !== 'object') return hits
+  if (Array.isArray(node)) {
+    for (const child of node) collectElements(child, predicate, hits)
+    return hits
+  }
+  if (node.props === undefined) return hits
+  if (predicate(node)) hits.push(node)
+  return collectElements(node.props.children, predicate, hits)
+}
+
+test('the free-text filters patch the store keys the server actually reads', () => {
+  const rootStore = seedUsage()
+  const patches = []
+  // UsageCard is hook-free by design, so the suite can call it directly and
+  // fire the handlers that renderToStaticMarkup throws away.
+  const kit = { t: tr, fmt: (n) => String(n), fmtTime: () => '00:00:00' }
+  const tree = testKit.UsageCard(kit, {
+    usage: rootStore.usage,
+    config: rootStore.config,
+    filters: { ...rootStore.usageFilters, workspace: 'dsh-tacit', sessionId: 'session-ssr' },
+    series: '30',
+    expanded: new Set(),
+    runs: {},
+    onFilter: (patch) => patches.push(patch),
+    onToggleRun: () => {},
+    onSeries: () => {},
+  })
+  const inputs = collectElements(tree, (node) => node.type === 'input' && node.props.type === 'text')
+  assert.equal(inputs.length, 2, 'a workspace and a session-id input')
+  assert.equal(inputs[0].props.defaultValue, 'dsh-tacit')
+  assert.equal(inputs[1].props.defaultValue, 'session-ssr', 'the session input round-trips the store value')
+
+  inputs[1].props.onKeyDown({ key: 'Enter', target: { value: '  sess-42  ' } })
+  assert.deepEqual(patches, [{ sessionId: 'sess-42' }], 'Enter patches sessionId, not a stray `session`')
+  inputs[0].props.onBlur({ target: { value: 'alpha' } })
+  assert.deepEqual(patches[1], { workspace: 'alpha' }, 'blur patches workspace')
+  inputs[1].props.onBlur({ target: { value: 'session-ssr' } })
+  assert.equal(patches.length, 2, 'an unchanged field fires nothing on blur')
+
+  // …and that patch lands on the field `usageQuery` forwards to /usage.
+  testKit.setUsageFilter({ sessionId: 'sess-42' })
+  assert.equal(rootStore.usageFilters.sessionId, 'sess-42')
+  assert.equal(rootStore.usageFilters.session, undefined, 'no stray key beside it')
+  assert.equal(rootStore.usageFilters.page, 1, 'and paging restarts')
   resetUsage()
 })
 

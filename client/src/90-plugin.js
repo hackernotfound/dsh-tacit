@@ -78,5 +78,6 @@
         startUsagePolling,
         stopUsagePolling,
         setUsageSeries,
+        UsageCard,
       },
     }

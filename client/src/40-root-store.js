@@ -333,9 +333,10 @@
       } catch (error) {
         rootStore.error = errorOf(error)
       }
-      fetchUsage()
       rootStore.initStarted = false
       rootStore.initDone = false
+      // `initRootStore` refetches the ledger itself; a second call here would
+      // only duplicate the request a bootstrap batch just made worth making.
       await initRootStore()
     }
 
