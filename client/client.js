@@ -185,6 +185,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'usage.col.time': '时间',
       'usage.col.op': '操作',
       'usage.col.scope': '范围',
+      'usage.scopeAll': '全部会话',
       'usage.col.model': '模型',
       'usage.col.status': '状态',
       'usage.col.calls': '计费调用',
@@ -236,6 +237,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'privacy.warnHint': '填 0 表示关闭提醒。达到阈值的 80% 时开始提醒，超过阈值后标记为已超出。',
       'privacy.clearUsage': '清除用量记录',
       'privacy.apply': '应用',
+      'privacy.applyTo': '{action}：{field}',
       'confirm.reportsTitle': '清除所有分析报告？',
       'confirm.reportsBody': '这会删除 Tacit 为所有会话写下的全部分析报告。指令、风格规则和用量记录会保留。此操作无法撤销。',
       'confirm.usageTitle': '清除用量记录？',
@@ -431,6 +433,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'usage.col.time': 'Time',
       'usage.col.op': 'Operation',
       'usage.col.scope': 'Scope',
+      'usage.scopeAll': 'all sessions',
       'usage.col.model': 'Model',
       'usage.col.status': 'Status',
       'usage.col.calls': 'Billed calls',
@@ -482,6 +485,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'privacy.warnHint': '0 turns the warning off. Tacit warns at 80 % of the amount and marks it exceeded above it.',
       'privacy.clearUsage': 'Clear usage history',
       'privacy.apply': 'Apply',
+      'privacy.applyTo': '{action}: {field}',
       'confirm.reportsTitle': 'Clear all analysis reports?',
       'confirm.reportsBody': 'This deletes every analysis report Tacit has written, for every session. Your directives, style rules and usage history are kept. This cannot be undone.',
       'confirm.usageTitle': 'Clear usage history?',
@@ -657,7 +661,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       usageFilters: { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 },
       usageRuns: {}, // runId → the full run (attempts included), fetched on first expand
       usageExpanded: new Set(), // runIds whose attempt rows are open
-      usageLoading: false,
       usageSeries: '30', // '7' | '30' — which sparkline the strip shows
       pricingRefreshing: false, // a /pricing-refresh call is in flight
       initStarted: false,
@@ -777,14 +780,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
 
     /** Read the whole cost panel in one call; a failure keeps the last envelope. */
     async function fetchUsage() {
-      rootStore.usageLoading = true
       try {
         const result = await api('/usage', usageQuery())
         if (result !== null && typeof result === 'object' && result.ok === true) rootStore.usage = result
       } catch {
         // A stale panel beats a blank one; the next poll tries again.
       }
-      rootStore.usageLoading = false
       notifyRoot()
     }
 
@@ -2704,7 +2705,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
-                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnDaily'),
+                'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnDaily') }),
                 onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
               }, t('privacy.apply'))),
             h('div', { className: 'tacit-settings-row' },
@@ -2723,7 +2724,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
-                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnMonthly'),
+                'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnMonthly') }),
                 onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
               }, t('privacy.apply'))),
             h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),
@@ -2968,7 +2969,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         ? run.attempts.filter((attempt) => attempt !== null && typeof attempt === 'object')
         : null
       return h('div', { className: 'tacit-usage-attempts', id: 'tacit-run-' + runId, role: 'row' },
-        h('div', { className: 'tacit-usage-cell tacit-usage-attempts-cell', role: 'cell' },
+        h('div', { className: 'tacit-usage-cell tacit-usage-attempts-cell', role: 'cell', 'aria-colspan': USAGE_COLUMNS.length },
           attempts === null
             ? h('p', { className: 'tacit-panel-hint' }, t('usage.loading'))
             : attempts.map((attempt) => AttemptRow(kit, attempt))))
@@ -2977,9 +2978,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     /** One run row; the first cell is the disclosure button for its attempts. */
     function RunRow(kit, { item, open, onToggleRun }) {
       const { t, fmtTime } = kit
+      // A bootstrap run carries no workspace because it covers every session,
+      // which is worth saying; any other run type missing the field is simply
+      // a row with nothing to scope by.
+      const unscoped = item.type === 'bootstrap' ? t('usage.scopeAll') : '—'
       const scope = item.workspace.length > 0 && item.turn !== null
         ? item.workspace + ' · #' + String(item.turn)
-        : (item.workspace.length > 0 ? item.workspace : (item.turn !== null ? '#' + String(item.turn) : '—'))
+        : (item.workspace.length > 0 ? item.workspace : (item.turn !== null ? '#' + String(item.turn) : unscoped))
       const cell = (key, child) => h('span', { key, className: 'tacit-usage-cell', role: 'cell' }, child)
       return h('div', { className: 'tacit-usage-row', role: 'row' },
         cell('time', h('button', {
@@ -3250,6 +3255,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-settings{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px}'
       + '.tacit-settings-title{font-size:12px;font-weight:600}.tacit-settings-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tacit-settings-label{font-size:12px;color:var(--dsw-alias-label-secondary);min-width:150px}'
       + '.tacit-settings-notice{font-size:11px;color:var(--dsw-alias-state-success-primary)}'
+      // The idle live region has to stay mounted to announce, but as an empty
+      // flex item it still claims one of the panel's 10px gaps; -5px a side
+      // gives that back.
+      + '.tacit-panel>.tacit-settings-notice:empty{margin-block:-5px}'
       + '.tacit-select,.tacit-input{font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:3px 8px}.tacit-input{width:90px}'
       + '.tacit-improve-btn{font:inherit;font-size:13px;font-weight:500;line-height:20px;color:var(--dsw-alias-label-secondary);background:transparent;border:0;border-radius:24px;cursor:pointer;height:28px;padding:0 8px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}.tacit-improve-btn:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}'
       + '.tacit-check{width:14px;height:14px;accent-color:var(--dsw-alias-brand-primary);flex:none;margin:2px 4px 0 0}'

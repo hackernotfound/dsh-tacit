@@ -379,7 +379,7 @@
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
-                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnDaily'),
+                'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnDaily') }),
                 onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
               }, t('privacy.apply'))),
             h('div', { className: 'tacit-settings-row' },
@@ -398,7 +398,7 @@
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
-                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnMonthly'),
+                'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnMonthly') }),
                 onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
               }, t('privacy.apply'))),
             h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),

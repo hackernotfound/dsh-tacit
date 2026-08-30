@@ -1036,6 +1036,44 @@ test('an expanded run lists its attempts; a not-yet-fetched run says so', () => 
   resetUsage()
 })
 
+test('the expanded attempts cell spans all eight columns of the runs table', () => {
+  const rootStore = seedUsage()
+  rootStore.usage.runs = { items: [sampleRun], page: 1, pageSize: 20, total: 1 }
+  rootStore.usageExpanded = new Set(['run-1'])
+  const markup = renderSettings()
+  const cell = /<div class="tacit-usage-cell tacit-usage-attempts-cell"([^>]*)>/.exec(markup)
+  assert.ok(cell, 'the attempts cell renders')
+  assert.ok(cell[1].includes('aria-colspan="8"'), 'and claims the whole row — got ' + cell[1])
+  resetUsage()
+})
+
+test('a bootstrap run names the scope it really had instead of a dash', () => {
+  const rootStore = seedUsage()
+  const bootstrap = { ...sampleRun, runId: 'run-boot', type: 'bootstrap', workspace: '', turn: null }
+  const unscoped = { ...sampleRun, runId: 'run-plain', type: 'analysis', workspace: '', turn: null }
+  rootStore.usage.runs = { items: [bootstrap, unscoped], page: 1, pageSize: 20, total: 2 }
+  const tree = testKit.UsageCard({ t: tr, fmt: (n) => String(n), fmtTime: () => '00:00:00' }, {
+    usage: rootStore.usage,
+    config: rootStore.config,
+    filters: rootStore.usageFilters,
+    series: '30',
+    expanded: new Set(),
+    runs: {},
+    onFilter: () => {},
+    onToggleRun: () => {},
+    onSeries: () => {},
+  })
+  const scopes = collectElements(tree, (node) => node.key === 'scope' && node.props.role === 'cell').map((node) => node.props.children)
+  assert.deepEqual(scopes, [EN()['usage.scopeAll'], '—'],
+    'an empty workspace means every session for a bootstrap and nothing at all for the rest')
+  resetUsage()
+})
+
+test('the root store keeps no loading flag the runs table never renders', () => {
+  assert.equal(Object.prototype.hasOwnProperty.call(testKit.rootStore, 'usageLoading'), false,
+    'a field nothing reads is not state')
+})
+
 test('usage polling is reference-counted and never holds a runner open', () => {
   const realSetInterval = globalThis.setInterval
   const realClearInterval = globalThis.clearInterval
@@ -1461,6 +1499,34 @@ test('a retention value outside the offered days gets an option of its own', () 
     assert.equal(/<option[^>]*value="30"[^>]*selected=""/.test(markup), false, 'not the 30 it used to fall back to')
     const options = [...markup.matchAll(/<option[^>]*value="(\d+)"/g)].map((match) => match[1])
     assert.deepEqual(options, ['7', '14', '30', '45', '90', '180', '365'], 'and it sorts into place')
+  } finally {
+    resetPrivacy()
+  }
+})
+
+test('the idle live region stays mounted without claiming a row of its own', () => {
+  try {
+    seedPrivacy()
+    const markup = renderSettings()
+    assert.ok(markup.includes('<div class="tacit-settings-notice" role="status"></div>'),
+      'the region is mounted and carries no whitespace, so :empty matches it')
+    assert.match(String(testKit.css), /\.tacit-panel>\.tacit-settings-notice:empty\{margin-block:-5px\}/)
+  } finally {
+    resetPrivacy()
+  }
+})
+
+test('the two Apply buttons name their threshold through a locale-aware separator', () => {
+  const dicts = localeDicts['dsh-tacit']
+  try {
+    seedPrivacy()
+    const markup = renderSettings()
+    for (const field of ['warnDaily', 'warnMonthly']) {
+      const label = tr('privacy.applyTo', { action: EN()['privacy.apply'], field: EN()['privacy.' + field] })
+      assert.ok(markup.includes('aria-label="' + escapeHtml(label) + '"'), field + ' names its own row')
+    }
+    assert.equal(dicts.zh['privacy.applyTo'].includes(':'), false, 'zh never separates with a half-width colon')
+    assert.ok(dicts.zh['privacy.applyTo'].includes('：'), 'it uses the full-width one the rest of the block uses')
   } finally {
     resetPrivacy()
   }
