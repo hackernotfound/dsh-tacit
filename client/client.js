@@ -221,6 +221,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'status.failed': '失败',
       'status.ok': '成功',
       'status.unmetered': '未计量',
+      'status.running': '进行中',
       'attempt.effort': '推理强度 {effort}',
       'attempt.finish': '结束 {finish} {code}',
       'attempt.source': '{source} · {tier}',
@@ -465,6 +466,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'status.failed': 'failed',
       'status.ok': 'ok',
       'status.unmetered': 'unmetered',
+      'status.running': 'running',
       'attempt.effort': 'effort {effort}',
       'attempt.finish': 'finish {finish} {code}',
       'attempt.source': '{source} · {tier}',
@@ -728,6 +730,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       const source = run !== null && typeof run === 'object' ? run : {}
       const count = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
       const totals = {
+        // `attempts` rides along so a run whose every call went unmetered
+        // reads as an unknown cost rather than a free one.
+        attempts: count(source.attempts),
         billedCalls: count(source.billedCalls),
         unpricedCalls: count(source.unpricedCalls),
         usdKnown: count(source.usdKnown),
@@ -1524,10 +1529,15 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     /**
      * Spend for one bucket of calls. A bucket that billed calls but priced
      * none of them says so — `$0.0000` would claim the calls were free, and an
-     * unmetered call is never `$0.00`. A genuinely idle bucket stays `$0.0000`.
+     * unmetered call is never `$0.00`. Same for a bucket that made calls and
+     * billed none of them: every call came back without usage, so its cost is
+     * unknown, not zero. A genuinely idle bucket (no attempts) stays `$0.0000`.
      */
     function usageSpend(kit, totals) {
-      if (totals.billedCalls > 0 && totals.unpricedCalls >= totals.billedCalls) return kit.t('usage.priceUnavailable')
+      const attempts = usageNum(totals.attempts)
+      const billed = usageNum(totals.billedCalls)
+      if (billed > 0 && usageNum(totals.unpricedCalls) >= billed) return kit.t('usage.priceUnavailable')
+      if (attempts > 0 && billed === 0) return kit.t('usage.priceUnavailable')
       return fmtUsd(totals.usdKnown)
     }
 
@@ -3276,7 +3286,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-run-toggle{width:100%;text-align:left}'
       + '.tacit-usage-attempts{border-top:1px dashed var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);padding:6px 8px}.tacit-usage-attempts-cell{display:flex;flex-direction:column;gap:4px}'
       + '.tacit-attempt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-primary)}.tacit-attempt-meta,.tacit-attempt-tokens{color:var(--dsw-alias-label-secondary)}.tacit-attempt-usd{margin-left:auto;font-variant-numeric:tabular-nums}'
-      + '.tacit-status-success,.tacit-status-ok{color:var(--dsw-alias-state-success-primary)}.tacit-status-partial,.tacit-status-unmetered{color:var(--dsw-alias-state-warn-primary)}.tacit-status-failed{color:var(--dsw-alias-state-error-primary)}'
+      + '.tacit-status-success,.tacit-status-ok{color:var(--dsw-alias-state-success-primary)}.tacit-status-partial,.tacit-status-unmetered{color:var(--dsw-alias-state-warn-primary)}.tacit-status-failed{color:var(--dsw-alias-state-error-primary)}.tacit-status-running{color:var(--dsw-alias-label-secondary)}'
       + '.tacit-pager{display:flex;align-items:center;gap:8px}.tacit-pager-label{font-size:11px;color:var(--dsw-alias-label-secondary)}'
       + '.tacit-pricing{display:flex;flex-direction:column;gap:8px}'
       + '.tacit-pricing-table{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden}'

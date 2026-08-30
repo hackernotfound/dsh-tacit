@@ -92,7 +92,7 @@
       + '.tacit-run-toggle{width:100%;text-align:left}'
       + '.tacit-usage-attempts{border-top:1px dashed var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);padding:6px 8px}.tacit-usage-attempts-cell{display:flex;flex-direction:column;gap:4px}'
       + '.tacit-attempt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-primary)}.tacit-attempt-meta,.tacit-attempt-tokens{color:var(--dsw-alias-label-secondary)}.tacit-attempt-usd{margin-left:auto;font-variant-numeric:tabular-nums}'
-      + '.tacit-status-success,.tacit-status-ok{color:var(--dsw-alias-state-success-primary)}.tacit-status-partial,.tacit-status-unmetered{color:var(--dsw-alias-state-warn-primary)}.tacit-status-failed{color:var(--dsw-alias-state-error-primary)}'
+      + '.tacit-status-success,.tacit-status-ok{color:var(--dsw-alias-state-success-primary)}.tacit-status-partial,.tacit-status-unmetered{color:var(--dsw-alias-state-warn-primary)}.tacit-status-failed{color:var(--dsw-alias-state-error-primary)}.tacit-status-running{color:var(--dsw-alias-label-secondary)}'
       + '.tacit-pager{display:flex;align-items:center;gap:8px}.tacit-pager-label{font-size:11px;color:var(--dsw-alias-label-secondary)}'
       + '.tacit-pricing{display:flex;flex-direction:column;gap:8px}'
       + '.tacit-pricing-table{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden}'

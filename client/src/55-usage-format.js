@@ -32,10 +32,15 @@
     /**
      * Spend for one bucket of calls. A bucket that billed calls but priced
      * none of them says so — `$0.0000` would claim the calls were free, and an
-     * unmetered call is never `$0.00`. A genuinely idle bucket stays `$0.0000`.
+     * unmetered call is never `$0.00`. Same for a bucket that made calls and
+     * billed none of them: every call came back without usage, so its cost is
+     * unknown, not zero. A genuinely idle bucket (no attempts) stays `$0.0000`.
      */
     function usageSpend(kit, totals) {
-      if (totals.billedCalls > 0 && totals.unpricedCalls >= totals.billedCalls) return kit.t('usage.priceUnavailable')
+      const attempts = usageNum(totals.attempts)
+      const billed = usageNum(totals.billedCalls)
+      if (billed > 0 && usageNum(totals.unpricedCalls) >= billed) return kit.t('usage.priceUnavailable')
+      if (attempts > 0 && billed === 0) return kit.t('usage.priceUnavailable')
       return fmtUsd(totals.usdKnown)
     }
 

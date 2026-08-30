@@ -953,6 +953,17 @@ test('the runs table is a role=table with an expandable first cell and a pager',
   resetUsage()
 })
 
+test('a run still in flight is labelled, not left as a raw status key', () => {
+  const rootStore = seedUsage()
+  const live = { ...sampleRun, runId: 'run-live', status: 'running', endedAt: 0 }
+  rootStore.usage.runs = { items: [live, sampleRun], page: 1, pageSize: 20, total: 2 }
+  const markup = renderSettings()
+  assert.ok(markup.includes('tacit-status-running'), 'the chip carries the running status')
+  assert.ok(markup.includes(EN()['status.running']), 'and its translated label')
+  assert.ok(!markup.includes('status.running'), 'never the bare dictionary key')
+  resetUsage()
+})
+
 test('an expanded run lists its attempts; a not-yet-fetched run says so', () => {
   const rootStore = seedUsage()
   rootStore.usageExpanded = new Set(['run-1'])
@@ -1256,6 +1267,13 @@ test('a result notice carries the measured figures of its run', () => {
   assert.ok(none.includes(EN()['usage.priceUnavailable']), 'an entirely unpriced run says so')
   assert.ok(!none.includes('$0.00'), 'and never claims it was free')
 
+  const unmetered = testKit.runNotice(tr, 'notice.analyze', { turn: 7 }, { ...run, attempts: 3, billedCalls: 0, unmeteredCalls: 3, unpricedCalls: 0, usdKnown: 0 })
+  assert.ok(unmetered.includes(EN()['usage.priceUnavailable']), 'a run whose every call went unmetered says so')
+  assert.ok(!unmetered.includes('$0.00'), 'and never prints $0.0000 for it')
+
+  const idle = testKit.runNotice(tr, 'notice.analyze', { turn: 7 }, { ...run, attempts: 0, billedCalls: 0, unmeteredCalls: 0, unpricedCalls: 0, usdKnown: 0 })
+  assert.ok(idle.includes('$0.0000'), 'a genuinely idle run stays honestly zero — got ' + idle)
+
   const rootStore = seedSettings()
   rootStore.notice = { text }
   assert.ok(renderSettings().includes('54,230'), 'the notice renders with its figures')
@@ -1335,6 +1353,7 @@ test('the stylesheet carries the usage dashboard rules', () => {
   assert.match(sheet, /\.tacit-bars\{width:100%;height:48px\}/)
   assert.match(sheet, /\.tacit-visually-hidden\{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect\(0 0 0 0\);white-space:nowrap\}/)
   assert.match(sheet, /\.tacit-usage-row\{display:grid;grid-template-columns:/)
+  assert.match(sheet, /\.tacit-status-running\{[^}]*var\(--dsw-/)
   assert.match(sheet, /\.tacit-warn-warn\{[^}]*--dsw-alias-state-warn-primary/)
   assert.match(sheet, /\.tacit-warn-exceeded\{[^}]*--dsw-alias-state-error-primary/)
   assert.match(sheet, /@media \(max-width:640px\)\{[\s\S]*?\.tacit-usage-row\{display:flex;flex-direction:column\}/)

@@ -105,6 +105,9 @@
       const source = run !== null && typeof run === 'object' ? run : {}
       const count = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
       const totals = {
+        // `attempts` rides along so a run whose every call went unmetered
+        // reads as an unknown cost rather than a free one.
+        attempts: count(source.attempts),
         billedCalls: count(source.billedCalls),
         unpricedCalls: count(source.unpricedCalls),
         usdKnown: count(source.usdKnown),
