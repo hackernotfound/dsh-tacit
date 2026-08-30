@@ -50,7 +50,7 @@ Vanilla `React.createElement` via `window.__ModuleLoader__`; locale namespace
 `dsh-tacit`, zh and en dictionaries must have identical key sets (a test enforces it).
 
 **Slots unchanged.** The usage/cost dashboard (Usage and Pricing cards, the
-Data & Privacy card's retention/warning controls) is entirely new content
+Data & privacy card's retention/warning controls) is entirely new content
 inside the existing `settings.section` slot's own DOM — it registers no new
 slot and does not touch the four conversation-view slots above.
 

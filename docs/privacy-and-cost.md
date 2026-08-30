@@ -74,9 +74,10 @@ output tokens, never a separate quantity, so they are never billed twice.
 batch, one auto/manual/batch analysis, one ✨ Improve, one directive
 distillation, one style-rule distillation, one pre-send enrichment — and each
 underlying model call inside a run is an *attempt*. A run carries an id, its
-type, a trigger, start/end times, a derived status (`success` when every
-attempt billed, `partial` when some failed, `failed` when none did or it has
-no attempts, `running` while open), the session id and turn, the workspace
+type, a trigger, start/end times, a derived status — `success` when no
+attempt failed (an unmetered attempt still counts as not failed), `partial`
+when some attempts failed, `failed` when every attempt failed or there are no
+attempts, `running` while open — the session id and turn, the workspace
 **label** (never the path), the model/provider and its list of attempts. An
 attempt carries an id, the op (`analysis`, `analysis-repair`,
 `directive-distillation`, `style-distillation`, `improve`, `improve-repair`,
@@ -91,9 +92,11 @@ call's own start time, in this order:
 
 1. [`dsh-cost-meter`](https://www.npmjs.com/package/dsh-cost-meter)'s own
    **model** rates for that model, when the call went through an official
-   DeepSeek route — tiered off-peak/peak the same way as the bundled table,
-   using `dsh-cost-meter`'s own peak windows/effective-at/weekend setting if
-   it supplies them.
+   DeepSeek route — tiered off-peak/peak using `dsh-cost-meter`'s own peak
+   windows / effective-at / peak-enabled flag when it supplies them, with
+   Tacit's own Beijing-weekend rule always applied on top (see *Tiers*
+   below) — `dsh-cost-meter` has no such rule of its own, which is exactly
+   why the two plugins' figures can differ on a weekend (Known limitations).
 2. `dsh-cost-meter`'s **provider** rates for that provider + model, when the
    above did not match — a flat rate, no tier, so a proxy or custom route can
    still be priced when the meter knows its rate card.

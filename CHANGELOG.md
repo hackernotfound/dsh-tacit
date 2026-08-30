@@ -19,7 +19,7 @@
   a paginated, expandable run list. New Pricing card: the list-price rate
   table for both models, the tier in force right now, the price source and a
   manual *Refresh prices*.
-- New Data & Privacy card: what a usage record holds, a retention selector
+- New Data & privacy card: what a usage record holds, a retention selector
   (7/14/30/90/180/365 days), the two spend-warning thresholds (warns at 80 %,
   marks exceeded above the limit), and a confirm-dialog-gated *Clear usage
   history* alongside *Clear all analysis reports*. *Learn from my last 20

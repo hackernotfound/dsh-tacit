@@ -64,7 +64,7 @@ winning over YAML until you change it again in the UI (patch keys are never remo
   (`limit`, 1–50), not a setting; the UI always sends 20.
 - **The retention selector only offers 7 / 14 / 30 / 90 / 180 / 365 days.** A
   `costHistoryDays` set to another value inside 7–365 (e.g. via YAML) stays in
-  effect, but the Data & Privacy card's selector shows 30 until you pick one
+  effect, but the Data & privacy card's selector shows 30 until you pick one
   of its own options, which then overwrites it.
 - Changing `steerAgent` or any directive affects **new conversations only** — see
   [How it works §7](how-it-works.md#7-steering-section).
