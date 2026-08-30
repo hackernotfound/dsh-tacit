@@ -64,7 +64,7 @@ All `POST`, JSON in / JSON out, on the harness web server (no extra port), body
 | `/api/tacit/state` | — | config, profile, `auto {today, budget}`, `steering {enabled, text}`, bootstrap progress |
 | `/api/tacit/reports` | `{sessionId}` | reports of that session keyed by turn |
 | `/api/tacit/history` | `{limit?}` (≤ 500) | latest reports across sessions |
-| `/api/tacit/analyze` | `{sessionId, turn}` | report + profile; codes `no-session`, `not-retained`, `continuation`, `busy`, `empty-response`, `timeout`, `no-api-key`, `rate-limited`, `call-failed` |
+| `/api/tacit/analyze` | `{sessionId, turn}` | report + profile; codes `no-session`, `not-retained`, `continuation`, `busy`, `empty-response`, `timeout`, `no-api-key`, `no-credit`, `rate-limited`, `call-failed` |
 | `/api/tacit/analyze-batch` | `{sessionId, turns}` (1–50 turns, deduped and sorted) | one `analysis-batch` run over the picked turns: `results [{turn, ok, code, report}]` (a turn already being analyzed reports `busy` and costs nothing), profile, run summary |
 | `/api/tacit/improve` | `{sessionId, draft}` | `improved`, `rationale`, `rewriteId`, `patternsUsed` |
 | `/api/tacit/applied` | `{sessionId, rewriteId}` | ok (starts free verification) |

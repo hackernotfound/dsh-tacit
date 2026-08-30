@@ -1700,6 +1700,9 @@ test('analyze: a provider failure never leaks a raw code into the envelope', asy
     // `_` is a word character, so a trailing \b after "quota" could never match here.
     ['an underscored quota code with no message', { kind: 'error', failure: { code: 'quota_exceeded', message: '' } }, 'rate-limited'],
     ['an upper-cased quota code', { kind: 'error', failure: { code: 'QUOTA_EXCEEDED', message: '' } }, 'rate-limited'],
+    ['an out-of-credit provider code', { kind: 'error', failure: { code: 'insufficient_quota', message: '' } }, 'no-credit'],
+    ['an out-of-balance message', { kind: 'error', failure: { code: 'ERROR', message: 'INSUFFICIENT_BALANCE' } }, 'no-credit'],
+    ['OpenAI-style quota exhaustion', { kind: 'error', failure: { code: 'ERROR', message: 'You exceeded your current quota, please check your plan and billing details.' } }, 'no-credit'],
     // "quota" as a prefix of a longer word is not a quota error.
     ['a message that merely starts a word with q-u-o-t-a', { kind: 'error', failure: { code: 'ERROR', message: 'quotation mismatch' } }, 'call-failed'],
   ]
