@@ -52,12 +52,12 @@ already configured in the harness (Tacit never reads it).
 | **Zero-click learning** | messy turns and your own corrections are analyzed in the background, with the previous turn as context; automatic analyses are capped per day (30 by default) | $0.001–0.003 each |
 | **Directives that earn their place** | learned directives are injected as a short system-prompt section you can read, edit, toggle or delete; a new one starts as a *candidate* and is retired if your messy-turn rate gets worse | free |
 | **✨ Improve** | a composer button that rewrites your current draft using what Tacit has learned, with a before/after preview and 👍/👎 | $0.001–0.002 per click |
-| **Measured, not guessed** | Settings shows your real trend — messy-turn rate and tokens per turn, first 20 turns vs. latest 20 | free |
+| **Measured, not guessed** | Settings shows your real trend — messy-turn rate and tokens per turn, first 20 turns vs. latest 20 — and Tacit's own spend: every call metered and priced at list price, shown in Settings | free |
 
 <p align="center">
   <img alt="Tacit settings with automatic learning controls and an editable active directive" src="https://raw.githubusercontent.com/hackernotfound/dsh-tacit/main/docs/assets/tacit-settings.png" width="960">
 </p>
-<p align="center"><sub>Settings → Tacit, captured from a clean local profile with a synthetic example directive.</sub></p>
+<p align="center"><sub>Settings → Tacit, captured from a clean local profile with a synthetic example directive. (Predates the eight-card layout and the usage/cost dashboard — pending a recapture.)</sub></p>
 
 ## How it works
 
@@ -80,7 +80,7 @@ Tacit never sees your API key (every call goes through the harness's own model
 service), only calls the allowlisted official models over your session's own
 provider route, keeps reports and directives in `~/.dsh/storages/tacit/`, refuses
 cross-site requests to its own routes, and never deletes anything but its own
-reports. Dollar figures are estimates at list price; a cost plugin such as
+reports and expired usage files. Dollar figures are estimates at list price; a cost plugin such as
 `dsh-cost-meter` shows the real number. The full data-flow and cost tables, and
 the honest list of limitations:
 [Privacy, cost & limitations](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/privacy-and-cost.md).

@@ -5,20 +5,46 @@
     }
 
     /** "Learned from N prompts · Auto-learning on · x/y today" status card. */
-    /** "Learn from my last 20 turns" — spinner label while a bootstrap runs. */
-    function BootstrapButton(kit, { bootstrap, onClick }) {
+    /**
+     * "Learn from my last 20 turns" — while a bootstrap runs the label counts
+     * the turns and what the batch has cost so far.
+     *
+     * The service ships `usdKnown: 0` from the first tick, so the money is
+     * gated on a billed call, not on the field being present: before that the
+     * label carries no figure at all, and a batch whose billed calls all came
+     * back unpriced says so through `usageSpend` rather than claiming `$0.0000`.
+     */
+    function BootstrapButton(kit, { bootstrap, onClick, disabled }) {
       const { t } = kit
       const running = bootstrap !== null && bootstrap !== undefined && typeof bootstrap === 'object' && bootstrap.running === true
+      const progress = running
+        ? {
+          done: String(typeof bootstrap.done === 'number' ? bootstrap.done : 0),
+          total: String(typeof bootstrap.total === 'number' ? bootstrap.total : 0),
+        }
+        : null
+      const billed = running ? usageNum(bootstrap.billedCalls) : 0
+      const label = () => {
+        if (!running) return t('bootstrap.btn')
+        if (billed === 0) return t('bootstrap.running', progress)
+        return t('bootstrap.runningUsd', {
+          ...progress,
+          usd: usageSpend(kit, {
+            billedCalls: billed,
+            unpricedCalls: usageNum(bootstrap.unpricedCalls),
+            usdKnown: usageNum(bootstrap.usdKnown),
+          }),
+        })
+      }
       return h('span', { className: 'tacit-bootstrap' },
         h('button', {
           type: 'button',
           className: 'tacit-btn tacit-btn-sm',
-          disabled: running,
+          // Also disabled when the caller knows there is nothing eligible left.
+          disabled: running || disabled === true,
           title: t('bootstrap.hint'),
           onClick,
-        }, running
-          ? t('bootstrap.running', { done: String(typeof bootstrap.done === 'number' ? bootstrap.done : 0), total: String(typeof bootstrap.total === 'number' ? bootstrap.total : 0) })
-          : t('bootstrap.btn')))
+        }, label()))
     }
 
     function pct(value) {
@@ -315,6 +341,14 @@
           error !== null && typeof error === 'object'
             ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
             : null,
+          // Analyze and Improve report what they cost here. Always mounted and
+          // empty when idle: a live region that appears together with its text
+          // is missed by screen readers. The settings clear notice carries a
+          // code and a count instead of text, and stays this panel's business.
+          h('div', { className: 'tacit-settings-notice', role: 'status' },
+            store.notice !== null && typeof store.notice === 'object' && typeof store.notice.text === 'string'
+              ? store.notice.text
+              : ''),
           turns.length === 0
             ? h('div', { className: 'tacit-empty' }, t('empty'))
             : h('div', null,

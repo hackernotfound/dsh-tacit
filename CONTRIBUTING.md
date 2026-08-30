@@ -104,11 +104,16 @@ gh pr create        # or open the PR from your fork on github.com
   All model calls go through `ctx.llm.stream`; the model is allowlisted in
   `lib/schema.js`.
 - **Cost is a feature.** Every call must use `reasoningEffort: 'low'` with a
-  tool schema and pass the `sessionId` so cost meters can attribute it; new
+  tool schema and pass the `sessionId` so cost meters can attribute it, and
+  wrap the call with `metered()` so it lands in the usage ledger; new
   *automatic* calls should be capped (see `autoDailyBudget`). Add any new call to
   the cost table in [docs/privacy-and-cost.md](docs/privacy-and-cost.md#cost).
-- **Don't delete user data.** The only deletion path is "Clear all analysis
-  reports" in Settings.
+- **Don't delete user data.** There are exactly two deletion paths, both
+  restricted to Tacit's own files: analysis reports
+  (`reports/<session>/<turn>.json`), via "Clear all analysis reports" in
+  Settings; and usage day files (`usage/<YYYY-MM-DD>.json`) older than
+  `costHistoryDays`, or all of them via `clearUsage()`. Nothing else on disk
+  is ever touched, and neither directory is ever removed.
 
 ## Where things live
 

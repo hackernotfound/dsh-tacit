@@ -9,6 +9,30 @@
       trend: null, // measured early-vs-recent trend
       bootstrap: null, // {running, done, total}
       coached: [], // cross-session coached-prompt entries
+      // Which Settings cards are expanded. Open state lives here (not in React
+      // state) so it survives re-renders and is seedable from the SSR suite.
+      sections: {
+        overview: true,
+        usage: true,
+        pricing: false,
+        learning: false,
+        guidance: false,
+        improve: false,
+        history: false,
+        privacy: false,
+      },
+      notice: null, // {text} — a short-lived result line, cleared after 5s
+      // A destructive action waiting on its confirmation dialog:
+      // null | {kind:'reports'|'usage'}.
+      confirm: null,
+      preview: null, // the last /bootstrap-preview envelope
+      usage: null, // the last /usage envelope
+      usageFilters: { range: '30d', type: '', status: '', model: '', workspace: '', sessionId: '', page: 1, pageSize: 20 },
+      usageRuns: {}, // runId → the full run (attempts included), fetched on first expand
+      usageExpanded: new Set(), // runIds whose attempt rows are open
+      usageLoading: false,
+      usageSeries: '30', // '7' | '30' — which sparkline the strip shows
+      pricingRefreshing: false, // a /pricing-refresh call is in flight
       initStarted: false,
       initDone: false,
       error: null,
@@ -17,6 +41,217 @@
 
     function notifyRoot() {
       for (const listener of rootStore.listeners) listener()
+    }
+
+    /** Expand/collapse one Settings card; unknown ids are ignored. */
+    function toggleSection(id) {
+      const key = String(id)
+      if (rootStore.sections === null || typeof rootStore.sections !== 'object'
+        || typeof rootStore.sections[key] !== 'boolean') return
+      rootStore.sections[key] = !rootStore.sections[key]
+      notifyRoot()
+    }
+
+    let noticeTimer = null
+
+    /**
+     * Show one result line (e.g. "Bootstrap complete · 7 analyzed"). It clears
+     * itself after 5s; the timer is skipped where there is no scheduler (SSR).
+     */
+    function setRootNotice(text) {
+      rootStore.notice = typeof text === 'string' && text.length > 0 ? { text } : null
+      notifyRoot()
+      if (typeof setTimeout !== 'function' || rootStore.notice === null) return
+      if (noticeTimer !== null && typeof clearTimeout === 'function') clearTimeout(noticeTimer)
+      noticeTimer = setTimeout(() => {
+        noticeTimer = null
+        rootStore.notice = null
+        notifyRoot()
+      }, 5000)
+      unrefTimer(noticeTimer)
+    }
+
+    /**
+     * Node hands back a Timeout object that keeps the process alive; the
+     * browser hands back a number. Unref'ing where it exists means a test that
+     * merely touches one of these paths can never hold the runner open.
+     */
+    function unrefTimer(handle) {
+      if (handle !== null && typeof handle === 'object' && typeof handle.unref === 'function') handle.unref()
+    }
+
+    /**
+     * The bound translator, captured once when the plugin applies.
+     *
+     * A notice states what a call actually cost, so it is written where those
+     * figures land — inside the store actions. Those run far from any `kit`
+     * (a click in the conversation tab, a poll), and there is exactly one
+     * translator per plugin instance, so it is held here rather than threaded
+     * through every call site.
+     */
+    let translate = null
+
+    function setTranslator(fn) {
+      translate = typeof fn === 'function' ? fn : null
+    }
+
+    /**
+     * A result line with the run's measured figures: billed calls, total
+     * tokens and list-price cost. A run that priced nothing says so instead of
+     * claiming `$0.0000`, and the count of unpriced calls rides as a suffix —
+     * an unmetered call has no price, not a price of zero.
+     */
+    function runNotice(t, key, vars, run) {
+      const source = run !== null && typeof run === 'object' ? run : {}
+      const count = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
+      const totals = {
+        // `attempts` rides along so a run whose every call went unmetered
+        // reads as an unknown cost rather than a free one.
+        attempts: count(source.attempts),
+        billedCalls: count(source.billedCalls),
+        unpricedCalls: count(source.unpricedCalls),
+        usdKnown: count(source.usdKnown),
+      }
+      const text = t(key, {
+        ...(vars === null || typeof vars !== 'object' ? {} : vars),
+        calls: fmtTokens(totals.billedCalls),
+        tokens: fmtTokens(tokensTotal(source.tokens)),
+        usd: usageSpend({ t }, totals),
+      })
+      return totals.unpricedCalls > 0 ? text + t('notice.unpriced', { n: String(totals.unpricedCalls) }) : text
+    }
+
+    /**
+     * Record a run's result line on a session store, where the conversation
+     * tab's live region reads it. It stays on that store: a tab action has no
+     * business announcing itself on the Settings page.
+     */
+    function setStoreNotice(store, key, vars, run) {
+      if (translate === null || store === null || typeof store !== 'object') return
+      store.notice = { code: key, text: runNotice(translate, key, vars, run) }
+    }
+
+    // ── Usage ledger (the Settings → Usage card) ───────────────────────────
+
+    /** The filter payload for `/usage`: defaults always, empty strings never. */
+    function usageQuery() {
+      const filters = rootStore.usageFilters !== null && typeof rootStore.usageFilters === 'object' ? rootStore.usageFilters : {}
+      const query = {
+        range: typeof filters.range === 'string' && filters.range.length > 0 ? filters.range : '30d',
+        page: typeof filters.page === 'number' && filters.page > 0 ? Math.floor(filters.page) : 1,
+        pageSize: typeof filters.pageSize === 'number' && filters.pageSize > 0 ? Math.floor(filters.pageSize) : 20,
+      }
+      for (const key of ['type', 'status', 'model', 'workspace', 'sessionId']) {
+        const value = filters[key]
+        if (typeof value === 'string' && value.length > 0) query[key] = value
+      }
+      return query
+    }
+
+    /** Read the whole cost panel in one call; a failure keeps the last envelope. */
+    async function fetchUsage() {
+      rootStore.usageLoading = true
+      try {
+        const result = await api('/usage', usageQuery())
+        if (result !== null && typeof result === 'object' && result.ok === true) rootStore.usage = result
+      } catch {
+        // A stale panel beats a blank one; the next poll tries again.
+      }
+      rootStore.usageLoading = false
+      notifyRoot()
+    }
+
+    /** Narrow the runs list. Any change but an explicit page jump goes back to page 1. */
+    function setUsageFilter(patch) {
+      if (patch === null || typeof patch !== 'object') return
+      const next = { ...rootStore.usageFilters, ...patch }
+      if (patch.page === undefined) next.page = 1
+      rootStore.usageFilters = next
+      notifyRoot()
+      fetchUsage()
+    }
+
+    /** Open/close one run's attempt rows, fetching its detail the first time. */
+    async function toggleUsageRun(runId) {
+      const key = String(runId)
+      if (key.length === 0) return
+      if (rootStore.usageExpanded.has(key)) {
+        rootStore.usageExpanded.delete(key)
+        notifyRoot()
+        return
+      }
+      rootStore.usageExpanded.add(key)
+      notifyRoot()
+      if (rootStore.usageRuns[key] !== undefined) return
+      try {
+        const result = await api('/usage-run', { runId: key })
+        if (result !== null && typeof result === 'object' && result.ok === true
+          && result.run !== null && typeof result.run === 'object') {
+          rootStore.usageRuns[key] = result.run
+        }
+      } catch {
+        // The row keeps its loading line; closing and reopening retries.
+      }
+      notifyRoot()
+    }
+
+    /**
+     * Re-read the prices from the cost-meter service. The card renders the
+     * rates the `/usage` envelope carries, so the refreshed table only shows
+     * once that envelope has been re-fetched.
+     */
+    async function refreshPricing(t) {
+      if (rootStore.pricingRefreshing) return
+      rootStore.pricingRefreshing = true
+      rootStore.error = null
+      notifyRoot()
+      try {
+        const result = await api('/pricing-refresh', {})
+        if (result !== null && typeof result === 'object' && result.ok === true) {
+          const pricing = result.pricing !== null && typeof result.pricing === 'object' ? result.pricing : {}
+          if (typeof t === 'function') {
+            setRootNotice(t('notice.pricingRefreshed', {
+              source: t(pricing.source === 'costMeter' ? 'pricing.sourceCostMeter' : 'pricing.sourceBundled'),
+              asOf: typeof pricing.asOf === 'string' && pricing.asOf.length > 0 ? pricing.asOf : '—',
+            }))
+          }
+        } else {
+          rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed', detail: '' }
+        }
+      } catch (error) {
+        rootStore.error = errorOf(error)
+      } finally {
+        rootStore.pricingRefreshing = false
+      }
+      await fetchUsage()
+    }
+
+    /** Which sparkline the bar strip shows; anything unknown means 30 days. */
+    function setUsageSeries(value) {
+      rootStore.usageSeries = value === '7' ? '7' : '30'
+      notifyRoot()
+    }
+
+    /** One shared 10s poll, reference-counted so remounts never stack timers. */
+    let usageTimer = null
+    let usageMounts = 0
+
+    function startUsagePolling() {
+      usageMounts += 1
+      if (usageTimer !== null || typeof setInterval !== 'function') return
+      usageTimer = setInterval(() => {
+        // A hidden tab costs nothing: the next visible tick catches up.
+        if (typeof document !== 'undefined' && document !== null && document.hidden === true) return
+        fetchUsage()
+      }, 10000)
+      unrefTimer(usageTimer)
+    }
+
+    function stopUsagePolling() {
+      usageMounts = usageMounts > 0 ? usageMounts - 1 : 0
+      if (usageMounts > 0 || usageTimer === null) return
+      if (typeof clearInterval === 'function') clearInterval(usageTimer)
+      usageTimer = null
     }
 
     function useRootVersion() {
@@ -57,6 +292,7 @@
         rootStore.error = errorOf(error)
         rootStore.initDone = true
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -75,6 +311,7 @@
       } catch {
         // Stale view beats a broken panel.
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -93,6 +330,8 @@
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      // The warning thresholds live in the config, so the bars may have moved.
+      fetchUsage()
       notifyRoot()
     }
 
@@ -107,6 +346,78 @@
         }
       } catch (error) {
         rootStore.error = errorOf(error)
+      }
+      fetchUsage()
+      // Turns without a report are eligible again, so a preview that last read
+      // `eligible: 0` would otherwise keep the Bootstrap button disabled.
+      await fetchBootstrapPreview()
+      notifyRoot()
+    }
+
+    /**
+     * Delete the usage ledger and restart the tracking window. The runs the
+     * panel had expanded are dropped with it — their ids no longer exist.
+     */
+    async function clearUsageHistory() {
+      rootStore.error = null
+      try {
+        const result = await api('/usage-clear', {})
+        if (result !== null && typeof result === 'object' && result.ok) {
+          rootStore.usageRuns = {}
+          rootStore.usageExpanded = new Set()
+          rootStore.usageFilters = { ...rootStore.usageFilters, page: 1 }
+          if (translate !== null) setRootNotice(translate('notice.usageCleared', { n: fmtTokens(usageNum(result.removed)) }))
+        } else {
+          rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
+        }
+      } catch (error) {
+        rootStore.error = errorOf(error)
+      }
+      await fetchUsage()
+      // The measured basis of the bootstrap estimate came from the ledger this
+      // just deleted; re-price it rather than quoting figures that are gone.
+      await fetchBootstrapPreview()
+      notifyRoot()
+    }
+
+    /**
+     * Ask before deleting. The two clears are the only irreversible actions in
+     * the panel, so neither fires straight off a click: the kind is parked here
+     * and the dialog does the asking.
+     */
+    function openConfirm(kind) {
+      if (kind !== 'reports' && kind !== 'usage') return
+      // Captured before the dialog steals focus, so closing it can hand focus
+      // back to the button that opened it.
+      captureConfirmOpener()
+      rootStore.confirm = { kind }
+      notifyRoot()
+    }
+
+    function closeConfirm() {
+      rootStore.confirm = null
+      notifyRoot()
+    }
+
+    /** Run the parked destructive action, whichever it is, and close the dialog. */
+    async function confirmAction() {
+      const kind = rootStore.confirm !== null && typeof rootStore.confirm === 'object' ? rootStore.confirm.kind : null
+      rootStore.confirm = null
+      notifyRoot()
+      if (kind === 'reports') await clearAllRoot()
+      else if (kind === 'usage') await clearUsageHistory()
+    }
+
+    /**
+     * "What would Bootstrap do, and what would it cost?" — read-only, no model
+     * call. A failure leaves `preview` alone: the documented estimate stands in.
+     */
+    async function fetchBootstrapPreview() {
+      try {
+        const result = await api('/bootstrap-preview', { limit: 20 })
+        if (result !== null && typeof result === 'object' && result.ok === true) rootStore.preview = result
+      } catch {
+        // One missing hint line; the next mount tries again.
       }
       notifyRoot()
     }
@@ -154,10 +465,12 @@
       notify(store)
     }
 
-    async function bootstrapAll() {
+    /** `t` is the caller's bound translator, used only for the result notice. */
+    async function bootstrapAll(t) {
       if (rootStore.bootstrap !== null && typeof rootStore.bootstrap === 'object' && rootStore.bootstrap.running) return
       rootStore.bootstrap = { running: true, done: 0, total: 0 }
       rootStore.error = null
+      rootStore.notice = null
       notifyRoot()
       pollBootstrap((state) => {
         if (state !== null && typeof state === 'object' && state.bootstrap !== null && typeof state.bootstrap === 'object') rootStore.bootstrap = state.bootstrap
@@ -165,7 +478,14 @@
       })
       try {
         const result = await api('/bootstrap', { limit: 20 })
-        if (!(result !== null && typeof result === 'object' && result.ok)) {
+        if (result !== null && typeof result === 'object' && result.ok) {
+          if (typeof t === 'function') {
+            setRootNotice(runNotice(t, 'notice.bootstrap', {
+              analyzed: String(typeof result.analyzed === 'number' ? result.analyzed : 0),
+              skipped: String(typeof result.skipped === 'number' ? result.skipped : 0),
+            }, result.run))
+          }
+        } else {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed', detail: '' }
         }
       } catch (error) {
@@ -173,7 +493,13 @@
       }
       rootStore.initStarted = false
       rootStore.initDone = false
+      // `initRootStore` refetches the ledger itself, so there is no `fetchUsage`
+      // here: a second call would only duplicate the one the batch already
+      // makes worth issuing.
       await initRootStore()
+      // Fewer turns are eligible now, and the ledger has fresh measurements to
+      // price the next batch from.
+      await fetchBootstrapPreview()
     }
 
     async function editDirectives(payload) {
@@ -189,6 +515,7 @@
       } catch (error) {
         rootStore.error = errorOf(error)
       }
+      fetchUsage()
       notifyRoot()
     }
 
@@ -220,12 +547,15 @@
       store.inFlight[String(turn)] = true
       store.expanded.add(turn)
       store.error = null
+      store.notice = null
       notify(store)
       api('/analyze', { sessionId: store.sessionId, turn })
         .then((result) => {
           if (result !== null && typeof result === 'object' && result.ok && result.report !== null && typeof result.report === 'object') {
             store.reports[String(turn)] = result.report
             store.error = null
+            // What that one analysis cost, from the envelope's own run record.
+            setStoreNotice(store, 'notice.analyze', { turn: String(turn) }, result.run)
           } else {
             store.error = {
               code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
@@ -245,54 +575,68 @@
         })
     }
 
-    /** Run one /analyze call and settle when it finishes (batch building block). */
-    function analyzeTurnAsync(store, turn) {
-      return new Promise((resolve) => {
-        store.inFlight[String(turn)] = true
-        notify(store)
-        api('/analyze', { sessionId: store.sessionId, turn })
-          .then((result) => {
-            if (result !== null && typeof result === 'object' && result.ok && result.report !== null && typeof result.report === 'object') {
-              store.reports[String(turn)] = result.report
-              store.selection.delete(turn)
-              store.expanded.add(turn)
-              store.error = null
-            } else {
-              store.error = {
-                code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
-                detail: result !== null && typeof result === 'object' && typeof result.detail === 'string' ? result.detail : '',
-              }
-            }
-            if (result !== null && typeof result === 'object' && result.profile !== null && typeof result.profile === 'object') {
-              store.profile = result.profile
-            }
-          })
-          .catch((error) => {
-            store.error = errorOf(error)
-          })
-          .finally(() => {
-            delete store.inFlight[String(turn)]
-            notify(store)
-            resolve()
-          })
-      })
-    }
-
-    /** Coach every ticked prompt sequentially (the user-chosen 20). */
+    /**
+     * Coach every ticked prompt in ONE `/analyze-batch` call.
+     *
+     * The host runs the whole selection under a single ledger run, so the tab
+     * reports one price for the batch instead of N separate analyses — and the
+     * turns settle together rather than one row at a time.
+     */
     async function coachSelected(store) {
       if (store.batchRunning) return
       const turns = [...store.selection].sort((a, b) => a - b)
       if (turns.length === 0) return
       store.batchRunning = true
       store.error = null
+      store.notice = null
+      // Every ticked row shows its spinner for the whole call: the batch has no
+      // per-turn progress to report.
+      for (const turn of turns) store.inFlight[String(turn)] = true
       notify(store)
-      for (const turn of turns) {
-        if (store.inFlight[String(turn)]) continue
-        await analyzeTurnAsync(store, turn)
+      try {
+        const result = await api('/analyze-batch', { sessionId: store.sessionId, turns })
+        if (result !== null && typeof result === 'object' && result.ok) {
+          const results = Array.isArray(result.results) ? result.results : []
+          let analyzed = 0
+          let failure = null
+          for (const entry of results) {
+            if (entry === null || typeof entry !== 'object') continue
+            const turn = typeof entry.turn === 'number' ? entry.turn : null
+            if (entry.ok === true && entry.report !== null && typeof entry.report === 'object') {
+              if (turn !== null) {
+                store.reports[String(turn)] = entry.report
+                store.expanded.add(turn)
+              }
+              analyzed += 1
+              continue
+            }
+            // `busy` means an analysis of that turn was already running — a
+            // race with the auto-analyzer, not a failure of this batch.
+            const code = typeof entry.code === 'string' && entry.code.length > 0 ? entry.code : 'call-failed'
+            if (failure === null && code !== 'busy') failure = { code, detail: '' }
+          }
+          if (failure !== null) store.error = failure
+          if (result.profile !== null && typeof result.profile === 'object') store.profile = result.profile
+          // What the whole batch cost, from the run the host closed for it.
+          setStoreNotice(store, 'notice.batch', { analyzed: String(analyzed), requested: String(turns.length) }, result.run)
+        } else {
+          store.error = {
+            code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
+            detail: result !== null && typeof result === 'object' && typeof result.detail === 'string' ? result.detail : '',
+          }
+        }
+      } catch (error) {
+        store.error = errorOf(error)
       }
+      for (const turn of turns) delete store.inFlight[String(turn)]
+      store.selection.clear()
       store.batchRunning = false
       store.selecting = false
       notify(store)
+      // The batch just spent money, and analyzed turns stop being eligible for
+      // a bootstrap; the Settings page should say both.
+      fetchUsage()
+      fetchBootstrapPreview()
     }
 
     function toggleSelecting(store) {
@@ -310,11 +654,13 @@
     function improveDraft(store, draft) {
       if (store.preview.open || typeof draft !== 'string' || draft.trim().length === 0) return
       store.preview = { open: true, pending: true, original: draft, data: null, error: null }
+      store.notice = null
       notify(store)
       api('/improve', { sessionId: store.sessionId, draft })
         .then((result) => {
           if (result !== null && typeof result === 'object' && result.ok && typeof result.improved === 'string' && result.improved.trim().length > 0) {
             store.preview = { ...store.preview, pending: false, data: result }
+            setStoreNotice(store, 'notice.improve', {}, result.run)
           } else {
             store.preview = {
               ...store.preview,

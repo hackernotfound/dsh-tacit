@@ -99,6 +99,26 @@
       }
     }
 
+    /** Days offered by the retention select; the host clamps to 7–365 anyway. */
+    const RETENTION_DAYS = [7, 14, 30, 90, 180, 365]
+
+    /**
+     * The `/bootstrap-preview` envelope, narrowed. `null` for anything that is
+     * not a successful preview, so the Overview card falls back to the
+     * documented estimate rather than pricing an envelope it cannot read.
+     */
+    function previewOf(value) {
+      if (value === null || typeof value !== 'object' || value.ok !== true) return null
+      if (typeof value.eligible !== 'number' || !Number.isFinite(value.eligible)) return null
+      const estimate = value.estimate !== null && typeof value.estimate === 'object' ? value.estimate : {}
+      return {
+        eligible: Math.max(0, Math.floor(value.eligible)),
+        usd: typeof estimate.usd === 'number' && Number.isFinite(estimate.usd) ? estimate.usd : null,
+        basis: estimate.basis === 'measured' ? 'measured' : 'doc',
+        samples: typeof estimate.samples === 'number' && Number.isFinite(estimate.samples) ? Math.max(0, Math.floor(estimate.samples)) : 0,
+      }
+    }
+
     function CoachPanel(kit) {
       const { t, fmtTime } = kit
       const DirectivesEditorView = DirectivesEditor(kit)
@@ -115,6 +135,12 @@
         const [auto, setAuto] = useState(config !== null && config.autoAnalyze !== false)
         const [learnGood, setLearnGood] = useState(config !== null && config.learnFromGood !== false)
         const [live, setLive] = useState(config !== null && config.liveSuggestions !== false)
+        // The two USD thresholds follow the budget field's text-state + Apply
+        // pattern: money is typed a character at a time, and clamping mid-typing
+        // fights the user. `0` is a real value here (the warning off), so the
+        // fallback is `??`, never `||`.
+        const [dailyText, setDailyText] = useState(config !== null && typeof config.costWarnDailyUsd === 'number' ? String(config.costWarnDailyUsd) : '0')
+        const [monthlyText, setMonthlyText] = useState(config !== null && typeof config.costWarnMonthlyUsd === 'number' ? String(config.costWarnMonthlyUsd) : '0')
 
         useEffect(() => {
           if (config !== null) {
@@ -123,6 +149,8 @@
             if (typeof config.autoAnalyze === 'boolean') setAuto(config.autoAnalyze)
             if (typeof config.learnFromGood === 'boolean') setLearnGood(config.learnFromGood)
             if (typeof config.liveSuggestions === 'boolean') setLive(config.liveSuggestions)
+            if (typeof config.costWarnDailyUsd === 'number') setDailyText(String(config.costWarnDailyUsd))
+            if (typeof config.costWarnMonthlyUsd === 'number') setMonthlyText(String(config.costWarnMonthlyUsd))
           }
         }, [config])
 
@@ -150,6 +178,17 @@
           setLive(next)
           updateRootConfig({ liveSuggestions: next })
         }
+        /** One USD threshold: never negative, `0` = off, no rounding to whole dollars. */
+        const applyWarn = (key, text, setText) => {
+          const typed = String(text).trim()
+          // An empty field means "off". Anything that is not a number at all is
+          // a typo: silently writing 0 would turn a warning off behind the
+          // user's back, so the entry is left alone instead.
+          if (typed.length > 0 && !Number.isFinite(Number(typed))) return
+          const value = Math.max(0, typed.length === 0 ? 0 : Number(typed))
+          setText(String(value))
+          updateRootConfig({ [key]: value })
+        }
 
         const coached = Array.isArray(rootStore.coached) ? rootStore.coached : []
         const error = rootStore.error
@@ -160,13 +199,93 @@
           ? rootStore.profile.directives.filter((entry) => entry !== null && typeof entry === 'object' && typeof entry.id === 'string' && typeof entry.text === 'string')
           : []
 
+        const sections = rootStore.sections !== null && typeof rootStore.sections === 'object' ? rootStore.sections : {}
+        const notice = rootStore.notice !== null && typeof rootStore.notice === 'object' && typeof rootStore.notice.text === 'string'
+          ? rootStore.notice
+          : null
+        // Rates ride the /usage envelope, so the Pricing card reads them there
+        // rather than calling a route of its own on every render.
+        const usageReport = usageOf(rootStore.usage)
+        const usagePricing = usageReport === null ? null : usageReport.pricing
+        const preview = previewOf(rootStore.preview)
+        const confirm = rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'usage'
+          ? 'usage'
+          : (rootStore.confirm !== null && typeof rootStore.confirm === 'object' && rootStore.confirm.kind === 'reports' ? 'reports' : null)
+        const retention = config !== null && typeof config.costHistoryDays === 'number' && RETENTION_DAYS.includes(config.costHistoryDays)
+          ? config.costHistoryDays
+          : 30
+        /** Every card is titled by `card.<id>` and driven by `rootStore.sections`. */
+        const card = (id, children, extra) => SectionCard(kit, {
+          id,
+          title: t('card.' + id),
+          open: sections[id] === true,
+          onToggle: () => toggleSection(id),
+          children,
+          ...(extra !== undefined ? extra : {}),
+        })
+
         return h('div', { className: 'tacit-panel' },
-          StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
-          h('div', { className: 'tacit-settings-row' },
-            BootstrapButton(kit, { bootstrap: rootStore.bootstrap, onClick: () => bootstrapAll() }),
-            h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
-          h('div', { className: 'tacit-settings' },
-            h('div', { className: 'tacit-settings-title' }, t('settings.title')),
+          error !== null && typeof error === 'object'
+            ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
+            : null,
+          // Above the cards, and always mounted: a live region that appears
+          // together with its text is missed by screen readers, and one nested
+          // in the Overview body would be silent while that card is collapsed.
+          h('div', { className: 'tacit-settings-notice', role: 'status' }, notice === null ? '' : notice.text),
+          card('overview', [
+            StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
+            config !== null && typeof config.model === 'string' && config.model.length > 0
+              ? h('div', { className: 'tacit-settings-row' },
+                h('span', { className: 'tacit-chip' }, t('overview.model', { model: config.model })))
+              : null,
+            h('div', { className: 'tacit-settings-row' },
+              BootstrapButton(kit, {
+                bootstrap: rootStore.bootstrap,
+                // Only a loaded preview may disable the button: before one
+                // lands, "0 eligible" is an absence of data, not a fact.
+                disabled: preview !== null && preview.eligible === 0,
+                onClick: () => bootstrapAll(t),
+              }),
+              h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
+            // What the run would actually cost, priced from the ledger once it
+            // holds enough analyses; until the preview lands, the documented
+            // figure stands in.
+            preview === null
+              ? h('p', { className: 'tacit-panel-hint' }, t('bootstrap.estimateDoc'))
+              : h('p', { className: 'tacit-panel-hint' },
+                // An estimate the host could not price says so; `fmtUsd(null)`
+                // would read `$0.0000` and claim the run is free.
+                t('bootstrap.preview', {
+                  eligible: String(preview.eligible),
+                  usd: preview.usd === null ? t('usage.priceUnavailable') : fmtUsd(preview.usd),
+                }),
+                ' ',
+                preview.basis === 'measured'
+                  ? t('bootstrap.previewMeasured', { samples: String(preview.samples) })
+                  : t('bootstrap.previewDoc')),
+          ]),
+          card('usage', [
+            UsageCard(kit, {
+              usage: rootStore.usage,
+              config,
+              filters: rootStore.usageFilters,
+              series: rootStore.usageSeries,
+              expanded: rootStore.usageExpanded,
+              runs: rootStore.usageRuns,
+              onFilter: (patch) => setUsageFilter(patch),
+              onToggleRun: (runId) => toggleUsageRun(runId),
+              onSeries: (value) => setUsageSeries(value),
+            }),
+          ]),
+          card('pricing', [
+            PricingCard(kit, {
+              pricing: usagePricing,
+              open: sections.pricing === true,
+              refreshing: rootStore.pricingRefreshing === true,
+              onRefresh: () => refreshPricing(t),
+            }),
+          ], { summary: pricingSummary(kit, usagePricing) }),
+          card('learning', [
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.model')),
               h('select', {
@@ -192,39 +311,107 @@
                 onChange: (event) => setBudgetText(event.target.value),
               }),
               h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply'))),
+          ]),
+          card('guidance', [
+            h(DirectivesEditorView, {
+              workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering }),
+          ]),
+          card('improve', [
             h('div', { className: 'tacit-settings-row' },
               h('label', { className: 'tacit-settings-label' }, t('settings.live')),
               h('input', { type: 'checkbox', checked: live, onChange: toggleLive })),
+            h('div', { className: 'tacit-panel-section' },
+              h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
+              styleRules.length === 0
+                ? h('div', { className: 'tacit-empty' }, t('panel.styleRulesEmpty'))
+                : h('div', { className: 'tacit-rules-list' },
+                  styleRules.map((entry, index) => h('div', { key: 'rule-' + index, className: 'tacit-rule' }, String(entry.rule))))),
+            h('p', { className: 'tacit-panel-hint' }, t('improve.explain')),
+          ]),
+          card('history', [
+            h('div', { className: 'tacit-panel-section' },
+              h('div', { className: 'tacit-report-title' }, t('panel.coached')),
+              coached.length === 0
+                ? h('div', { className: 'tacit-empty' }, t('panel.coachedEmpty'))
+                : h('div', { className: 'tacit-coached-list' },
+                  coached.map((entry, index) => h('div', { key: 'c' + index, className: 'tacit-coached-row' },
+                    h('div', { className: 'tacit-coached-meta' },
+                      h('span', { className: 'tacit-coached-turn' }, (typeof entry.sessionLabel === 'string' && entry.sessionLabel.length > 0 ? entry.sessionLabel + ' · ' : '') + '# ' + String(entry.turn)),
+                      h('span', { className: 'tacit-coached-time' }, fmtTime(entry.time)),
+                      h('span', { className: 'tacit-chip tacit-coached-trigger' }, t('trigger.' + (entry.trigger === 'auto' || entry.trigger === 'correction' || entry.trigger === 'bootstrap' ? entry.trigger : 'manual')))),
+                    typeof entry.promptExcerpt === 'string' && entry.promptExcerpt.length > 0
+                      ? h('div', { className: 'tacit-coached-excerpt' }, entry.promptExcerpt)
+                      : null,
+                    typeof entry.improvedPrompt === 'string' && entry.improvedPrompt.length > 0
+                      ? h('div', { className: 'tacit-coached-improved' }, entry.improvedPrompt.slice(0, 240) + (entry.improvedPrompt.length > 240 ? '…' : ''))
+                      : null)))),
+            h('p', { className: 'tacit-panel-hint' }, t('panel.hint')),
+          ], { count: coached.length }),
+          card('privacy', [
+            h('p', { className: 'tacit-panel-hint' }, t('privacy.stored')),
             h('div', { className: 'tacit-settings-row' },
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => clearAllRoot() }, t('settings.clear')))),
-          error !== null && typeof error === 'object'
-            ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
-            : null,
-          h(DirectivesEditorView, {
-            workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering }),
-          h('div', { className: 'tacit-panel-section' },
-            h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
-            styleRules.length === 0
-              ? h('div', { className: 'tacit-empty' }, t('panel.styleRulesEmpty'))
-              : h('div', { className: 'tacit-rules-list' },
-                styleRules.map((entry, index) => h('div', { key: 'rule-' + index, className: 'tacit-rule' }, String(entry.rule))))),
-          h('div', { className: 'tacit-panel-section' },
-            h('div', { className: 'tacit-report-title' }, t('panel.coached')),
-            coached.length === 0
-              ? h('div', { className: 'tacit-empty' }, t('panel.coachedEmpty'))
-              : h('div', { className: 'tacit-coached-list' },
-                coached.map((entry, index) => h('div', { key: 'c' + index, className: 'tacit-coached-row' },
-                  h('div', { className: 'tacit-coached-meta' },
-                    h('span', { className: 'tacit-coached-turn' }, (typeof entry.sessionLabel === 'string' && entry.sessionLabel.length > 0 ? entry.sessionLabel + ' · ' : '') + '# ' + String(entry.turn)),
-                    h('span', { className: 'tacit-coached-time' }, fmtTime(entry.time)),
-                    h('span', { className: 'tacit-chip tacit-coached-trigger' }, t('trigger.' + (entry.trigger === 'auto' || entry.trigger === 'correction' || entry.trigger === 'bootstrap' ? entry.trigger : 'manual')))),
-                  typeof entry.promptExcerpt === 'string' && entry.promptExcerpt.length > 0
-                    ? h('div', { className: 'tacit-coached-excerpt' }, entry.promptExcerpt)
-                    : null,
-                  typeof entry.improvedPrompt === 'string' && entry.improvedPrompt.length > 0
-                    ? h('div', { className: 'tacit-coached-improved' }, entry.improvedPrompt.slice(0, 240) + (entry.improvedPrompt.length > 240 ? '…' : ''))
-                    : null)))),
-          h('div', { className: 'tacit-panel-hint' }, t('panel.hint')))
+              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-retention' }, t('privacy.retention')),
+              h('select', {
+                id: 'tacit-retention',
+                className: 'tacit-select',
+                value: String(retention),
+                onChange: (event) => updateRootConfig({ costHistoryDays: Number(event.target.value) }),
+              },
+              ...RETENTION_DAYS.map((days) => h('option', { key: days, value: String(days) }, String(days))))),
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-daily' }, t('privacy.warnDaily')),
+              h('input', {
+                id: 'tacit-warn-daily',
+                className: 'tacit-input',
+                type: 'number',
+                min: 0,
+                step: '0.01',
+                value: dailyText,
+                onChange: (event) => setDailyText(event.target.value),
+              }),
+              h('button', {
+                type: 'button',
+                className: 'tacit-btn tacit-btn-sm',
+                // Two identically labelled buttons in one card: the accessible
+                // name has to say which threshold each one applies.
+                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnDaily'),
+                onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
+              }, t('privacy.apply'))),
+            h('div', { className: 'tacit-settings-row' },
+              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-monthly' }, t('privacy.warnMonthly')),
+              h('input', {
+                id: 'tacit-warn-monthly',
+                className: 'tacit-input',
+                type: 'number',
+                min: 0,
+                step: '0.01',
+                value: monthlyText,
+                onChange: (event) => setMonthlyText(event.target.value),
+              }),
+              h('button', {
+                type: 'button',
+                className: 'tacit-btn tacit-btn-sm',
+                // Two identically labelled buttons in one card: the accessible
+                // name has to say which threshold each one applies.
+                'aria-label': t('privacy.apply') + ': ' + t('privacy.warnMonthly'),
+                onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
+              }, t('privacy.apply'))),
+            h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),
+            // Both clears are irreversible, so both go through the dialog.
+            h('div', { className: 'tacit-settings-row' },
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('reports') }, t('settings.clear')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('usage') }, t('privacy.clearUsage'))),
+          ]),
+          // Always rendered (null while closed) so its one effect keeps this
+          // component's hook count stable.
+          ConfirmDialog(kit, {
+            open: confirm !== null,
+            title: t(confirm === 'usage' ? 'confirm.usageTitle' : 'confirm.reportsTitle'),
+            body: t(confirm === 'usage' ? 'confirm.usageBody' : 'confirm.reportsBody'),
+            confirmLabel: t('confirm.clear'),
+            onConfirm: () => confirmAction(),
+            onCancel: () => closeConfirm(),
+          }))
       }
     }
 
@@ -236,6 +423,11 @@
           initRootStore()
           // Fresh read so freshly distilled style rules appear on open.
           refreshRootState()
+          // What a bootstrap would cost right now, priced from the ledger.
+          fetchBootstrapPreview()
+          // One shared 10s /usage poll while any Tacit settings page is mounted.
+          startUsagePolling()
+          return stopUsagePolling
         }, [])
         return h('div', { className: 'tacit-root' },
           h('div', { className: 'tacit-head' }, h('div', { className: 'tacit-head-title' }, t('panel.title'))),

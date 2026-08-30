@@ -69,9 +69,26 @@ The details, with the real numbers, are in [How it works](how-it-works.md).
 | Surface | What you see | What it does |
 | --- | --- | --- |
 | **Tacit tab** (conversation view) | one row per turn: tool calls, steps, tokens, retries; an *auto / correction / manual / bootstrap* badge on analyzed turns; the prompt; *Context added before the send* (only with `enrichPrompts`); the report | *Analyze* / *Re-analyze* one turn; *Select prompts…* → *Analyze selected*; *Learn from my last 20 turns* (this conversation); inline settings toggle |
-| **Settings → Tacit** | learned-from count, auto-learning status (today / cap), the measured trend (messy-turn rate and tokens per turn, first 20 turns vs. latest 20 — appears after 40 finished turns) | bootstrap (all conversations); analysis model (`deepseek-v4-flash` / `deepseek-v4-pro`); *Auto-analyze messy turns*; *Daily cap on automatic analyses*; *Enable the composer Improve button*; *Clear all analysis reports (every session)* |
-| **Settings → Tacit → What the agent is told about you** | every directive with its state chip (*trial 3/10*, *active*, *retired · reason*) and source chip (*yours* / *distilled*); *Learned style rules*; *Analyzed prompts* across conversations | toggle / remove / add directives; the *Inject learned directives into the system prompt* and *Add learned context before each send* switches; *Exact text injected* |
 | **Composer** | **✨ Improve prompt** button left of the input | rewrites your current draft using what Tacit has learned; before/after preview → *Apply*; then a *Was this better?* 👍/👎 strip (👎 asks for a one-line reason) |
+
+**Settings → Tacit** is eight collapsible cards — click a card's header to
+expand or collapse it:
+
+| Card | Holds |
+| --- | --- |
+| **Overview** | learned-from count, auto-learning status (today / cap), *Learn from my last 20 turns* (all conversations) with a live cost estimate, the measured trend (messy-turn rate and tokens per turn, first 20 turns vs. latest 20 — appears after 40 finished turns) |
+| **Usage** | the cost dashboard: today / this month / last 30 days / lifetime spend tiles, a daily spend bar chart (7 d or 30 d), spend by operation, budget warning bars, filters (range, operation, status, model, workspace, session), and a paginated run list — expand a run to see its individual attempts |
+| **Pricing** | the list price per 1M tokens for both models at each tier, which tier is in force right now, the price source (bundled table or `dsh-cost-meter`) and a *Refresh prices* button |
+| **Learning** | analysis model (`deepseek-v4-flash` / `deepseek-v4-pro`); *Auto-analyze messy turns*; *Also learn from a clean prompt right after a messy turn*; *Daily cap on automatic analyses* |
+| **Agent guidance** | every directive with its state chip (*trial 3/10*, *active*, *retired · reason*) and source chip (*yours* / *distilled*); toggle / remove / add directives; *Inject learned directives into the system prompt* and *Add learned context before each send*; *Exact text injected* |
+| **Improve & feedback** | *Enable the composer Improve button*; *Learned style rules* |
+| **Analysis history** | the latest analyzed prompts, across every conversation |
+| **Data & privacy** | what one usage record holds; *Keep detailed usage history (days)* (7 / 14 / 30 / 90 / 180 / 365); *Warn above this daily/monthly spend (USD)* — Tacit warns at 80 % of the amount and marks it exceeded above it; *Clear all analysis reports* and *Clear usage history* — both open a confirmation dialog (Escape cancels) before deleting anything |
+
+> The Settings screenshot in the [README](../README.md)
+> (`docs/assets/tacit-settings.png`) predates this eight-card layout and the
+> usage/cost dashboard; it needs to be recaptured. The file is left in place
+> until then.
 
 ## Troubleshooting
 

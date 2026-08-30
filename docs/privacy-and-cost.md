@@ -15,6 +15,8 @@ rename) and never truncated in place.
 | `reports/<conversation>/<turn>.json` | one analysis report per analyzed turn (problems, improved prompt, explanation, a 200-char excerpt of the prompt, your correction if any, the absolute workspace directory of the conversation) |
 | `config.patch.json` | the settings you changed in the UI |
 | `auto.json` | today's date and how many automatic analyses were spent |
+| `usage/<YYYY-MM-DD>.json` | one day's usage ledger: *runs* (one bootstrap batch, auto-analysis, ✨ Improve, distillation, ...), each with its *attempts* (op, timing, model, provider, token counts, finish reason/code, priced USD) — never prompt or response text |
+| `usage/summary.json` | rolling lifetime / by-type / by-model / by-day usage totals, kept alongside the day files so nothing has to re-scan them |
 
 The turn digests themselves are not here — they live in the harness's own session
 projection store, next to the session.
@@ -50,18 +52,91 @@ keys, session ids, anything outside the clips above.
   you happen to visit cannot plant a directive or spend your budget through
   `127.0.0.1`. (A request with none of those headers — `curl`, the smoke test —
   passes by design.)
-- **Never deletes your files.** The only deletion path is *Clear all analysis
-  reports*, which removes Tacit's own `reports/*/*.json` files (and the emptied
-  folders). The profile, config and ledger are never deleted.
+- **Two deletion paths, both restricted to Tacit's own files.** Analysis reports:
+  *Clear all analysis reports* removes `reports/*/<turn>.json` files (and the
+  emptied folders). Usage: day files older than `costHistoryDays` are deleted
+  automatically (at most once per calendar day), and the whole usage ledger can
+  be reset at once. Both only ever unlink files matching Tacit's own naming
+  (`reports/*/<n>.json` or `usage/<YYYY-MM-DD>.json`); the `usage/` directory,
+  `summary.json` (rewritten fresh, not unlinked), the profile and the config are
+  never touched by either path.
 - **Bounded everything.** Every text sent to the model is clipped (table above);
   directives ≤ 220 chars, the steering section ≤ 1400 chars, 8 directives, 12 patterns.
 
 ## Cost
 
-Tacit keeps no ledger of its own. Every call is made with low reasoning effort
-and a tool schema (no prose to parse), and every one is tagged with the session id so
-a cost plugin such as [`dsh-cost-meter`](https://www.npmjs.com/package/dsh-cost-meter)
-shows the real spend next to the conversation.
+Every Tacit model call is metered from the model's own `usage` block (uncached
+input, output, cache-read, cache-write and reasoning tokens) and folded into a
+content-free ledger under `usage/`. Reasoning tokens are always a subset of
+output tokens, never a separate quantity, so they are never billed twice.
+
+**Runs and attempts.** The ledger groups calls into *runs* — one bootstrap
+batch, one auto/manual/batch analysis, one ✨ Improve, one directive
+distillation, one style-rule distillation, one pre-send enrichment — and each
+underlying model call inside a run is an *attempt*. A run carries an id, its
+type, a trigger, start/end times, a derived status — `success` when no
+attempt failed (an unmetered attempt still counts as not failed), `partial`
+when some attempts failed, `failed` when every attempt failed or there are no
+attempts, `running` while open — the session id and turn, the workspace
+**label** (never the path), the model/provider and its list of attempts. An
+attempt carries an id, the op (`analysis`, `analysis-repair`,
+`directive-distillation`, `style-distillation`, `improve`, `improve-repair`,
+`enrichment`), its timing, model, provider, reasoning effort, finish
+reason/code, a status (`ok` / `failed` / `unmetered`), the session id and
+turn, the five raw token buckets, and the priced result (`null` when nothing
+matched). None of it is ever a prompt, a response, a tool argument or an API
+key.
+
+**Pricing sources and resolution order.** Each attempt is priced once, at the
+call's own start time, in this order:
+
+1. [`dsh-cost-meter`](https://www.npmjs.com/package/dsh-cost-meter)'s own
+   **model** rates for that model, when the call went through an official
+   DeepSeek route — tiered off-peak/peak using `dsh-cost-meter`'s own peak
+   windows / effective-at / peak-enabled flag when it supplies them, with
+   Tacit's own Beijing-weekend rule always applied on top (see *Tiers*
+   below) — `dsh-cost-meter` has no such rule of its own, which is exactly
+   why the two plugins' figures can differ on a weekend (Known limitations).
+2. `dsh-cost-meter`'s **provider** rates for that provider + model, when the
+   above did not match — a flat rate, no tier, so a proxy or custom route can
+   still be priced when the meter knows its rate card.
+3. The bundled DeepSeek V4 list price (dated `2026-08-22`), for an official
+   route and an allowlisted model, when neither of the above applies.
+4. Otherwise: no price at all — see *Unpriced calls* below.
+
+`dsh-cost-meter`'s rates always win when they match; the bundled table is the
+fallback, never a ceiling. The plugin is entirely optional and duck-typed:
+Tacit never blocks a model call on it, and a `getState()` call that hangs,
+throws or returns nothing usable falls back to the bundled table within 5
+seconds, remembering why (shown in the Pricing card).
+
+**Formula.** For one attempt:
+
+```
+cost = (uncachedInput · cacheMissRate
+      + (cacheRead + cacheWrite) · cacheHitRate
+      + output · outputRate) / 1,000,000
+```
+
+in USD per 1M tokens.
+
+**Tiers.** Peak hours are 01:00–04:00 and 06:00–10:00 UTC; every other UTC
+hour is off-peak. Since 2026-08-22T16:00 UTC, Beijing-calendar weekends
+(Saturday/Sunday at UTC+8) are always off-peak regardless of the hour. The
+tier is decided once, at the call's start time, so a call that straddles a
+tier boundary is still priced consistently.
+
+**Unpriced calls.** A call on a route Tacit can't match to any price table —
+a proxy or custom provider neither the bundled table nor `dsh-cost-meter`
+know — has no computed price; it's counted separately as an *unpriced* call
+(shown in the Usage card) rather than assumed free. A call that never
+received a `usage` block at all (the adapter reported none) is *unmetered*,
+which is never shown as `$0.00`.
+
+Every call is also made with low reasoning effort and a tool schema (no prose
+to parse), and every one is tagged with the session id, so a cost plugin such
+as `dsh-cost-meter` can additionally show the real spend next to the
+conversation.
 
 | Call | When | Max output tokens | Counts against the daily cap | Tagged with session | Est. cost, `deepseek-v4-flash`\* |
 | --- | --- | --- | --- | --- | --- |
@@ -78,10 +153,10 @@ shows the real spend next to the conversation.
 of ~2500 input and ~800 output tokens (reasoning tokens count as output; the
 other calls are smaller):
 
-| Model | Input (cache miss) | Output | |
-| --- | --- | --- | --- |
-| `deepseek-v4-flash` | $0.22 off-peak · $0.44 peak | $0.66 off-peak · $1.32 peak | default |
-| `deepseek-v4-pro` | $0.66 off-peak · $1.32 peak | $1.98 off-peak · $3.96 peak | 3× flash |
+| Model | Cache hit | Input (cache miss) | Output | |
+| --- | --- | --- | --- | --- |
+| `deepseek-v4-flash` | $0.007 off-peak · $0.014 peak | $0.22 off-peak · $0.44 peak | $0.66 off-peak · $1.32 peak | default |
+| `deepseek-v4-pro` | $0.022 off-peak · $0.044 peak | $0.66 off-peak · $1.32 peak | $1.98 off-peak · $3.96 peak | 3× flash |
 
 Cache-hit input is ~30× cheaper ($0.007–0.044), and Tacit's system prompts are
 stable, so real spend is often below the estimates. Peak/off-peak hours and
@@ -108,10 +183,23 @@ Honest list — these are v0.2 behaviours, not hidden surprises:
   distillations and pre-send context run outside `autoDailyBudget`.
 - **The trend only sees loaded conversations**, and only turns within
   `maxKeptTurns`; it needs 40 finished turns to show.
-- **Bootstrap runs serially** and ignores the daily cap.
+- **Bootstrap runs a small worker pool** (`bootstrapConcurrency`, 1–4, default
+  1) and ignores the daily cap.
 - The distiller sees workspace **names** (the last path segment, e.g. `dsh-tacit`),
   never full paths; full paths stay in the local reports and profile.
 - A weekly digest is not implemented yet.
+- **Bundled prices are a snapshot**, dated `PRICES_AS_OF` (currently
+  `2026-08-22`). A DeepSeek price change is only reflected once this package
+  updates, or via `dsh-cost-meter`.
+- **`dsh-cost-meter` has no weekend rule.** Its price table carries no
+  Beijing-weekend off-peak override, so on a weekend a bundled-table figure
+  and a `dsh-cost-meter` figure for the same call can differ.
+- **The measured bootstrap estimate uses only day files on disk.** It reads
+  the priced attempts already written to disk, not an in-flight run's own live
+  counters. A run that has *finished* is already there — `endRun` writes its
+  day file synchronously — so only a run **still in flight** lags: its
+  attempts do not move the estimate until the debounced flush (250 ms) has
+  written them.
 
 ---
 
