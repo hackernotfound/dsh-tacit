@@ -1220,6 +1220,23 @@ test('trial turns only count from conversations whose frozen steering contained 
   assert.equal(entry.status, 'retired', 'four messy steered turns vs a 20% baseline retire it')
 })
 
+test('a distillation replaying the same evidence tells the model about a retired directive and keeps it retired when it comes back anyway', async () => {
+  const retired = { id: 'r', text: 'Grep the repo before asking for file paths.', enabled: false, source: 'distilled', createdAt: 1, status: 'retired', retiredReason: 'corrections 0% → 50% while active' }
+  const { routes, service, captured } = steeringHarness({ config: { directiveEvery: 1, autoAnalyze: false }, profile: seedDirectives([retired]) })
+  fs.rmSync(path.join(tmpHome, 'storages', 'tacit', 'reports', 'session-1'), { recursive: true, force: true })
+  await callRoute(routes.find((r) => r.path === '/api/tacit/analyze'), { sessionId: 'session-1', turn: 2 })
+  await service.flushAuto()
+  const prompt = captured.find((c) => c.system.includes('directives')).messages[0].content[0].text
+  assert.ok(prompt.slice(prompt.indexOf('=== RETIRED')).includes('- Grep the repo before asking for file paths.'))
+  assert.ok(!prompt.includes('[r]'), 'a retired directive is not offered as one to keep')
+  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  const back = state.body.profile.directives.find((d) => d.id === 'r')
+  assert.deepEqual([back.status, back.enabled, back.retiredReason], ['retired', false, retired.retiredReason])
+  assert.equal(state.body.profile.directives.filter((d) => d.text === retired.text).length, 1, 'the re-emitted text does not become a second entry')
+  assert.ok(!state.body.steering.text.includes(retired.text))
+  assert.equal(state.body.profile.directives.find((d) => d.text === 'Treat "what do you think" as opinion-only.').status, 'candidate')
+})
+
 test('a candidate whose steered turns hit tool errors but drew no corrections is activated', async () => {
   const { routes, sections, fireProjectionChange } = steeringHarness({
     config: { directiveTrialTurns: 4, directiveWorseBy: 0.15, autoAnalyze: false },
