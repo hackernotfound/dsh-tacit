@@ -270,7 +270,10 @@ test('routes: cross-site requests are refused before the body is read (forms, fo
     [{ host: '127.0.0.1:3080', 'content-type': 'application/x-www-form-urlencoded' }, 'content-type'],
   ]
   // The money-spending and money-reading routes alike: the guard runs before the body.
-  const guarded = ['/api/tacit/directives', '/api/tacit/usage', '/api/tacit/usage-run', '/api/tacit/usage-clear', '/api/tacit/pricing-refresh']
+  const guarded = [
+    '/api/tacit/directives', '/api/tacit/usage', '/api/tacit/usage-run', '/api/tacit/usage-clear', '/api/tacit/pricing-refresh',
+    '/api/tacit/analyze-batch', '/api/tacit/bootstrap-preview',
+  ]
   for (const pathName of guarded) {
     const route = routes.find((r) => r.path === pathName)
     for (const [headers, reason] of cases) {
@@ -1448,6 +1451,12 @@ const usageRuns = (day = dayKey()) => {
 const runsOf = (sessionId) => usageRuns().filter((run) => run.sessionId === sessionId)
 
 /** A fresh plugin instance on a clean profile/patch, with every call attributed to `sessionId`. */
+/**
+ * The most recently applied service, so `settleUsage` can land the debounced
+ * ledger flush a previous test left behind by calling it — no sleeping.
+ */
+let lastService = null
+
 function usageHarness({ sessionId, turns = [], llm, config = {} } = {}) {
   const captured = []
   const session = { id: sessionId }
@@ -1465,7 +1474,8 @@ function usageHarness({ sessionId, turns = [], llm, config = {} } = {}) {
   }
   apply(ctx, { autoAnalyze: false, directiveEvery: 1000, ...config })
   const byPath = (name) => routes.find((route) => route.path === '/api/tacit' + name)
-  return { byPath, captured, disposers, listeners, service: provided.get('tacit') }
+  lastService = provided.get('tacit')
+  return { byPath, captured, disposers, listeners, service: lastService }
 }
 
 test('usage: /analyze records one priced analysis run and the envelope carries it', async () => {
@@ -1845,8 +1855,12 @@ function buildSeedSummary(runs, trackingSince) {
   return summary
 }
 
-/** Let any debounced flush timer left by an earlier test land before the ledger is reseeded. */
-const settleUsage = () => new Promise((resolve) => setTimeout(resolve, 300))
+/**
+ * Land any debounced flush an earlier test left pending, before the ledger is
+ * reseeded. `flush()` is synchronous and clears the timer itself, so this is
+ * deterministic where sleeping for the debounce window was not.
+ */
+const settleUsage = () => { lastService?.usage.flush() }
 
 function wipeUsage() {
   fs.rmSync(usageDir(), { recursive: true, force: true })
@@ -1855,7 +1869,7 @@ function wipeUsage() {
 
 /** A fresh plugin over a hand-seeded ledger (day files + the matching summary). */
 async function reportHarness({ runs = [], config = {}, trackingSince = 1000 } = {}) {
-  await settleUsage()
+  settleUsage()
   wipeUsage()
   const store = new CoachStore(storageRoot())
   const byDay = new Map()
@@ -1872,7 +1886,8 @@ async function reportHarness({ runs = [], config = {}, trackingSince = 1000 } = 
   const fake = makeFakeCtx({ llm: fakeLlm(), sessions: { get: () => undefined }, snapshotValue: [] })
   apply(fake.ctx, { autoAnalyze: false, directiveEvery: 1000, ...config })
   const byPath = (name) => fake.routes.find((route) => route.path === '/api/tacit' + name)
-  return { ...fake, byPath, store, service: fake.provided.get('tacit') }
+  lastService = fake.provided.get('tacit')
+  return { ...fake, byPath, store, service: lastService }
 }
 
 test('usage report: seeded day files roll up into totals, series, byType/byModel and warnings', async () => {
@@ -2158,7 +2173,7 @@ const mkTurn = (turn, prompt) => ({ ...sampleTurn, turn, prompt, endedAt: turn *
 
 /** A fresh plugin over a hand-seeded ledger AND one live session with turns. */
 async function batchHarness({ sessionId, turns = [], runs = [], config = {}, llm } = {}) {
-  await settleUsage()
+  settleUsage()
   wipeUsage()
   const store = new CoachStore(storageRoot())
   const byDay = new Map()
@@ -2182,7 +2197,8 @@ async function batchHarness({ sessionId, turns = [], runs = [], config = {}, llm
   })
   apply(fake.ctx, { autoAnalyze: false, directiveEvery: 1000, ...config })
   const byPath = (name) => fake.routes.find((route) => route.path === '/api/tacit' + name)
-  return { ...fake, byPath, captured, service: fake.provided.get('tacit') }
+  lastService = fake.provided.get('tacit')
+  return { ...fake, byPath, captured, service: lastService }
 }
 
 const previewTurns = () => [
