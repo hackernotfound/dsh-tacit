@@ -525,7 +525,16 @@ test('pricing source: a throwing / rejecting / junk getState falls back to bundl
 test('pricing source: a hanging getState gives up after timeoutMs', async () => {
   const source = createPricingSource(ctxWith({ getState: () => new Promise(() => {}) }), { now: () => weekday(12), timeoutMs: 10 })
   const startedAt = Date.now()
-  await source.refresh()
+  // The timeout timer is unref'd on purpose (a pending refresh must never hold
+  // the process open), so in this test it is the only thing on the event loop
+  // and Node 22/24 would drain the loop and cancel the test with the await
+  // still pending. Hold a ref'd timer while awaiting so the loop stays alive.
+  const keepAlive = setTimeout(() => {}, 5000)
+  try {
+    await source.refresh()
+  } finally {
+    clearTimeout(keepAlive)
+  }
   assert.ok(Date.now() - startedAt < 2000, 'refresh returned promptly')
   assert.equal(source.status().source, 'bundled')
   assert.ok(source.status().error.length > 0)
