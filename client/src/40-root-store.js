@@ -114,12 +114,14 @@
       return totals.unpricedCalls > 0 ? text + t('notice.unpriced', { n: String(totals.unpricedCalls) }) : text
     }
 
-    /** Show `runNotice` where a translator exists; a notice is never load-bearing. */
-    function setRunNotice(key, vars, run) {
-      if (translate === null) return ''
-      const text = runNotice(translate, key, vars, run)
-      setRootNotice(text)
-      return text
+    /**
+     * Record a run's result line on a session store, where the conversation
+     * tab's live region reads it. It stays on that store: a tab action has no
+     * business announcing itself on the Settings page.
+     */
+    function setStoreNotice(store, key, vars, run) {
+      if (translate === null || store === null || typeof store !== 'object') return
+      store.notice = { code: key, text: runNotice(translate, key, vars, run) }
     }
 
     // ── Usage ledger (the Settings → Usage card) ───────────────────────────
@@ -211,8 +213,9 @@
         }
       } catch (error) {
         rootStore.error = errorOf(error)
+      } finally {
+        rootStore.pricingRefreshing = false
       }
-      rootStore.pricingRefreshing = false
       await fetchUsage()
     }
 
@@ -463,6 +466,7 @@
       store.inFlight[String(turn)] = true
       store.expanded.add(turn)
       store.error = null
+      store.notice = null
       notify(store)
       api('/analyze', { sessionId: store.sessionId, turn })
         .then((result) => {
@@ -470,8 +474,7 @@
             store.reports[String(turn)] = result.report
             store.error = null
             // What that one analysis cost, from the envelope's own run record.
-            const text = setRunNotice('notice.analyze', { turn: String(turn) }, result.run)
-            if (text.length > 0) store.notice = { code: 'notice.analyze', text }
+            setStoreNotice(store, 'notice.analyze', { turn: String(turn) }, result.run)
           } else {
             store.error = {
               code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
@@ -556,13 +559,13 @@
     function improveDraft(store, draft) {
       if (store.preview.open || typeof draft !== 'string' || draft.trim().length === 0) return
       store.preview = { open: true, pending: true, original: draft, data: null, error: null }
+      store.notice = null
       notify(store)
       api('/improve', { sessionId: store.sessionId, draft })
         .then((result) => {
           if (result !== null && typeof result === 'object' && result.ok && typeof result.improved === 'string' && result.improved.trim().length > 0) {
             store.preview = { ...store.preview, pending: false, data: result }
-            const text = setRunNotice('notice.improve', {}, result.run)
-            if (text.length > 0) store.notice = { code: 'notice.improve', text }
+            setStoreNotice(store, 'notice.improve', {}, result.run)
           } else {
             store.preview = {
               ...store.preview,

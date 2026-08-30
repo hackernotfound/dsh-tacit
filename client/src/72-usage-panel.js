@@ -6,16 +6,6 @@
     const USAGE_STATUSES = ['success', 'partial', 'failed']
     const USAGE_COLUMNS = ['time', 'op', 'scope', 'model', 'status', 'calls', 'tokens', 'cost']
 
-    /**
-     * Spend for one bucket of calls. A period that billed calls but priced
-     * none of them says so — `$0.0000` would claim the calls were free, and an
-     * unmetered call is never `$0.00`. A genuinely idle period stays `$0.0000`.
-     */
-    function usageSpend(kit, totals) {
-      if (totals.billedCalls > 0 && totals.billedCalls === totals.unpricedCalls) return kit.t('usage.priceUnavailable')
-      return fmtUsd(totals.usdKnown)
-    }
-
     /** One label/value tile; `note` is the small "n unpriced" line under the value. */
     function UsageTile(key, label, value, note) {
       return h('div', { key, className: 'tacit-tile' },
@@ -355,7 +345,8 @@
         const entry = {}
         for (const tier of PRICING_TIERS) {
           const triple = tiers[tier] !== null && typeof tiers[tier] === 'object' ? tiers[tier] : {}
-          entry[tier] = { cacheHit: triple.cacheHit, cacheMiss: triple.cacheMiss, output: triple.output }
+          const rate = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined)
+          entry[tier] = { cacheHit: rate(triple.cacheHit), cacheMiss: rate(triple.cacheMiss), output: rate(triple.output) }
         }
         models[model] = entry
       }
@@ -431,10 +422,10 @@
         : t('pricing.never')
       const asOf = priced.asOf.length > 0 ? priced.asOf : '—'
       return h('div', { className: 'tacit-pricing' },
-        h('div', { className: 'tacit-report-title' }, t('pricing.title')),
+        h('div', { className: 'tacit-report-title', id: 'tacit-pricing-title' }, t('pricing.rateTable')),
         models.length === 0
           ? h('p', { className: 'tacit-panel-hint' }, t('usage.priceUnavailable'))
-          : h('div', { className: 'tacit-pricing-table', role: 'table', 'aria-label': t('pricing.rateTable') },
+          : h('div', { className: 'tacit-pricing-table', role: 'table', 'aria-labelledby': 'tacit-pricing-title' },
             h('div', { className: 'tacit-pricing-row tacit-pricing-head', role: 'row' },
               PRICING_COLUMNS.map((column) => h('span', {
                 key: column,

@@ -1167,6 +1167,21 @@ test('the expanded pricing card tables both models at both tiers', () => {
   }
   const reasoning = markup.split(EN()['pricing.reasoningSameAsOutput']).length - 1
   assert.equal(reasoning, 4, 'the reasoning column is prose on all four rows, never a number')
+
+  // The table is named by the heading above it, not by a duplicate aria-label.
+  const table = /<div class="tacit-pricing-table"[^>]*>/.exec(markup)
+  assert.ok(table, 'the rate table renders')
+  assert.ok(table[0].includes('aria-labelledby="tacit-pricing-title"'), 'named by its heading — got ' + table[0])
+  assert.equal(table[0].includes('aria-label='), false, 'and not by a duplicate label')
+  assert.ok(markup.includes('id="tacit-pricing-title"'))
+
+  // A rate the source did not quote is an em dash, never $0.
+  seedPricing({ rates: { 'deepseek-v4-flash': { offPeak: { cacheHit: null, cacheMiss: '0.22', output: 0.66 }, peak: {} } } }, true)
+  const partial = renderSettings()
+  assert.ok(partial.includes('$0.66'), 'the quoted rate still renders')
+  assert.equal(partial.includes('$0<'), false, 'a null rate never becomes $0')
+  assert.equal(partial.includes('$0.22'), false, 'and a stringly-typed rate is not trusted either')
+  assert.ok(partial.includes('—'), 'unquoted rates render as em dashes')
   resetPricing()
 })
 
@@ -1246,23 +1261,56 @@ test('a result notice carries the measured figures of its run', () => {
   rootStore.profile = null
 })
 
-test('the bootstrap button shows the running list-price cost', () => {
+test('the bootstrap button shows the running list-price cost, and only an honest one', () => {
   const rootStore = seedSettings()
-  rootStore.bootstrap = { running: true, done: 3, total: 20, billedCalls: 3, unpricedCalls: 0, usdKnown: 0.0123, tokens: 4000 }
-  assert.ok(renderSettings().includes(tr('bootstrap.runningUsd', { done: 3, total: 20, usd: '$0.0123' })))
+  const label = () => {
+    const match = /<span class="tacit-bootstrap"><button[^>]*>([\s\S]*?)<\/button>/.exec(renderSettings())
+    assert.ok(match, 'the bootstrap button renders')
+    return match[1]
+  }
 
-  rootStore.bootstrap = { running: true, done: 3, total: 20 }
-  const noFigure = renderSettings()
-  assert.ok(noFigure.includes(tr('bootstrap.running', { done: 3, total: 20 })), 'no cost yet keeps the plain label')
-  assert.ok(!noFigure.includes('$0.0000'), 'and never invents a zero')
+  // The service ships usdKnown: 0 from the first tick, so "nothing billed yet"
+  // is what gates the money — not the presence of the field.
+  rootStore.bootstrap = { running: true, done: 3, total: 20, billedCalls: 0, unpricedCalls: 0, usdKnown: 0, tokens: 0 }
+  assert.equal(label(), tr('bootstrap.running', { done: 3, total: 20 }), 'no billed call yet: no money in the label')
+
+  rootStore.bootstrap = { running: true, done: 8, total: 20, billedCalls: 4, unpricedCalls: 4, usdKnown: 0, tokens: 5000 }
+  assert.equal(label(), tr('bootstrap.runningUsd', { done: 8, total: 20, usd: EN()['usage.priceUnavailable'] }), 'an all-unpriced batch says so')
+  assert.equal(label().includes('$0.0000'), false, 'and never claims the batch was free')
+
+  rootStore.bootstrap = { running: true, done: 9, total: 20, billedCalls: 4, unpricedCalls: 0, usdKnown: 0.0196, tokens: 5000 }
+  assert.equal(label(), tr('bootstrap.runningUsd', { done: 9, total: 20, usd: '$0.0196' }))
+
   rootStore.bootstrap = null
+  assert.equal(label(), EN()['bootstrap.btn'])
   rootStore.profile = null
+})
+
+test('the conversation tab renders its store notice in an always-mounted live region', () => {
+  const Tab = slotEntries.find((e) => e.name === 'conversation.view').registration.component
+  const region = () => {
+    const match = /<div[^>]*role="status"[^>]*>([\s\S]*?)<\/div>/.exec(renderToStaticMarkup(React.createElement(Tab, tabProps)))
+    assert.ok(match, 'the tab keeps a [role="status"] region mounted')
+    return match[1]
+  }
+  assert.equal(region(), '', 'empty while there is nothing to report')
+
+  store.notice = { code: 'notice.analyze', text: 'Analyzed #7 · 2 call(s) · 54,230 tokens · $0.0196' }
+  const announced = region()
+  assert.ok(announced.includes('Analyzed #7'))
+  assert.ok(announced.includes('54,230'))
+  assert.ok(announced.includes('$0.0196'))
+
+  // The Settings-panel clear path stores a code and a count, with no text.
+  store.notice = { code: 'settings.cleared', n: 3 }
+  assert.equal(region(), '', 'a text-less notice renders nothing — and throws nothing')
+  store.notice = null
 })
 
 test('every pricing and notice dictionary key exists in both dictionaries', () => {
   const dicts = localeDicts['dsh-tacit']
   const keys = [
-    'pricing.title', 'pricing.summary', 'pricing.rateTable', 'pricing.model', 'pricing.tier',
+    'pricing.summary', 'pricing.rateTable', 'pricing.model', 'pricing.tier',
     'pricing.cacheHit', 'pricing.cacheMiss', 'pricing.output', 'pricing.reasoning', 'pricing.reasoningSameAsOutput',
     'pricing.peak', 'pricing.offPeak', 'pricing.tierNow', 'pricing.schedule', 'pricing.weekendRule',
     'pricing.source', 'pricing.sourceBundled', 'pricing.sourceCostMeter', 'pricing.refreshedAt', 'pricing.never',

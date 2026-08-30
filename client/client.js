@@ -226,7 +226,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'warn.monthly': '本月 {spent} / 每月上限 {limit}（{pct}%）',
       'improve.explain': '「改进」会在你发送前重写草稿。给某次重写点 👎 并写一句原因，Tacit 会从中提炼出持久的风格规则。',
       'privacy.stored': '分析报告、指令和风格规则只保存在本机的 Tacit 数据目录里；清除操作只会删除 Tacit 自己的文件。',
-      'pricing.title': '每 100 万 tokens 的目录价',
       'pricing.summary': '{model} {tier} {rates} / 100 万 · {source}（{asOf}）',
       'pricing.rateTable': '每 100 万 tokens 的目录价',
       'pricing.model': '模型',
@@ -454,7 +453,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'warn.monthly': 'This month {spent} of the {limit} monthly cap ({pct}%)',
       'improve.explain': 'Improve rewrites your draft before you send it. Rate a rewrite 👎 with a one-line reason and Tacit distills a durable style rule from it.',
       'privacy.stored': 'Analysis reports, directives, and style rules are stored on this machine only, in Tacit’s own data directory; clearing only ever removes Tacit’s own files.',
-      'pricing.title': 'List price per 1M tokens',
       'pricing.summary': '{model} {tier} {rates} per 1M · {source} ({asOf})',
       'pricing.rateTable': 'List price per 1M tokens',
       'pricing.model': 'Model',
@@ -705,12 +703,14 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       return totals.unpricedCalls > 0 ? text + t('notice.unpriced', { n: String(totals.unpricedCalls) }) : text
     }
 
-    /** Show `runNotice` where a translator exists; a notice is never load-bearing. */
-    function setRunNotice(key, vars, run) {
-      if (translate === null) return ''
-      const text = runNotice(translate, key, vars, run)
-      setRootNotice(text)
-      return text
+    /**
+     * Record a run's result line on a session store, where the conversation
+     * tab's live region reads it. It stays on that store: a tab action has no
+     * business announcing itself on the Settings page.
+     */
+    function setStoreNotice(store, key, vars, run) {
+      if (translate === null || store === null || typeof store !== 'object') return
+      store.notice = { code: key, text: runNotice(translate, key, vars, run) }
     }
 
     // ── Usage ledger (the Settings → Usage card) ───────────────────────────
@@ -802,8 +802,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         }
       } catch (error) {
         rootStore.error = errorOf(error)
+      } finally {
+        rootStore.pricingRefreshing = false
       }
-      rootStore.pricingRefreshing = false
       await fetchUsage()
     }
 
@@ -1054,6 +1055,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       store.inFlight[String(turn)] = true
       store.expanded.add(turn)
       store.error = null
+      store.notice = null
       notify(store)
       api('/analyze', { sessionId: store.sessionId, turn })
         .then((result) => {
@@ -1061,8 +1063,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             store.reports[String(turn)] = result.report
             store.error = null
             // What that one analysis cost, from the envelope's own run record.
-            const text = setRunNotice('notice.analyze', { turn: String(turn) }, result.run)
-            if (text.length > 0) store.notice = { code: 'notice.analyze', text }
+            setStoreNotice(store, 'notice.analyze', { turn: String(turn) }, result.run)
           } else {
             store.error = {
               code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'call-failed',
@@ -1147,13 +1148,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     function improveDraft(store, draft) {
       if (store.preview.open || typeof draft !== 'string' || draft.trim().length === 0) return
       store.preview = { open: true, pending: true, original: draft, data: null, error: null }
+      store.notice = null
       notify(store)
       api('/improve', { sessionId: store.sessionId, draft })
         .then((result) => {
           if (result !== null && typeof result === 'object' && result.ok && typeof result.improved === 'string' && result.improved.trim().length > 0) {
             store.preview = { ...store.preview, pending: false, data: result }
-            const text = setRunNotice('notice.improve', {}, result.run)
-            if (text.length > 0) store.notice = { code: 'notice.improve', text }
+            setStoreNotice(store, 'notice.improve', {}, result.run)
           } else {
             store.preview = {
               ...store.preview,
@@ -1386,11 +1387,22 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
      * spend, where every hundredth of a cent is a real figure.
      */
     function fmtRate(n) {
-      const value = Number(n)
-      if (!Number.isFinite(value) || value < 0) return '—'
-      const trimmed = value.toFixed(3).replace(/\.?0+$/, '')
-      if (value > 0 && Number(trimmed) === 0) return '< $0.001'
+      // Strict about the type: `Number(null)` is 0, and a rate nobody quoted
+      // must not print as a free one.
+      if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) return '—'
+      const trimmed = n.toFixed(3).replace(/\.?0+$/, '')
+      if (n > 0 && Number(trimmed) === 0) return '< $0.001'
       return '$' + trimmed
+    }
+
+    /**
+     * Spend for one bucket of calls. A bucket that billed calls but priced
+     * none of them says so — `$0.0000` would claim the calls were free, and an
+     * unmetered call is never `$0.00`. A genuinely idle bucket stays `$0.0000`.
+     */
+    function usageSpend(kit, totals) {
+      if (totals.billedCalls > 0 && totals.unpricedCalls >= totals.billedCalls) return kit.t('usage.priceUnavailable')
+      return fmtUsd(totals.usdKnown)
     }
 
     /** Thousands-separated token counts, grouped here so no locale data is needed. */
@@ -1543,9 +1555,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     /** "Learned from N prompts · Auto-learning on · x/y today" status card. */
     /**
      * "Learn from my last 20 turns" — while a bootstrap runs the label counts
-     * the turns and, once `/state` has reported a figure, what the batch has
-     * cost so far. No `usdKnown` yet means no number: an invented `$0.0000`
-     * would read as "free" rather than "not measured yet".
+     * the turns and what the batch has cost so far.
+     *
+     * The service ships `usdKnown: 0` from the first tick, so the money is
+     * gated on a billed call, not on the field being present: before that the
+     * label carries no figure at all, and a batch whose billed calls all came
+     * back unpriced says so through `usageSpend` rather than claiming `$0.0000`.
      */
     function BootstrapButton(kit, { bootstrap, onClick }) {
       const { t } = kit
@@ -1556,7 +1571,19 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           total: String(typeof bootstrap.total === 'number' ? bootstrap.total : 0),
         }
         : null
-      const priced = running && typeof bootstrap.usdKnown === 'number' && Number.isFinite(bootstrap.usdKnown)
+      const billed = running ? usageNum(bootstrap.billedCalls) : 0
+      const label = () => {
+        if (!running) return t('bootstrap.btn')
+        if (billed === 0) return t('bootstrap.running', progress)
+        return t('bootstrap.runningUsd', {
+          ...progress,
+          usd: usageSpend(kit, {
+            billedCalls: billed,
+            unpricedCalls: usageNum(bootstrap.unpricedCalls),
+            usdKnown: usageNum(bootstrap.usdKnown),
+          }),
+        })
+      }
       return h('span', { className: 'tacit-bootstrap' },
         h('button', {
           type: 'button',
@@ -1564,11 +1591,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           disabled: running,
           title: t('bootstrap.hint'),
           onClick,
-        }, !running
-          ? t('bootstrap.btn')
-          : (priced
-            ? t('bootstrap.runningUsd', { ...progress, usd: fmtUsd(bootstrap.usdKnown) })
-            : t('bootstrap.running', progress))))
+        }, label()))
     }
 
     function pct(value) {
@@ -1865,6 +1888,14 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           error !== null && typeof error === 'object'
             ? h('div', { className: 'tacit-error' }, t('err.' + String(error.code), { detail: String(error.detail || '') }))
             : null,
+          // Analyze and Improve report what they cost here. Always mounted and
+          // empty when idle: a live region that appears together with its text
+          // is missed by screen readers. The settings clear notice carries a
+          // code and a count instead of text, and stays this panel's business.
+          h('div', { className: 'tacit-settings-notice', role: 'status' },
+            store.notice !== null && typeof store.notice === 'object' && typeof store.notice.text === 'string'
+              ? store.notice.text
+              : ''),
           turns.length === 0
             ? h('div', { className: 'tacit-empty' }, t('empty'))
             : h('div', null,
@@ -2390,16 +2421,6 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     const USAGE_STATUSES = ['success', 'partial', 'failed']
     const USAGE_COLUMNS = ['time', 'op', 'scope', 'model', 'status', 'calls', 'tokens', 'cost']
 
-    /**
-     * Spend for one bucket of calls. A period that billed calls but priced
-     * none of them says so — `$0.0000` would claim the calls were free, and an
-     * unmetered call is never `$0.00`. A genuinely idle period stays `$0.0000`.
-     */
-    function usageSpend(kit, totals) {
-      if (totals.billedCalls > 0 && totals.billedCalls === totals.unpricedCalls) return kit.t('usage.priceUnavailable')
-      return fmtUsd(totals.usdKnown)
-    }
-
     /** One label/value tile; `note` is the small "n unpriced" line under the value. */
     function UsageTile(key, label, value, note) {
       return h('div', { key, className: 'tacit-tile' },
@@ -2739,7 +2760,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         const entry = {}
         for (const tier of PRICING_TIERS) {
           const triple = tiers[tier] !== null && typeof tiers[tier] === 'object' ? tiers[tier] : {}
-          entry[tier] = { cacheHit: triple.cacheHit, cacheMiss: triple.cacheMiss, output: triple.output }
+          const rate = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined)
+          entry[tier] = { cacheHit: rate(triple.cacheHit), cacheMiss: rate(triple.cacheMiss), output: rate(triple.output) }
         }
         models[model] = entry
       }
@@ -2815,10 +2837,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         : t('pricing.never')
       const asOf = priced.asOf.length > 0 ? priced.asOf : '—'
       return h('div', { className: 'tacit-pricing' },
-        h('div', { className: 'tacit-report-title' }, t('pricing.title')),
+        h('div', { className: 'tacit-report-title', id: 'tacit-pricing-title' }, t('pricing.rateTable')),
         models.length === 0
           ? h('p', { className: 'tacit-panel-hint' }, t('usage.priceUnavailable'))
-          : h('div', { className: 'tacit-pricing-table', role: 'table', 'aria-label': t('pricing.rateTable') },
+          : h('div', { className: 'tacit-pricing-table', role: 'table', 'aria-labelledby': 'tacit-pricing-title' },
             h('div', { className: 'tacit-pricing-row tacit-pricing-head', role: 'row' },
               PRICING_COLUMNS.map((column) => h('span', {
                 key: column,

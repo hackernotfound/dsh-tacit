@@ -21,11 +21,22 @@
      * spend, where every hundredth of a cent is a real figure.
      */
     function fmtRate(n) {
-      const value = Number(n)
-      if (!Number.isFinite(value) || value < 0) return '—'
-      const trimmed = value.toFixed(3).replace(/\.?0+$/, '')
-      if (value > 0 && Number(trimmed) === 0) return '< $0.001'
+      // Strict about the type: `Number(null)` is 0, and a rate nobody quoted
+      // must not print as a free one.
+      if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) return '—'
+      const trimmed = n.toFixed(3).replace(/\.?0+$/, '')
+      if (n > 0 && Number(trimmed) === 0) return '< $0.001'
       return '$' + trimmed
+    }
+
+    /**
+     * Spend for one bucket of calls. A bucket that billed calls but priced
+     * none of them says so — `$0.0000` would claim the calls were free, and an
+     * unmetered call is never `$0.00`. A genuinely idle bucket stays `$0.0000`.
+     */
+    function usageSpend(kit, totals) {
+      if (totals.billedCalls > 0 && totals.unpricedCalls >= totals.billedCalls) return kit.t('usage.priceUnavailable')
+      return fmtUsd(totals.usdKnown)
     }
 
     /** Thousands-separated token counts, grouped here so no locale data is needed. */
