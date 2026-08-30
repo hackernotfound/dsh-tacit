@@ -857,3 +857,27 @@ test('summary day buckets past the retention cap are dropped on the first run of
   usage.flush()
   assert.equal(store.readUsageSummary().days[ancient], undefined, 'the prune reaches disk')
 })
+
+test('range "today" lists a run that started before midnight and billed after it', () => {
+  const midnight = new Date(START)
+  midnight.setHours(24, 0, 0, 0)
+  const beforeMidnight = midnight.getTime() - 10 * 60_000
+  const afterMidnight = midnight.getTime() + 5 * 60_000
+  const { usage, clock } = setup({ start: beforeMidnight })
+
+  const runId = usage.beginRun({ type: 'analysis', trigger: 'auto' })
+  clock.ms = afterMidnight
+  usage.attemptSink(runId, { op: 'analysis' })(record(clock))
+  usage.endRun(runId, {})
+  usage.flush()
+  assert.equal(dayKey(beforeMidnight) < dayKey(afterMidnight), true, 'the run crosses a calendar day')
+
+  clock.ms = afterMidnight + 60 * 60_000
+  const today = usage.report({ filters: { range: 'today' } })
+  assert.equal(today.today.attempts, 1)
+  assert.equal(today.runs.total, 1, 'the today tile and the today run list agree')
+  assert.equal(today.runs.items[0].runId, runId)
+
+  const month = usage.report({ filters: { range: '30d' } })
+  assert.equal(month.runs.total, 1, 'a run matching on two days is listed once')
+})
