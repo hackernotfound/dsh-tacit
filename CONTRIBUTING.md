@@ -149,8 +149,9 @@ predictable. Not every merged change needs an npm release:
 
 Release-worthy notes go under `## [Unreleased]` in `CHANGELOG.md`, grouped
 under `### Added`, `### Changed`, `### Fixed`, `### Security` or `### Removed`
-([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)); each bullet says
-what changes for the person using Tacit and ends with its PR number. Anything a
+([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)); each bullet is one
+line (two wrapped at most) saying what changes for the person using Tacit,
+and ends with its PR number; a test enforces the length. Anything a
 user must do or will notice on update (a restart, a recomputed store, a migrated
 file, a new setting) goes first, under `### Upgrading`. To release, rename that
 section to `## [x.y.z] - YYYY-MM-DD`, add its compare link at the foot of the
