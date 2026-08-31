@@ -2183,6 +2183,7 @@ test('an already-analyzed entry in a batch result is not a failure', async () =>
     await testKit.coachSelected(store)
   })
   assert.equal(store.error, null)
+})
 
 test('the settings page offers a workspace picker per directive and marks a workspace no loaded session is in', () => {
   const rootStore = testKit.rootStore

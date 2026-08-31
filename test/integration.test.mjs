@@ -2773,6 +2773,7 @@ test('removing or switching off a directive reaches a conversation that is alrea
   assert.ok(!read().includes('Gone after removal.'))
   await callRoute(directives, { action: 'toggle', id: 'b', enabled: false })
   assert.ok(!read().includes('Gone after the toggle.'))
+})
 
 // ── Workspace scope: identity, rename, rescope, scope cap (issue #41) ──────
 

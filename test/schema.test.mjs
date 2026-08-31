@@ -11,7 +11,6 @@ import {
   feedbackArgSchema,
   appliedArgSchema,
   configArgSchema,
-  directivesArgSchema,
   analyzeArgSchema,
   analyzeBatchArgSchema,
   directiveReceiptArgSchema,
