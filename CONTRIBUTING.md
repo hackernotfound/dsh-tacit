@@ -147,9 +147,18 @@ predictable. Not every merged change needs an npm release:
 - Do not release for GitHub-only `docs/` changes, tests, CI, contributor files,
   security files or repository settings.
 
-Release-worthy notes go under `## Unreleased` in `CHANGELOG.md`. To release,
-turn that section into a dated version section, then run `npm version patch` or
-`npm version minor` and push the commit and tag with `git push --follow-tags`.
-Publishing to npm happens when the `v*` tag is pushed, with npm provenance
-through OIDC trusted publishing and no npm token. Never move an existing
+Release-worthy notes go under `## [Unreleased]` in `CHANGELOG.md`, grouped
+under `### Added`, `### Changed`, `### Fixed`, `### Security` or `### Removed`
+([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)); each bullet says
+what changes for the person using Tacit and ends with its PR number. Anything a
+user must do or will notice on update (a restart, a recomputed store, a migrated
+file, a new setting) goes first, under `### Upgrading`. To release, rename that
+section to `## [x.y.z] - YYYY-MM-DD`, add its compare link at the foot of the
+file, leave a fresh `## [Unreleased]` above it, bump `package.json`, and open
+the release PR (`main` is protected, so the bump lands by PR). Once it is
+merged, push an annotated tag: `git tag -a vx.y.z -m vx.y.z && git push origin
+vx.y.z`. The tag publishes to npm with provenance through OIDC trusted
+publishing (no npm token) and creates the GitHub release with that changelog
+section as its body (`node scripts/release-notes.mjs x.y.z` prints it; a test
+fails when the packaged version has no section). Never move an existing
 release tag; corrections after publication get a new patch version.
