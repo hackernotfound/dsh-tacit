@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-08-31
 
 - Tacit masks credential-shaped strings as it captures a turn. An API key, a
   token, a JWT, a private-key block or a `key=value` secret in your prompt, in a
