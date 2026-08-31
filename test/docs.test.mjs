@@ -45,3 +45,15 @@ test('every released version in the changelog has a compare link, and an Unrelea
   assert.ok(released >= 7)
   assert.ok(/^## \[Unreleased\]$/m.test(doc))
 })
+
+test('every changelog bullet fits in two wrapped lines; the PR has the detail', () => {
+  const lines = changelog().split('\n')
+  const long = []
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!lines[i].startsWith('- ')) continue
+    let span = 1
+    while (lines[i + span] !== undefined && lines[i + span].startsWith('  ')) span += 1
+    if (span > 2) long.push(lines[i].slice(0, 60))
+  }
+  assert.deepEqual(long, [])
+})
