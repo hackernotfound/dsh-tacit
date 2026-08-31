@@ -16,31 +16,54 @@
         if (typeof navigator === 'undefined' || navigator === null || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') return
         navigator.clipboard.writeText(JSON.stringify(receipt, null, 2)).catch(() => {})
       }
-      const receiptRow = (label, value) => [h('dt', { key: label + '-t' }, label), h('dd', { key: label + '-d' }, value)]
-      /** What the receipt route returned for this directive, as definition rows; never any prompt text. */
+      const metaRow = (label, value) => [h('dt', { key: label + '-t' }, label), h('dd', { key: label + '-d' }, value)]
+      /** A null `note` marks an absent value ("never", "no ledger run"), shown quiet rather than as a headline figure. */
+      const tile = (key, label, value, note) => h('div', { key, className: 'tacit-tile tacit-receipt-tile' },
+        h('span', { className: 'tacit-tile-label' }, label),
+        h('span', { className: 'tacit-tile-value' + (note === null ? ' tacit-tile-muted' : '') }, value),
+        note === null ? null : h('span', { className: 'tacit-receipt-tile-note' }, note))
+      const step = (key, label, ms) => h('li', { key, className: 'tacit-timeline-step' + (Number(ms) > 0 ? '' : ' tacit-timeline-never') },
+        h('span', { className: 'tacit-timeline-label' }, label),
+        h('span', { className: 'tacit-timeline-value' }, fmtDay(ms)))
+      /**
+       * What the receipt route returned for this directive, layered: three
+       * tiles, a lifecycle timeline, the trigger chips, then the identity grid;
+       * never any prompt text.
+       */
       function Receipt(receipt) {
         if (receipt === null || typeof receipt === 'object' === false) return h('div', { className: 'tacit-panel-hint' }, t('steer.receiptLoading'))
         const triggers = Object.entries(receipt.triggers !== null && typeof receipt.triggers === 'object' ? receipt.triggers : {})
-          .map(([name, count]) => triggerName(name) + ' ' + String(count)).join(' · ')
         const evidence = receipt.evidence !== null && typeof receipt.evidence === 'object' ? receipt.evidence : { turns: 0, conversations: 0 }
         const cost = receipt.cost !== null && typeof receipt.cost === 'object' ? receipt.cost : { usd: null, calls: 0 }
         const trial = receipt.trial !== null && typeof receipt.trial === 'object' ? receipt.trial : null
-        return h('div', null,
-          h('dl', { className: 'tacit-receipt' },
-            ...receiptRow(t('steer.receiptId'), String(receipt.id)),
-            ...receiptRow(t('steer.receiptScope'), typeof receipt.scope === 'string' && receipt.scope.length > 0 ? receipt.scope : t('steer.everywhere')),
-            ...receiptRow(t('steer.receiptStatus'), String(receipt.status)),
-            ...receiptRow(t('steer.receiptSource'), receipt.source === 'user' ? t('steer.user') : t('steer.distilled')),
-            ...receiptRow(t('steer.receiptCreated'), fmtDay(receipt.createdAt)),
-            ...receiptRow(t('steer.receiptUpdated'), fmtDay(receipt.updatedAt)),
-            ...receiptRow(t('steer.receiptEvaluated'), fmtDay(receipt.evaluatedAt)),
-            ...receiptRow(t('steer.receiptVersion'), String(receipt.version)),
-            ...receiptRow(t('steer.receiptTrial'), trial === null ? t('steer.receiptNever') : t('steer.receiptTrialValue', {
-              turns: String(trial.turns), started: fmtDay(trial.startedAt), messy: pct(trial.baselineMessyRate), corrected: pct(trial.baselineCorrectionRate) })),
-            ...receiptRow(t('steer.receiptTriggers'), triggers.length > 0 ? triggers : t('steer.receiptNever')),
-            ...receiptRow(t('steer.receiptEvidence'), t('steer.receiptEvidenceValue', { turns: String(evidence.turns), conversations: String(evidence.conversations) })),
-            ...receiptRow(t('steer.receiptCost'), cost.usd === null ? t('steer.receiptNoRun') : t('steer.receiptCostValue', { usd: fmtUsd(cost.usd), calls: String(cost.calls) }))),
-          h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyReceipt(receipt) }, t('steer.receiptCopy')))
+        return h('div', { className: 'tacit-receipt' },
+          h('div', { className: 'tacit-tiles tacit-receipt-tiles' },
+            tile('evidence', t('steer.receiptEvidence'), String(evidence.turns),
+              t('steer.receiptEvidenceValue', { turns: String(evidence.turns), conversations: String(evidence.conversations) })),
+            tile('trial', t('steer.receiptTrial'),
+              trial === null ? t('steer.receiptNever') : t('steer.receiptTurns', { n: String(trial.turns) }),
+              trial === null ? null : t('steer.receiptTrialNote', {
+                started: fmtDay(trial.startedAt), messy: pct(trial.baselineMessyRate), corrected: pct(trial.baselineCorrectionRate) })),
+            tile('cost', t('steer.receiptCost'),
+              cost.usd === null ? t('steer.receiptNoRun') : fmtUsd(cost.usd),
+              cost.usd === null ? null : t('steer.receiptCalls', { n: String(cost.calls) }))),
+          h('ol', { className: 'tacit-timeline' },
+            step('created', t('steer.receiptCreated'), receipt.createdAt),
+            step('updated', t('steer.receiptUpdated'), receipt.updatedAt),
+            step('evaluated', t('steer.receiptEvaluated'), receipt.evaluatedAt)),
+          h('div', { className: 'tacit-receipt-row' },
+            h('span', { className: 'tacit-receipt-label' }, t('steer.receiptTriggers')),
+            triggers.length === 0
+              ? h('span', { className: 'tacit-chip tacit-chip-muted' }, t('steer.receiptNever'))
+              : triggers.map(([name, count]) => h('span', { key: name, className: 'tacit-chip' }, triggerName(name) + ' ' + String(count)))),
+          h('dl', { className: 'tacit-receipt-meta' },
+            ...metaRow(t('steer.receiptId'), String(receipt.id)),
+            ...metaRow(t('steer.receiptVersion'), String(receipt.version)),
+            ...metaRow(t('steer.receiptScope'), typeof receipt.scope === 'string' && receipt.scope.length > 0 ? receipt.scope : t('steer.everywhere')),
+            ...metaRow(t('steer.receiptSource'), receipt.source === 'user' ? t('steer.user') : t('steer.distilled')),
+            ...metaRow(t('steer.receiptStatus'), String(receipt.status))),
+          h('div', { className: 'tacit-receipt-actions' },
+            h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyReceipt(receipt) }, t('steer.receiptCopy'))))
       }
       return function DirectivesEditorView(props) {
         const { config, steering } = props
@@ -93,23 +116,42 @@
           setDraft('')
           editDirectives({ action: 'add', text: text.slice(0, 300), ...(scope.length > 0 ? { workspace: scope } : {}) })
         }
-        return h('div', { className: 'tacit-panel-section', 'data-testid': 'tacit-steering' },
-          h('div', { className: 'tacit-report-title' }, t('steer.title')),
-          h('div', { className: 'tacit-panel-hint' }, t('steer.desc')),
-          h('div', { className: 'tacit-settings-row' },
-            h('label', { className: 'tacit-settings-label' }, t('steer.toggle')),
-            h('input', { type: 'checkbox', checked: steerOn, onChange: toggleSteer })),
-          h('div', { className: 'tacit-settings-row' },
-            h('label', { className: 'tacit-settings-label' }, t('steer.enrich')),
-            h('input', { type: 'checkbox', checked: enrichOn, onChange: toggleEnrich })),
-          h('div', { className: 'tacit-settings-row' },
-            h('label', { className: 'tacit-settings-label' }, t('steer.review')),
-            h('input', { type: 'checkbox', checked: reviewOn, onChange: toggleReview })),
-          directives.length === 0
-            ? h('div', { className: 'tacit-empty' }, t('steer.empty'))
-            : h('div', { className: 'tacit-rules-list' },
-              directives.map((entry) => h('div', { key: entry.id, className: 'tacit-directive-block' },
-                h('div', { className: 'tacit-rule tacit-directive' + (entry.enabled === false ? ' tacit-directive-off' : '') },
+        /** The lifecycle badge: one colour per status, the label the chips used to carry. */
+        const statusOf = (entry) => {
+          if (entry.status === 'queued') return { kind: 'queued', label: t('steer.queued') }
+          if (entry.status === 'candidate') {
+            return {
+              kind: 'trial',
+              label: t('steer.trial', {
+                n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
+                total: String(config !== null && typeof config.directiveTrialTurns === 'number' ? config.directiveTrialTurns : 10),
+              }),
+            }
+          }
+          if (entry.status === 'retired') return { kind: 'retired', label: t('steer.retired', { reason: String(entry.retiredReason || '') }) }
+          return { kind: 'active', label: t('steer.active') }
+        }
+        const directiveCard = (entry) => {
+          const status = statusOf(entry)
+          const scoped = typeof entry.workspace === 'string' && entry.workspace.length > 0
+          return h('div', { key: entry.id, className: 'tacit-dir tacit-dir-' + status.kind + (entry.enabled === false ? ' tacit-dir-off' : '') },
+            h('div', { className: 'tacit-dir-head' },
+              h('span', { className: 'tacit-badge tacit-badge-' + status.kind },
+                h('span', { className: 'tacit-badge-dot', 'aria-hidden': 'true' }),
+                status.label),
+              h('span', { className: 'tacit-chip' }, entry.source === 'user' ? t('steer.user') : t('steer.distilled')),
+              scoped
+                ? h('span', { className: 'tacit-chip tacit-chip-scope', title: entry.workspace }, t('steer.workspace', { name: labelOf(entry.workspace) }))
+                : null,
+              scoped && !liveScope(entry.workspace)
+                ? h('span', { className: 'tacit-chip tacit-chip-muted', title: entry.workspace }, t('steer.notSeen', { date: notSeenSince(entry) }))
+                : null,
+              reviewOn && entry.status === 'queued' && !(entry.approvedAt > 0)
+                ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-primary tacit-dir-start', onClick: () => editDirectives({ action: 'start-trial', id: entry.id }) }, t('steer.startTrial'))
+                : null),
+            h('div', { className: 'tacit-dir-text' }, String(entry.text)),
+            h('div', { className: 'tacit-dir-actions' },
+              h('label', { className: 'tacit-dir-enabled' },
                 h('input', {
                   type: 'checkbox',
                   className: 'tacit-check',
@@ -117,46 +159,33 @@
                   checked: entry.enabled !== false,
                   onChange: () => editDirectives({ action: 'toggle', id: entry.id, enabled: entry.enabled === false }),
                 }),
-                h('span', { className: 'tacit-directive-text' }, String(entry.text)),
-                h('span', { className: 'tacit-chip' }, entry.source === 'user' ? t('steer.user') : t('steer.distilled')),
-                typeof entry.workspace === 'string' && entry.workspace.length > 0
-                  ? h('span', { className: 'tacit-chip tacit-chip-scope', title: entry.workspace }, t('steer.workspace', { name: labelOf(entry.workspace) }))
-                  : null,
-                typeof entry.workspace === 'string' && entry.workspace.length > 0 && !liveScope(entry.workspace)
-                  ? h('span', { className: 'tacit-chip tacit-chip-muted', title: entry.workspace }, t('steer.notSeen', { date: notSeenSince(entry) }))
-                  : null,
-                entry.status === 'queued'
-                  ? h('span', { className: 'tacit-chip tacit-chip-muted' }, t('steer.queued'))
-                  : entry.status === 'candidate'
-                    ? h('span', { className: 'tacit-chip tacit-chip-trial' }, t('steer.trial', {
-                      n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
-                      total: String(config !== null && typeof config.directiveTrialTurns === 'number' ? config.directiveTrialTurns : 10),
-                    }))
-                    : entry.status === 'retired'
-                      ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('steer.retired', { reason: String(entry.retiredReason || '') }))
-                      : h('span', { className: 'tacit-chip tacit-chip-ok' }, t('steer.active')),
-                reviewOn && entry.status === 'queued' && !(entry.approvedAt > 0)
-                  ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'start-trial', id: entry.id }) }, t('steer.startTrial'))
-                  : null,
-                h('select', {
-                  className: 'tacit-input tacit-select tacit-select-sm',
-                  'aria-label': t('steer.moveTo'),
-                  onChange: (event) => {
-                    if (event.target.value !== '-') editDirectives({ action: 'rescope', id: entry.id, workspace: event.target.value })
-                  },
-                }, ...scopeOptions(typeof entry.workspace === 'string' ? entry.workspace : '')),
-                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
-                h('details', {
-                  className: 'tacit-preview',
-                  'data-testid': 'tacit-receipt',
-                  'data-directive-id': entry.id,
-                  onToggle: (event) => {
-                    if (event.target.open) fetchReceipt(entry.id)
-                  },
+                t('steer.enabled')),
+              h('select', {
+                className: 'tacit-input tacit-select tacit-select-sm',
+                'aria-label': t('steer.moveTo'),
+                onChange: (event) => {
+                  if (event.target.value !== '-') editDirectives({ action: 'rescope', id: entry.id, workspace: event.target.value })
                 },
-                h('summary', null, t('steer.receipt')),
-                Receipt(receipts[entry.id] ?? null))))),
-          h('div', { className: 'tacit-settings-row' },
+              }, ...scopeOptions(typeof entry.workspace === 'string' ? entry.workspace : '')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet tacit-dir-remove', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
+            h('details', {
+              className: 'tacit-dir-receipt',
+              'data-testid': 'tacit-receipt',
+              'data-directive-id': entry.id,
+              onToggle: (event) => {
+                if (event.target.open) fetchReceipt(entry.id)
+              },
+            },
+            h('summary', null, t('steer.receipt')),
+            Receipt(receipts[entry.id] ?? null)))
+        }
+        return h('div', { className: 'tacit-panel-section', 'data-testid': 'tacit-steering' },
+          h('div', { className: 'tacit-report-title' }, t('steer.title')),
+          h('div', { className: 'tacit-panel-hint' }, t('steer.desc')),
+          directives.length === 0
+            ? h('div', { className: 'tacit-empty' }, t('steer.empty'))
+            : h('div', { className: 'tacit-dir-list' }, directives.map(directiveCard)),
+          h('div', { className: 'tacit-dir-add' },
             h('input', {
               className: 'tacit-input tacit-directive-input',
               type: 'text',
@@ -179,7 +208,12 @@
               h('option', { value: '' }, t('steer.everywhere')),
               ...workspaces.map((entry) => h('option', { key: entry.cwd, value: entry.cwd }, entry.label)))
               : null,
-            h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: draft.trim().length === 0, onClick: onAdd }, t('steer.add'))),
+            h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-primary', disabled: draft.trim().length === 0, onClick: onAdd }, t('steer.add'))),
+          h('div', { className: 'tacit-options' },
+            h('div', { className: 'tacit-report-title' }, t('steer.options')),
+            OptionRow(t('steer.toggle'), steerOn, toggleSteer),
+            OptionRow(t('steer.enrich'), enrichOn, toggleEnrich),
+            OptionRow(t('steer.review'), reviewOn, toggleReview)),
           steering !== null && typeof steering === 'object' && typeof steering.text === 'string' && steering.text.length > 0
             ? h('details', { className: 'tacit-preview' },
               h('summary', null, t('steer.preview')),
@@ -329,19 +363,15 @@
           h('div', { className: 'tacit-settings-notice', role: 'status' }, notice === null ? '' : notice.text),
           card('overview', [
             StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
-            config !== null && typeof config.model === 'string' && config.model.length > 0
-              ? h('div', { className: 'tacit-settings-row' },
-                h('span', { className: 'tacit-chip' }, t('overview.model', { model: config.model })))
-              : null,
-            h('div', { className: 'tacit-settings-row' },
+            h('div', { className: 'tacit-inline' },
               BootstrapButton(kit, {
                 bootstrap: rootStore.bootstrap,
                 // Only a loaded preview may disable the button: before one
                 // lands, "0 eligible" is an absence of data, not a fact.
                 disabled: preview !== null && preview.eligible === 0,
                 onClick: () => bootstrapAll(t),
-              }),
-              h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
+              })),
+            h('p', { className: 'tacit-panel-hint' }, t('bootstrap.hint')),
             // What the run would actually cost, priced from the ledger once it
             // holds enough analyses; until the preview lands, the documented
             // figure stands in.
@@ -380,41 +410,40 @@
             }),
           ], { summary: pricingSummary(kit, usagePricing) }),
           card('learning', [
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.model')),
-              h('select', {
-                className: 'tacit-select',
-                value: model,
-                onChange: (event) => applyModel(event.target.value),
-              },
-              h('option', { value: 'deepseek-v4-flash' }, 'deepseek-v4-flash'),
-              h('option', { value: 'deepseek-v4-pro' }, 'deepseek-v4-pro'))),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.auto')),
-              h('input', { type: 'checkbox', checked: auto, onChange: toggleAuto })),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.learnGood')),
-              h('input', { type: 'checkbox', checked: learnGood, onChange: toggleLearnGood })),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.budget')),
+            FieldRow(t('settings.model'), h('select', {
+              id: 'tacit-learning-model',
+              className: 'tacit-select',
+              value: model,
+              onChange: (event) => applyModel(event.target.value),
+            },
+            h('option', { value: 'deepseek-v4-flash' }, 'deepseek-v4-flash'),
+            h('option', { value: 'deepseek-v4-pro' }, 'deepseek-v4-pro')), 'tacit-learning-model'),
+            FieldRow(t('settings.budget'), [
               h('input', {
+                key: 'input',
+                id: 'tacit-learning-budget',
                 className: 'tacit-input',
                 type: 'number',
                 min: 0,
                 value: budgetText,
                 onChange: (event) => setBudgetText(event.target.value),
               }),
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply'))),
-          ]),
+              h('button', { key: 'apply', type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply')),
+            ], 'tacit-learning-budget'),
+            h('div', { className: 'tacit-options' },
+              OptionRow(t('settings.auto'), auto, toggleAuto),
+              OptionRow(t('settings.learnGood'), learnGood, toggleLearnGood)),
+            // The model in force reads from the collapsed head, where it is set.
+          ], config !== null && typeof config.model === 'string' && config.model.length > 0
+            ? { summary: t('overview.model', { model: config.model }) }
+            : undefined),
           card('guidance', [
             h(DirectivesEditorView, {
               workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering,
               seenAt: rootStore.profile !== null && typeof rootStore.profile === 'object' ? rootStore.profile.workspaceSeenAt : null }),
-          ]),
+          ], { count: directives.filter((entry) => entry.status !== 'removed').length }),
           card('improve', [
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.live')),
-              h('input', { type: 'checkbox', checked: live, onChange: toggleLive })),
+            OptionRow(t('settings.live'), live, toggleLive),
             h('div', { className: 'tacit-panel-section' },
               h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
               styleRules.length === 0
@@ -444,18 +473,16 @@
           ], { count: coached.length }),
           card('privacy', [
             h('p', { className: 'tacit-panel-hint' }, t('privacy.stored')),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-retention' }, t('privacy.retention')),
-              h('select', {
-                id: 'tacit-retention',
-                className: 'tacit-select',
-                value: String(retention),
-                onChange: (event) => updateRootConfig({ costHistoryDays: Number(event.target.value) }),
-              },
-              ...retentionDays.map((days) => h('option', { key: days, value: String(days) }, String(days))))),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-daily' }, t('privacy.warnDaily')),
+            FieldRow(t('privacy.retention'), h('select', {
+              id: 'tacit-retention',
+              className: 'tacit-select',
+              value: String(retention),
+              onChange: (event) => updateRootConfig({ costHistoryDays: Number(event.target.value) }),
+            },
+            ...retentionDays.map((days) => h('option', { key: days, value: String(days) }, String(days)))), 'tacit-retention'),
+            FieldRow(t('privacy.warnDaily'), [
               h('input', {
+                key: 'input',
                 id: 'tacit-warn-daily',
                 className: 'tacit-input',
                 type: 'number',
@@ -465,16 +492,18 @@
                 onChange: (event) => setDailyText(event.target.value),
               }),
               h('button', {
+                key: 'apply',
                 type: 'button',
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
                 'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnDaily') }),
                 onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
-              }, t('privacy.apply'))),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-monthly' }, t('privacy.warnMonthly')),
+              }, t('privacy.apply')),
+            ], 'tacit-warn-daily'),
+            FieldRow(t('privacy.warnMonthly'), [
               h('input', {
+                key: 'input',
                 id: 'tacit-warn-monthly',
                 className: 'tacit-input',
                 type: 'number',
@@ -484,18 +513,20 @@
                 onChange: (event) => setMonthlyText(event.target.value),
               }),
               h('button', {
+                key: 'apply',
                 type: 'button',
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
                 'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnMonthly') }),
                 onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
-              }, t('privacy.apply'))),
+              }, t('privacy.apply')),
+            ], 'tacit-warn-monthly'),
             h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),
             // Both clears are irreversible, so both go through the dialog.
-            h('div', { className: 'tacit-settings-row' },
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('reports') }, t('settings.clear')),
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('usage') }, t('privacy.clearUsage'))),
+            h('div', { className: 'tacit-inline' },
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet', onClick: () => openConfirm('reports') }, t('settings.clear')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet', onClick: () => openConfirm('usage') }, t('privacy.clearUsage'))),
           ]),
           // Always rendered (null while closed) so its one effect keeps this
           // component's hook count stable.
