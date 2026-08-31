@@ -64,7 +64,13 @@
       return h('div', { className: 'tacit-progress' },
         h('div', { className: 'tacit-progress-head' },
           h('span', { className: 'tacit-progress-title' }, t('status.learned', { count: String(analyzed) })),
-          h('span', { className: 'tacit-progress-count' }, autoOn ? t('status.autoOn', { today: String(today), budget: String(budget) }) : '')),
+          // The same badge idiom the directive cards use: a dot plus a label,
+          // tinted by state. Off is said in the line below, not twice.
+          autoOn
+            ? h('span', { className: 'tacit-badge tacit-badge-active' },
+              h('span', { className: 'tacit-badge-dot', 'aria-hidden': 'true' }),
+              t('status.autoOn', { today: String(today), budget: String(budget) }))
+            : null),
         h('div', { className: 'tacit-progress-text' }, autoOn ? t('status.autoHint') : t('status.autoOff')),
         hasTrend
           ? h('div', { className: 'tacit-trend', title: t('status.trendDocs') },
@@ -163,8 +169,10 @@
       const status = turn.finished === true
         ? null
         : (isNewest === true
-          ? h('span', { className: 'tacit-row-live' }, t('turn.running'))
-          : h('span', { className: 'tacit-chip tacit-chip-muted' }, t('turn.interrupted')))
+          ? h('span', { className: 'tacit-badge tacit-badge-active' },
+            h('span', { className: 'tacit-badge-dot', 'aria-hidden': 'true' }),
+            t('turn.running'))
+          : h('span', { className: 'tacit-badge tacit-badge-muted' }, t('turn.interrupted')))
 
       return h('div', { className: 'tacit-row' + (report !== null ? ' tacit-row-analyzed' : '') },
         h('div', { className: 'tacit-row-head' },
@@ -182,35 +190,47 @@
             h('span', { className: 'tacit-row-time' }, fmtTime(turn.startedAt)),
             report !== null ? h('span', { className: 'tacit-chip tacit-chip-trigger' }, t('trigger.' + report.trigger)) : null,
             status),
-          h('div', { className: 'tacit-row-chips' },
-            h('span', { className: 'tacit-chip' }, t('turn.tools', { n: String(tools) })),
-            h('span', { className: 'tacit-chip' }, t('turn.steps', { n: String(typeof turn.steps === 'number' ? turn.steps : 0) })),
-            h('span', { className: 'tacit-chip' }, t('turn.tokens', { n: fmt(tokens) })),
-            typeof turn.retries === 'number' && turn.retries > 0
-              ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('turn.retries', { n: String(turn.retries) }))
-              : null,
+          // Two controls only, and the row's own action is the solid one:
+          // opening the report is a disclosure, so it stays quiet.
+          h('div', { className: 'tacit-row-actions' },
             report !== null
-              ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => toggleReport(store, turn.turn) },
-                t('turn.report') + (reportOpen ? ' ▾' : ' ▸'))
+              ? h('button', {
+                type: 'button',
+                className: 'tacit-btn tacit-btn-sm tacit-btn-quiet',
+                'aria-expanded': reportOpen,
+                onClick: () => toggleReport(store, turn.turn),
+              }, t('turn.report'),
+              h('span', { className: 'tacit-chevron' + (reportOpen ? ' tacit-chevron-open' : ''), 'aria-hidden': 'true' }, '›'))
               : null,
             h('button', {
               type: 'button',
-              className: 'tacit-btn tacit-btn-sm tacit-btn-quiet',
+              className: 'tacit-btn tacit-btn-sm',
               disabled: analyzing,
               onClick: () => analyzeTurn(store, turn.turn),
             }, analyzing ? t('turn.analyzing') : (report !== null ? t('turn.reanalyze') : t('turn.analyze'))))),
         prompt.length > 0
           ? h('div', { className: 'tacit-row-prompt' },
-            h('button', {
-              type: 'button',
-              className: 'tacit-row-prompt-text',
-              onClick: () => setExpanded((open) => !open),
-            }, expanded ? prompt : promptPreview),
+            // A long prompt is one control: the text itself toggles, and the
+            // trailing word says so. A short one is plain text.
             prompt.length > 120
-              ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => setExpanded((open) => !open) },
-                expanded ? t('turn.collapse') : t('turn.expand'))
-              : null)
+              ? h('button', {
+                type: 'button',
+                className: 'tacit-row-prompt-text',
+                'aria-expanded': expanded,
+                onClick: () => setExpanded((open) => !open),
+              }, expanded ? prompt : promptPreview,
+              h('span', { className: 'tacit-row-more' }, expanded ? t('turn.collapse') : t('turn.expand')))
+              : h('div', { className: 'tacit-row-prompt-text tacit-row-prompt-static' }, prompt))
           : null,
+        // The measurements are context, not headline: one quiet dot-separated
+        // line under the prompt rather than four bordered chips in the header.
+        h('div', { className: 'tacit-row-meta' },
+          h('span', null, t('turn.tools', { n: String(tools) })),
+          h('span', null, t('turn.steps', { n: String(typeof turn.steps === 'number' ? turn.steps : 0) })),
+          h('span', null, t('turn.tokens', { n: fmt(tokens) })),
+          typeof turn.retries === 'number' && turn.retries > 0
+            ? h('span', { className: 'tacit-row-meta-warn' }, t('turn.retries', { n: String(turn.retries) }))
+            : null),
         typeof turn.enrichment === 'string' && turn.enrichment.length > 0
           ? h('div', { className: 'tacit-row-enrichment' },
             h('span', { className: 'tacit-report-title' }, t('turn.enrichment')),
@@ -274,35 +294,33 @@
 
       return h('div', { className: 'tacit-settings' },
         h('div', { className: 'tacit-settings-title' }, t('settings.title')),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.model')),
-          h('select', {
-            className: 'tacit-select',
-            value: model,
-            onChange: (event) => applyModel(event.target.value),
-          },
-          h('option', { value: 'deepseek-v4-flash' }, 'deepseek-v4-flash'),
-          h('option', { value: 'deepseek-v4-pro' }, 'deepseek-v4-pro'))),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.auto')),
-          h('input', { type: 'checkbox', checked: auto, onChange: toggleAuto })),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.learnGood')),
-          h('input', { type: 'checkbox', checked: learnGood, onChange: toggleLearnGood })),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.budget')),
+        FieldRow(t('settings.model'), h('select', {
+          id: 'tacit-tab-model',
+          className: 'tacit-select',
+          value: model,
+          onChange: (event) => applyModel(event.target.value),
+        },
+        h('option', { value: 'deepseek-v4-flash' }, 'deepseek-v4-flash'),
+        h('option', { value: 'deepseek-v4-pro' }, 'deepseek-v4-pro')), 'tacit-tab-model'),
+        FieldRow(t('settings.budget'), [
           h('input', {
+            key: 'input',
+            id: 'tacit-tab-budget',
             className: 'tacit-input',
             type: 'number',
             min: 0,
             value: budgetText,
             onChange: (event) => setBudgetText(event.target.value),
           }),
-          h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply'))),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.live')),
-          h('input', { type: 'checkbox', checked: live, onChange: toggleLive })),
-        h('div', { className: 'tacit-settings-row' },
+          h('button', { key: 'apply', type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply')),
+        ], 'tacit-tab-budget'),
+        // The three switches read as one group of clickable sentences, the way
+        // the Agent guidance options do.
+        h('div', { className: 'tacit-options' },
+          OptionRow(t('settings.auto'), auto, toggleAuto),
+          OptionRow(t('settings.learnGood'), learnGood, toggleLearnGood),
+          OptionRow(t('settings.live'), live, toggleLive)),
+        h('div', { className: 'tacit-inline' },
           h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: onClear }, t('settings.clear')),
           notice !== null ? h('span', { className: 'tacit-settings-notice' }, notice) : null))
     }
@@ -334,7 +352,7 @@
             h('div', { className: 'tacit-head-title' }, t('tab')),
             h('button', {
               type: 'button',
-              className: 'tacit-btn',
+              className: 'tacit-btn tacit-btn-sm tacit-btn-quiet',
               onClick: () => setSettingsOpen((open) => !open),
             }, settingsOpen ? t('settings.close') : t('settings'))),
           StatusCard(kit, { config, profile, auto: store.auto }),
@@ -354,11 +372,10 @@
             ? h('div', { className: 'tacit-empty' }, t('empty'))
             : h('div', null,
               h('div', { className: 'tacit-toolbar' },
-                h('span', { className: 'tacit-panel-hint tacit-toolbar-hint' }, t('manual.hint')),
                 BootstrapButton(kit, { bootstrap: store.bootstrap, onClick: () => bootstrapSession(store) }),
                 h('button', {
                   type: 'button',
-                  className: 'tacit-btn tacit-btn-sm',
+                  className: 'tacit-btn tacit-btn-sm' + (store.selecting ? '' : ' tacit-btn-quiet'),
                   onClick: () => toggleSelecting(store),
                 }, store.selecting ? t('coach.selectDone') : t('coach.select')),
                 store.selecting
@@ -369,6 +386,7 @@
                     onClick: () => coachSelected(store),
                   }, store.batchRunning ? t('coach.batchRunning') : t('coach.selected', { n: String(selectedCount) }))
                   : null),
+              h('div', { className: 'tacit-toolbar-note' }, t('manual.hint')),
               turns.map((turn, index) => h(TurnRow, { key: String(turn.turn), kit, store, turn, isNewest: index === 0 }))))
       }
     }
@@ -428,21 +446,23 @@
               : preview.error !== null
                 ? h('div', { className: 'tacit-error' },
                   t('err.' + String(preview.error.code), { detail: String(preview.error.detail || '') }))
-                : h('div', null,
+                // What changed is the one sentence that decides Apply, so it
+                // reads before the two columns rather than under them.
+                : h('div', { className: 'tacit-modal-body' },
+                  preview.data !== null && typeof preview.data === 'object' && typeof preview.data.rationale === 'string' && preview.data.rationale.length > 0
+                    ? h('div', { className: 'tacit-modal-rationale' },
+                      h('div', { className: 'tacit-modal-col-title' }, t('preview.rationale')),
+                      h('div', { className: 'tacit-modal-rationale-text' }, preview.data.rationale))
+                    : null,
                   unchanged
                     ? h('div', { className: 'tacit-modal-unchanged' }, t('preview.unchanged'))
                     : h('div', { className: 'tacit-modal-cols' },
                       h('div', { className: 'tacit-modal-col' },
                         h('div', { className: 'tacit-modal-col-title' }, t('preview.original')),
                         h('pre', { className: 'tacit-pre' }, preview.original)),
-                      h('div', { className: 'tacit-modal-col' },
+                      h('div', { className: 'tacit-modal-col tacit-modal-col-improved' },
                         h('div', { className: 'tacit-modal-col-title' }, t('preview.improved')),
                         h('pre', { className: 'tacit-pre' }, improvedText))),
-                  preview.data !== null && typeof preview.data === 'object' && typeof preview.data.rationale === 'string' && preview.data.rationale.length > 0
-                    ? h('div', { className: 'tacit-modal-rationale' },
-                      h('div', { className: 'tacit-modal-col-title' }, t('preview.rationale')),
-                      h('div', { className: 'tacit-modal-rationale-text' }, preview.data.rationale))
-                    : null,
                   h('div', { className: 'tacit-modal-actions' },
                     unchanged
                       ? null

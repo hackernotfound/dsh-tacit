@@ -108,12 +108,15 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.receiptEvaluated': '评定于',
       'steer.receiptVersion': '版本',
       'steer.receiptTrial': '试用窗口',
-      'steer.receiptTrialValue': '{turns} 轮，始于 {started} · 基线：杂乱 {messy}、纠正 {corrected}',
+      'steer.receiptTurns': '{n} 轮',
+      'steer.receiptTrialNote': '始于 {started} · 基线：杂乱 {messy}、纠正 {corrected}',
+      'steer.receiptCalls': '{n} 次调用',
+      'steer.enabled': '启用',
+      'steer.options': '选项',
       'steer.receiptTriggers': '触发类别',
       'steer.receiptEvidence': '证据',
       'steer.receiptEvidenceValue': '{turns} 轮，来自 {conversations} 个会话',
       'steer.receiptCost': '提炼花费',
-      'steer.receiptCostValue': '{usd} · {calls} 次调用',
       'steer.moveTo': '移到工作区',
       'steer.notSeen': '自 {date} 起未见',
       'settings.auto': '自动分析混乱轮次',
@@ -394,12 +397,15 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.receiptEvaluated': 'Evaluated',
       'steer.receiptVersion': 'Version',
       'steer.receiptTrial': 'Trial window',
-      'steer.receiptTrialValue': '{turns} turns from {started} · baseline messy {messy}, corrections {corrected}',
+      'steer.receiptTurns': '{n} turns',
+      'steer.receiptTrialNote': 'from {started} · baseline messy {messy}, corrections {corrected}',
+      'steer.receiptCalls': '{n} calls',
+      'steer.enabled': 'Enabled',
+      'steer.options': 'Options',
       'steer.receiptTriggers': 'Trigger categories',
       'steer.receiptEvidence': 'Evidence',
       'steer.receiptEvidenceValue': '{turns} turns across {conversations} conversations',
       'steer.receiptCost': 'Distillation cost',
-      'steer.receiptCostValue': '{usd} · {calls} calls',
       'steer.moveTo': 'Move to workspace',
       'steer.notSeen': 'not seen since {date}',
       'settings.auto': 'Auto-analyze messy turns',
@@ -1878,7 +1884,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       return h('div', { className: 'tacit-progress' },
         h('div', { className: 'tacit-progress-head' },
           h('span', { className: 'tacit-progress-title' }, t('status.learned', { count: String(analyzed) })),
-          h('span', { className: 'tacit-progress-count' }, autoOn ? t('status.autoOn', { today: String(today), budget: String(budget) }) : '')),
+          // The same badge idiom the directive cards use: a dot plus a label,
+          // tinted by state. Off is said in the line below, not twice.
+          autoOn
+            ? h('span', { className: 'tacit-badge tacit-badge-active' },
+              h('span', { className: 'tacit-badge-dot', 'aria-hidden': 'true' }),
+              t('status.autoOn', { today: String(today), budget: String(budget) }))
+            : null),
         h('div', { className: 'tacit-progress-text' }, autoOn ? t('status.autoHint') : t('status.autoOff')),
         hasTrend
           ? h('div', { className: 'tacit-trend', title: t('status.trendDocs') },
@@ -1977,8 +1989,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       const status = turn.finished === true
         ? null
         : (isNewest === true
-          ? h('span', { className: 'tacit-row-live' }, t('turn.running'))
-          : h('span', { className: 'tacit-chip tacit-chip-muted' }, t('turn.interrupted')))
+          ? h('span', { className: 'tacit-badge tacit-badge-active' },
+            h('span', { className: 'tacit-badge-dot', 'aria-hidden': 'true' }),
+            t('turn.running'))
+          : h('span', { className: 'tacit-badge tacit-badge-muted' }, t('turn.interrupted')))
 
       return h('div', { className: 'tacit-row' + (report !== null ? ' tacit-row-analyzed' : '') },
         h('div', { className: 'tacit-row-head' },
@@ -1996,35 +2010,47 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             h('span', { className: 'tacit-row-time' }, fmtTime(turn.startedAt)),
             report !== null ? h('span', { className: 'tacit-chip tacit-chip-trigger' }, t('trigger.' + report.trigger)) : null,
             status),
-          h('div', { className: 'tacit-row-chips' },
-            h('span', { className: 'tacit-chip' }, t('turn.tools', { n: String(tools) })),
-            h('span', { className: 'tacit-chip' }, t('turn.steps', { n: String(typeof turn.steps === 'number' ? turn.steps : 0) })),
-            h('span', { className: 'tacit-chip' }, t('turn.tokens', { n: fmt(tokens) })),
-            typeof turn.retries === 'number' && turn.retries > 0
-              ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('turn.retries', { n: String(turn.retries) }))
-              : null,
+          // Two controls only, and the row's own action is the solid one:
+          // opening the report is a disclosure, so it stays quiet.
+          h('div', { className: 'tacit-row-actions' },
             report !== null
-              ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => toggleReport(store, turn.turn) },
-                t('turn.report') + (reportOpen ? ' ▾' : ' ▸'))
+              ? h('button', {
+                type: 'button',
+                className: 'tacit-btn tacit-btn-sm tacit-btn-quiet',
+                'aria-expanded': reportOpen,
+                onClick: () => toggleReport(store, turn.turn),
+              }, t('turn.report'),
+              h('span', { className: 'tacit-chevron' + (reportOpen ? ' tacit-chevron-open' : ''), 'aria-hidden': 'true' }, '›'))
               : null,
             h('button', {
               type: 'button',
-              className: 'tacit-btn tacit-btn-sm tacit-btn-quiet',
+              className: 'tacit-btn tacit-btn-sm',
               disabled: analyzing,
               onClick: () => analyzeTurn(store, turn.turn),
             }, analyzing ? t('turn.analyzing') : (report !== null ? t('turn.reanalyze') : t('turn.analyze'))))),
         prompt.length > 0
           ? h('div', { className: 'tacit-row-prompt' },
-            h('button', {
-              type: 'button',
-              className: 'tacit-row-prompt-text',
-              onClick: () => setExpanded((open) => !open),
-            }, expanded ? prompt : promptPreview),
+            // A long prompt is one control: the text itself toggles, and the
+            // trailing word says so. A short one is plain text.
             prompt.length > 120
-              ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => setExpanded((open) => !open) },
-                expanded ? t('turn.collapse') : t('turn.expand'))
-              : null)
+              ? h('button', {
+                type: 'button',
+                className: 'tacit-row-prompt-text',
+                'aria-expanded': expanded,
+                onClick: () => setExpanded((open) => !open),
+              }, expanded ? prompt : promptPreview,
+              h('span', { className: 'tacit-row-more' }, expanded ? t('turn.collapse') : t('turn.expand')))
+              : h('div', { className: 'tacit-row-prompt-text tacit-row-prompt-static' }, prompt))
           : null,
+        // The measurements are context, not headline: one quiet dot-separated
+        // line under the prompt rather than four bordered chips in the header.
+        h('div', { className: 'tacit-row-meta' },
+          h('span', null, t('turn.tools', { n: String(tools) })),
+          h('span', null, t('turn.steps', { n: String(typeof turn.steps === 'number' ? turn.steps : 0) })),
+          h('span', null, t('turn.tokens', { n: fmt(tokens) })),
+          typeof turn.retries === 'number' && turn.retries > 0
+            ? h('span', { className: 'tacit-row-meta-warn' }, t('turn.retries', { n: String(turn.retries) }))
+            : null),
         typeof turn.enrichment === 'string' && turn.enrichment.length > 0
           ? h('div', { className: 'tacit-row-enrichment' },
             h('span', { className: 'tacit-report-title' }, t('turn.enrichment')),
@@ -2088,35 +2114,33 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
 
       return h('div', { className: 'tacit-settings' },
         h('div', { className: 'tacit-settings-title' }, t('settings.title')),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.model')),
-          h('select', {
-            className: 'tacit-select',
-            value: model,
-            onChange: (event) => applyModel(event.target.value),
-          },
-          h('option', { value: 'deepseek-v4-flash' }, 'deepseek-v4-flash'),
-          h('option', { value: 'deepseek-v4-pro' }, 'deepseek-v4-pro'))),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.auto')),
-          h('input', { type: 'checkbox', checked: auto, onChange: toggleAuto })),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.learnGood')),
-          h('input', { type: 'checkbox', checked: learnGood, onChange: toggleLearnGood })),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.budget')),
+        FieldRow(t('settings.model'), h('select', {
+          id: 'tacit-tab-model',
+          className: 'tacit-select',
+          value: model,
+          onChange: (event) => applyModel(event.target.value),
+        },
+        h('option', { value: 'deepseek-v4-flash' }, 'deepseek-v4-flash'),
+        h('option', { value: 'deepseek-v4-pro' }, 'deepseek-v4-pro')), 'tacit-tab-model'),
+        FieldRow(t('settings.budget'), [
           h('input', {
+            key: 'input',
+            id: 'tacit-tab-budget',
             className: 'tacit-input',
             type: 'number',
             min: 0,
             value: budgetText,
             onChange: (event) => setBudgetText(event.target.value),
           }),
-          h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply'))),
-        h('div', { className: 'tacit-settings-row' },
-          h('label', { className: 'tacit-settings-label' }, t('settings.live')),
-          h('input', { type: 'checkbox', checked: live, onChange: toggleLive })),
-        h('div', { className: 'tacit-settings-row' },
+          h('button', { key: 'apply', type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply')),
+        ], 'tacit-tab-budget'),
+        // The three switches read as one group of clickable sentences, the way
+        // the Agent guidance options do.
+        h('div', { className: 'tacit-options' },
+          OptionRow(t('settings.auto'), auto, toggleAuto),
+          OptionRow(t('settings.learnGood'), learnGood, toggleLearnGood),
+          OptionRow(t('settings.live'), live, toggleLive)),
+        h('div', { className: 'tacit-inline' },
           h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: onClear }, t('settings.clear')),
           notice !== null ? h('span', { className: 'tacit-settings-notice' }, notice) : null))
     }
@@ -2148,7 +2172,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             h('div', { className: 'tacit-head-title' }, t('tab')),
             h('button', {
               type: 'button',
-              className: 'tacit-btn',
+              className: 'tacit-btn tacit-btn-sm tacit-btn-quiet',
               onClick: () => setSettingsOpen((open) => !open),
             }, settingsOpen ? t('settings.close') : t('settings'))),
           StatusCard(kit, { config, profile, auto: store.auto }),
@@ -2168,11 +2192,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             ? h('div', { className: 'tacit-empty' }, t('empty'))
             : h('div', null,
               h('div', { className: 'tacit-toolbar' },
-                h('span', { className: 'tacit-panel-hint tacit-toolbar-hint' }, t('manual.hint')),
                 BootstrapButton(kit, { bootstrap: store.bootstrap, onClick: () => bootstrapSession(store) }),
                 h('button', {
                   type: 'button',
-                  className: 'tacit-btn tacit-btn-sm',
+                  className: 'tacit-btn tacit-btn-sm' + (store.selecting ? '' : ' tacit-btn-quiet'),
                   onClick: () => toggleSelecting(store),
                 }, store.selecting ? t('coach.selectDone') : t('coach.select')),
                 store.selecting
@@ -2183,6 +2206,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                     onClick: () => coachSelected(store),
                   }, store.batchRunning ? t('coach.batchRunning') : t('coach.selected', { n: String(selectedCount) }))
                   : null),
+              h('div', { className: 'tacit-toolbar-note' }, t('manual.hint')),
               turns.map((turn, index) => h(TurnRow, { key: String(turn.turn), kit, store, turn, isNewest: index === 0 }))))
       }
     }
@@ -2242,21 +2266,23 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               : preview.error !== null
                 ? h('div', { className: 'tacit-error' },
                   t('err.' + String(preview.error.code), { detail: String(preview.error.detail || '') }))
-                : h('div', null,
+                // What changed is the one sentence that decides Apply, so it
+                // reads before the two columns rather than under them.
+                : h('div', { className: 'tacit-modal-body' },
+                  preview.data !== null && typeof preview.data === 'object' && typeof preview.data.rationale === 'string' && preview.data.rationale.length > 0
+                    ? h('div', { className: 'tacit-modal-rationale' },
+                      h('div', { className: 'tacit-modal-col-title' }, t('preview.rationale')),
+                      h('div', { className: 'tacit-modal-rationale-text' }, preview.data.rationale))
+                    : null,
                   unchanged
                     ? h('div', { className: 'tacit-modal-unchanged' }, t('preview.unchanged'))
                     : h('div', { className: 'tacit-modal-cols' },
                       h('div', { className: 'tacit-modal-col' },
                         h('div', { className: 'tacit-modal-col-title' }, t('preview.original')),
                         h('pre', { className: 'tacit-pre' }, preview.original)),
-                      h('div', { className: 'tacit-modal-col' },
+                      h('div', { className: 'tacit-modal-col tacit-modal-col-improved' },
                         h('div', { className: 'tacit-modal-col-title' }, t('preview.improved')),
                         h('pre', { className: 'tacit-pre' }, improvedText))),
-                  preview.data !== null && typeof preview.data === 'object' && typeof preview.data.rationale === 'string' && preview.data.rationale.length > 0
-                    ? h('div', { className: 'tacit-modal-rationale' },
-                      h('div', { className: 'tacit-modal-col-title' }, t('preview.rationale')),
-                      h('div', { className: 'tacit-modal-rationale-text' }, preview.data.rationale))
-                    : null,
                   h('div', { className: 'tacit-modal-actions' },
                     unchanged
                       ? null
@@ -2338,6 +2364,37 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     // ── Collapsible section card (Settings → Tacit) ────────────────────────
 
     /**
+     * One settings row: a label that takes the slack and wraps, and its
+     * control(s) right-aligned. `htmlFor` names the control when it has an id;
+     * checkbox settings use `OptionRow` instead, which is a label all through.
+     */
+    function FieldRow(label, control, htmlFor) {
+      const controls = Array.isArray(control) ? control : [control]
+      return h('div', { className: 'tacit-field' },
+        h('label', {
+          className: 'tacit-field-label',
+          ...(typeof htmlFor === 'string' && htmlFor.length > 0 ? { htmlFor } : {}),
+        }, label),
+        h('div', { className: 'tacit-field-control' }, ...controls))
+    }
+
+    /**
+     * One checkbox setting as a clickable `<label>`, so the hit target is the
+     * whole sentence rather than a 14px box.
+     */
+    function OptionRow(label, checked, onChange, extra) {
+      return h('label', { className: 'tacit-option' },
+        h('input', {
+          type: 'checkbox',
+          className: 'tacit-check',
+          checked,
+          onChange,
+          ...(extra !== null && typeof extra === 'object' ? extra : {}),
+        }),
+        h('span', null, label))
+    }
+
+    /**
      * One accessible collapsible card.
      *
      * A `<details>` would be shorter, but its open state lives in the DOM: the
@@ -2366,10 +2423,15 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         typeof summary === 'string' && summary.length > 0
           ? h('span', { className: 'tacit-card-summary' }, summary)
           : null,
-        count !== undefined && count !== null
+        // A zero count is silence, not a figure worth a chip.
+        typeof count === 'number' && count > 0
           ? h('span', { className: 'tacit-card-count' }, String(count))
           : null,
-        h('span', { className: 'tacit-card-chevron', 'aria-label': label, title: label }, isOpen ? '▾' : '▸')),
+        h('span', {
+          className: 'tacit-chevron tacit-card-chevron' + (isOpen ? ' tacit-chevron-open' : ''),
+          'aria-label': label,
+          title: label,
+        }, '›')),
         h('div', { className: 'tacit-card-body', id: bodyId, hidden: !isOpen }, ...kids))
     }
 
@@ -2444,7 +2506,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         },
       },
       h('div', {
-        className: 'tacit-modal-card',
+        className: 'tacit-modal-card tacit-modal-card-sm',
         role: 'dialog',
         'aria-modal': 'true',
         'aria-labelledby': 'tacit-confirm-title',
@@ -2476,31 +2538,54 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         if (typeof navigator === 'undefined' || navigator === null || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') return
         navigator.clipboard.writeText(JSON.stringify(receipt, null, 2)).catch(() => {})
       }
-      const receiptRow = (label, value) => [h('dt', { key: label + '-t' }, label), h('dd', { key: label + '-d' }, value)]
-      /** What the receipt route returned for this directive, as definition rows; never any prompt text. */
+      const metaRow = (label, value) => [h('dt', { key: label + '-t' }, label), h('dd', { key: label + '-d' }, value)]
+      /** A null `note` marks an absent value ("never", "no ledger run"), shown quiet rather than as a headline figure. */
+      const tile = (key, label, value, note) => h('div', { key, className: 'tacit-tile tacit-receipt-tile' },
+        h('span', { className: 'tacit-tile-label' }, label),
+        h('span', { className: 'tacit-tile-value' + (note === null ? ' tacit-tile-muted' : '') }, value),
+        note === null ? null : h('span', { className: 'tacit-receipt-tile-note' }, note))
+      const step = (key, label, ms) => h('li', { key, className: 'tacit-timeline-step' + (Number(ms) > 0 ? '' : ' tacit-timeline-never') },
+        h('span', { className: 'tacit-timeline-label' }, label),
+        h('span', { className: 'tacit-timeline-value' }, fmtDay(ms)))
+      /**
+       * What the receipt route returned for this directive, layered: three
+       * tiles, a lifecycle timeline, the trigger chips, then the identity grid;
+       * never any prompt text.
+       */
       function Receipt(receipt) {
         if (receipt === null || typeof receipt === 'object' === false) return h('div', { className: 'tacit-panel-hint' }, t('steer.receiptLoading'))
         const triggers = Object.entries(receipt.triggers !== null && typeof receipt.triggers === 'object' ? receipt.triggers : {})
-          .map(([name, count]) => triggerName(name) + ' ' + String(count)).join(' · ')
         const evidence = receipt.evidence !== null && typeof receipt.evidence === 'object' ? receipt.evidence : { turns: 0, conversations: 0 }
         const cost = receipt.cost !== null && typeof receipt.cost === 'object' ? receipt.cost : { usd: null, calls: 0 }
         const trial = receipt.trial !== null && typeof receipt.trial === 'object' ? receipt.trial : null
-        return h('div', null,
-          h('dl', { className: 'tacit-receipt' },
-            ...receiptRow(t('steer.receiptId'), String(receipt.id)),
-            ...receiptRow(t('steer.receiptScope'), typeof receipt.scope === 'string' && receipt.scope.length > 0 ? receipt.scope : t('steer.everywhere')),
-            ...receiptRow(t('steer.receiptStatus'), String(receipt.status)),
-            ...receiptRow(t('steer.receiptSource'), receipt.source === 'user' ? t('steer.user') : t('steer.distilled')),
-            ...receiptRow(t('steer.receiptCreated'), fmtDay(receipt.createdAt)),
-            ...receiptRow(t('steer.receiptUpdated'), fmtDay(receipt.updatedAt)),
-            ...receiptRow(t('steer.receiptEvaluated'), fmtDay(receipt.evaluatedAt)),
-            ...receiptRow(t('steer.receiptVersion'), String(receipt.version)),
-            ...receiptRow(t('steer.receiptTrial'), trial === null ? t('steer.receiptNever') : t('steer.receiptTrialValue', {
-              turns: String(trial.turns), started: fmtDay(trial.startedAt), messy: pct(trial.baselineMessyRate), corrected: pct(trial.baselineCorrectionRate) })),
-            ...receiptRow(t('steer.receiptTriggers'), triggers.length > 0 ? triggers : t('steer.receiptNever')),
-            ...receiptRow(t('steer.receiptEvidence'), t('steer.receiptEvidenceValue', { turns: String(evidence.turns), conversations: String(evidence.conversations) })),
-            ...receiptRow(t('steer.receiptCost'), cost.usd === null ? t('steer.receiptNoRun') : t('steer.receiptCostValue', { usd: fmtUsd(cost.usd), calls: String(cost.calls) }))),
-          h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyReceipt(receipt) }, t('steer.receiptCopy')))
+        return h('div', { className: 'tacit-receipt' },
+          h('div', { className: 'tacit-tiles tacit-receipt-tiles' },
+            tile('evidence', t('steer.receiptEvidence'), String(evidence.turns),
+              t('steer.receiptEvidenceValue', { turns: String(evidence.turns), conversations: String(evidence.conversations) })),
+            tile('trial', t('steer.receiptTrial'),
+              trial === null ? t('steer.receiptNever') : t('steer.receiptTurns', { n: String(trial.turns) }),
+              trial === null ? null : t('steer.receiptTrialNote', {
+                started: fmtDay(trial.startedAt), messy: pct(trial.baselineMessyRate), corrected: pct(trial.baselineCorrectionRate) })),
+            tile('cost', t('steer.receiptCost'),
+              cost.usd === null ? t('steer.receiptNoRun') : fmtUsd(cost.usd),
+              cost.usd === null ? null : t('steer.receiptCalls', { n: String(cost.calls) }))),
+          h('ol', { className: 'tacit-timeline' },
+            step('created', t('steer.receiptCreated'), receipt.createdAt),
+            step('updated', t('steer.receiptUpdated'), receipt.updatedAt),
+            step('evaluated', t('steer.receiptEvaluated'), receipt.evaluatedAt)),
+          h('div', { className: 'tacit-receipt-row' },
+            h('span', { className: 'tacit-receipt-label' }, t('steer.receiptTriggers')),
+            triggers.length === 0
+              ? h('span', { className: 'tacit-chip tacit-chip-muted' }, t('steer.receiptNever'))
+              : triggers.map(([name, count]) => h('span', { key: name, className: 'tacit-chip' }, triggerName(name) + ' ' + String(count)))),
+          h('dl', { className: 'tacit-receipt-meta' },
+            ...metaRow(t('steer.receiptId'), String(receipt.id)),
+            ...metaRow(t('steer.receiptVersion'), String(receipt.version)),
+            ...metaRow(t('steer.receiptScope'), typeof receipt.scope === 'string' && receipt.scope.length > 0 ? receipt.scope : t('steer.everywhere')),
+            ...metaRow(t('steer.receiptSource'), receipt.source === 'user' ? t('steer.user') : t('steer.distilled')),
+            ...metaRow(t('steer.receiptStatus'), String(receipt.status))),
+          h('div', { className: 'tacit-receipt-actions' },
+            h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyReceipt(receipt) }, t('steer.receiptCopy'))))
       }
       return function DirectivesEditorView(props) {
         const { config, steering } = props
@@ -2553,23 +2638,42 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           setDraft('')
           editDirectives({ action: 'add', text: text.slice(0, 300), ...(scope.length > 0 ? { workspace: scope } : {}) })
         }
-        return h('div', { className: 'tacit-panel-section', 'data-testid': 'tacit-steering' },
-          h('div', { className: 'tacit-report-title' }, t('steer.title')),
-          h('div', { className: 'tacit-panel-hint' }, t('steer.desc')),
-          h('div', { className: 'tacit-settings-row' },
-            h('label', { className: 'tacit-settings-label' }, t('steer.toggle')),
-            h('input', { type: 'checkbox', checked: steerOn, onChange: toggleSteer })),
-          h('div', { className: 'tacit-settings-row' },
-            h('label', { className: 'tacit-settings-label' }, t('steer.enrich')),
-            h('input', { type: 'checkbox', checked: enrichOn, onChange: toggleEnrich })),
-          h('div', { className: 'tacit-settings-row' },
-            h('label', { className: 'tacit-settings-label' }, t('steer.review')),
-            h('input', { type: 'checkbox', checked: reviewOn, onChange: toggleReview })),
-          directives.length === 0
-            ? h('div', { className: 'tacit-empty' }, t('steer.empty'))
-            : h('div', { className: 'tacit-rules-list' },
-              directives.map((entry) => h('div', { key: entry.id, className: 'tacit-directive-block' },
-                h('div', { className: 'tacit-rule tacit-directive' + (entry.enabled === false ? ' tacit-directive-off' : '') },
+        /** The lifecycle badge: one colour per status, the label the chips used to carry. */
+        const statusOf = (entry) => {
+          if (entry.status === 'queued') return { kind: 'queued', label: t('steer.queued') }
+          if (entry.status === 'candidate') {
+            return {
+              kind: 'trial',
+              label: t('steer.trial', {
+                n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
+                total: String(config !== null && typeof config.directiveTrialTurns === 'number' ? config.directiveTrialTurns : 10),
+              }),
+            }
+          }
+          if (entry.status === 'retired') return { kind: 'retired', label: t('steer.retired', { reason: String(entry.retiredReason || '') }) }
+          return { kind: 'active', label: t('steer.active') }
+        }
+        const directiveCard = (entry) => {
+          const status = statusOf(entry)
+          const scoped = typeof entry.workspace === 'string' && entry.workspace.length > 0
+          return h('div', { key: entry.id, className: 'tacit-dir tacit-dir-' + status.kind + (entry.enabled === false ? ' tacit-dir-off' : '') },
+            h('div', { className: 'tacit-dir-head' },
+              h('span', { className: 'tacit-badge tacit-badge-' + status.kind },
+                h('span', { className: 'tacit-badge-dot', 'aria-hidden': 'true' }),
+                status.label),
+              h('span', { className: 'tacit-chip' }, entry.source === 'user' ? t('steer.user') : t('steer.distilled')),
+              scoped
+                ? h('span', { className: 'tacit-chip tacit-chip-scope', title: entry.workspace }, t('steer.workspace', { name: labelOf(entry.workspace) }))
+                : null,
+              scoped && !liveScope(entry.workspace)
+                ? h('span', { className: 'tacit-chip tacit-chip-muted', title: entry.workspace }, t('steer.notSeen', { date: notSeenSince(entry) }))
+                : null,
+              reviewOn && entry.status === 'queued' && !(entry.approvedAt > 0)
+                ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-primary tacit-dir-start', onClick: () => editDirectives({ action: 'start-trial', id: entry.id }) }, t('steer.startTrial'))
+                : null),
+            h('div', { className: 'tacit-dir-text' }, String(entry.text)),
+            h('div', { className: 'tacit-dir-actions' },
+              h('label', { className: 'tacit-dir-enabled' },
                 h('input', {
                   type: 'checkbox',
                   className: 'tacit-check',
@@ -2577,46 +2681,33 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                   checked: entry.enabled !== false,
                   onChange: () => editDirectives({ action: 'toggle', id: entry.id, enabled: entry.enabled === false }),
                 }),
-                h('span', { className: 'tacit-directive-text' }, String(entry.text)),
-                h('span', { className: 'tacit-chip' }, entry.source === 'user' ? t('steer.user') : t('steer.distilled')),
-                typeof entry.workspace === 'string' && entry.workspace.length > 0
-                  ? h('span', { className: 'tacit-chip tacit-chip-scope', title: entry.workspace }, t('steer.workspace', { name: labelOf(entry.workspace) }))
-                  : null,
-                typeof entry.workspace === 'string' && entry.workspace.length > 0 && !liveScope(entry.workspace)
-                  ? h('span', { className: 'tacit-chip tacit-chip-muted', title: entry.workspace }, t('steer.notSeen', { date: notSeenSince(entry) }))
-                  : null,
-                entry.status === 'queued'
-                  ? h('span', { className: 'tacit-chip tacit-chip-muted' }, t('steer.queued'))
-                  : entry.status === 'candidate'
-                    ? h('span', { className: 'tacit-chip tacit-chip-trial' }, t('steer.trial', {
-                      n: String(entry.trial !== null && typeof entry.trial === 'object' && typeof entry.trial.turns === 'number' ? entry.trial.turns : 0),
-                      total: String(config !== null && typeof config.directiveTrialTurns === 'number' ? config.directiveTrialTurns : 10),
-                    }))
-                    : entry.status === 'retired'
-                      ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('steer.retired', { reason: String(entry.retiredReason || '') }))
-                      : h('span', { className: 'tacit-chip tacit-chip-ok' }, t('steer.active')),
-                reviewOn && entry.status === 'queued' && !(entry.approvedAt > 0)
-                  ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'start-trial', id: entry.id }) }, t('steer.startTrial'))
-                  : null,
-                h('select', {
-                  className: 'tacit-input tacit-select tacit-select-sm',
-                  'aria-label': t('steer.moveTo'),
-                  onChange: (event) => {
-                    if (event.target.value !== '-') editDirectives({ action: 'rescope', id: entry.id, workspace: event.target.value })
-                  },
-                }, ...scopeOptions(typeof entry.workspace === 'string' ? entry.workspace : '')),
-                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
-                h('details', {
-                  className: 'tacit-preview',
-                  'data-testid': 'tacit-receipt',
-                  'data-directive-id': entry.id,
-                  onToggle: (event) => {
-                    if (event.target.open) fetchReceipt(entry.id)
-                  },
+                t('steer.enabled')),
+              h('select', {
+                className: 'tacit-input tacit-select tacit-select-sm',
+                'aria-label': t('steer.moveTo'),
+                onChange: (event) => {
+                  if (event.target.value !== '-') editDirectives({ action: 'rescope', id: entry.id, workspace: event.target.value })
                 },
-                h('summary', null, t('steer.receipt')),
-                Receipt(receipts[entry.id] ?? null))))),
-          h('div', { className: 'tacit-settings-row' },
+              }, ...scopeOptions(typeof entry.workspace === 'string' ? entry.workspace : '')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet tacit-dir-remove', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
+            h('details', {
+              className: 'tacit-dir-receipt',
+              'data-testid': 'tacit-receipt',
+              'data-directive-id': entry.id,
+              onToggle: (event) => {
+                if (event.target.open) fetchReceipt(entry.id)
+              },
+            },
+            h('summary', null, t('steer.receipt')),
+            Receipt(receipts[entry.id] ?? null)))
+        }
+        return h('div', { className: 'tacit-panel-section', 'data-testid': 'tacit-steering' },
+          h('div', { className: 'tacit-report-title' }, t('steer.title')),
+          h('div', { className: 'tacit-panel-hint' }, t('steer.desc')),
+          directives.length === 0
+            ? h('div', { className: 'tacit-empty' }, t('steer.empty'))
+            : h('div', { className: 'tacit-dir-list' }, directives.map(directiveCard)),
+          h('div', { className: 'tacit-dir-add' },
             h('input', {
               className: 'tacit-input tacit-directive-input',
               type: 'text',
@@ -2639,7 +2730,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               h('option', { value: '' }, t('steer.everywhere')),
               ...workspaces.map((entry) => h('option', { key: entry.cwd, value: entry.cwd }, entry.label)))
               : null,
-            h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: draft.trim().length === 0, onClick: onAdd }, t('steer.add'))),
+            h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-primary', disabled: draft.trim().length === 0, onClick: onAdd }, t('steer.add'))),
+          h('div', { className: 'tacit-options' },
+            h('div', { className: 'tacit-report-title' }, t('steer.options')),
+            OptionRow(t('steer.toggle'), steerOn, toggleSteer),
+            OptionRow(t('steer.enrich'), enrichOn, toggleEnrich),
+            OptionRow(t('steer.review'), reviewOn, toggleReview)),
           steering !== null && typeof steering === 'object' && typeof steering.text === 'string' && steering.text.length > 0
             ? h('details', { className: 'tacit-preview' },
               h('summary', null, t('steer.preview')),
@@ -2789,19 +2885,15 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           h('div', { className: 'tacit-settings-notice', role: 'status' }, notice === null ? '' : notice.text),
           card('overview', [
             StatusCard(kit, { config, profile, auto: rootStore.auto, trend: rootStore.trend }),
-            config !== null && typeof config.model === 'string' && config.model.length > 0
-              ? h('div', { className: 'tacit-settings-row' },
-                h('span', { className: 'tacit-chip' }, t('overview.model', { model: config.model })))
-              : null,
-            h('div', { className: 'tacit-settings-row' },
+            h('div', { className: 'tacit-inline' },
               BootstrapButton(kit, {
                 bootstrap: rootStore.bootstrap,
                 // Only a loaded preview may disable the button: before one
                 // lands, "0 eligible" is an absence of data, not a fact.
                 disabled: preview !== null && preview.eligible === 0,
                 onClick: () => bootstrapAll(t),
-              }),
-              h('span', { className: 'tacit-panel-hint' }, t('bootstrap.hint'))),
+              })),
+            h('p', { className: 'tacit-panel-hint' }, t('bootstrap.hint')),
             // What the run would actually cost, priced from the ledger once it
             // holds enough analyses; until the preview lands, the documented
             // figure stands in.
@@ -2840,41 +2932,40 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             }),
           ], { summary: pricingSummary(kit, usagePricing) }),
           card('learning', [
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.model')),
-              h('select', {
-                className: 'tacit-select',
-                value: model,
-                onChange: (event) => applyModel(event.target.value),
-              },
-              h('option', { value: 'deepseek-v4-flash' }, 'deepseek-v4-flash'),
-              h('option', { value: 'deepseek-v4-pro' }, 'deepseek-v4-pro'))),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.auto')),
-              h('input', { type: 'checkbox', checked: auto, onChange: toggleAuto })),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.learnGood')),
-              h('input', { type: 'checkbox', checked: learnGood, onChange: toggleLearnGood })),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.budget')),
+            FieldRow(t('settings.model'), h('select', {
+              id: 'tacit-learning-model',
+              className: 'tacit-select',
+              value: model,
+              onChange: (event) => applyModel(event.target.value),
+            },
+            h('option', { value: 'deepseek-v4-flash' }, 'deepseek-v4-flash'),
+            h('option', { value: 'deepseek-v4-pro' }, 'deepseek-v4-pro')), 'tacit-learning-model'),
+            FieldRow(t('settings.budget'), [
               h('input', {
+                key: 'input',
+                id: 'tacit-learning-budget',
                 className: 'tacit-input',
                 type: 'number',
                 min: 0,
                 value: budgetText,
                 onChange: (event) => setBudgetText(event.target.value),
               }),
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply'))),
-          ]),
+              h('button', { key: 'apply', type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: applyBudget }, t('settings.apply')),
+            ], 'tacit-learning-budget'),
+            h('div', { className: 'tacit-options' },
+              OptionRow(t('settings.auto'), auto, toggleAuto),
+              OptionRow(t('settings.learnGood'), learnGood, toggleLearnGood)),
+            // The model in force reads from the collapsed head, where it is set.
+          ], config !== null && typeof config.model === 'string' && config.model.length > 0
+            ? { summary: t('overview.model', { model: config.model }) }
+            : undefined),
           card('guidance', [
             h(DirectivesEditorView, {
               workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering,
               seenAt: rootStore.profile !== null && typeof rootStore.profile === 'object' ? rootStore.profile.workspaceSeenAt : null }),
-          ]),
+          ], { count: directives.filter((entry) => entry.status !== 'removed').length }),
           card('improve', [
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label' }, t('settings.live')),
-              h('input', { type: 'checkbox', checked: live, onChange: toggleLive })),
+            OptionRow(t('settings.live'), live, toggleLive),
             h('div', { className: 'tacit-panel-section' },
               h('div', { className: 'tacit-report-title' }, t('panel.styleRules')),
               styleRules.length === 0
@@ -2904,18 +2995,16 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           ], { count: coached.length }),
           card('privacy', [
             h('p', { className: 'tacit-panel-hint' }, t('privacy.stored')),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-retention' }, t('privacy.retention')),
-              h('select', {
-                id: 'tacit-retention',
-                className: 'tacit-select',
-                value: String(retention),
-                onChange: (event) => updateRootConfig({ costHistoryDays: Number(event.target.value) }),
-              },
-              ...retentionDays.map((days) => h('option', { key: days, value: String(days) }, String(days))))),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-daily' }, t('privacy.warnDaily')),
+            FieldRow(t('privacy.retention'), h('select', {
+              id: 'tacit-retention',
+              className: 'tacit-select',
+              value: String(retention),
+              onChange: (event) => updateRootConfig({ costHistoryDays: Number(event.target.value) }),
+            },
+            ...retentionDays.map((days) => h('option', { key: days, value: String(days) }, String(days)))), 'tacit-retention'),
+            FieldRow(t('privacy.warnDaily'), [
               h('input', {
+                key: 'input',
                 id: 'tacit-warn-daily',
                 className: 'tacit-input',
                 type: 'number',
@@ -2925,16 +3014,18 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 onChange: (event) => setDailyText(event.target.value),
               }),
               h('button', {
+                key: 'apply',
                 type: 'button',
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
                 'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnDaily') }),
                 onClick: () => applyWarn('costWarnDailyUsd', dailyText, setDailyText),
-              }, t('privacy.apply'))),
-            h('div', { className: 'tacit-settings-row' },
-              h('label', { className: 'tacit-settings-label', htmlFor: 'tacit-warn-monthly' }, t('privacy.warnMonthly')),
+              }, t('privacy.apply')),
+            ], 'tacit-warn-daily'),
+            FieldRow(t('privacy.warnMonthly'), [
               h('input', {
+                key: 'input',
                 id: 'tacit-warn-monthly',
                 className: 'tacit-input',
                 type: 'number',
@@ -2944,18 +3035,20 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                 onChange: (event) => setMonthlyText(event.target.value),
               }),
               h('button', {
+                key: 'apply',
                 type: 'button',
                 className: 'tacit-btn tacit-btn-sm',
                 // Two identically labelled buttons in one card: the accessible
                 // name has to say which threshold each one applies.
                 'aria-label': t('privacy.applyTo', { action: t('privacy.apply'), field: t('privacy.warnMonthly') }),
                 onClick: () => applyWarn('costWarnMonthlyUsd', monthlyText, setMonthlyText),
-              }, t('privacy.apply'))),
+              }, t('privacy.apply')),
+            ], 'tacit-warn-monthly'),
             h('p', { className: 'tacit-panel-hint' }, t('privacy.warnHint')),
             // Both clears are irreversible, so both go through the dialog.
-            h('div', { className: 'tacit-settings-row' },
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('reports') }, t('settings.clear')),
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => openConfirm('usage') }, t('privacy.clearUsage'))),
+            h('div', { className: 'tacit-inline' },
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet', onClick: () => openConfirm('reports') }, t('settings.clear')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet', onClick: () => openConfirm('usage') }, t('privacy.clearUsage'))),
           ]),
           // Always rendered (null while closed) so its one effect keeps this
           // component's hook count stable.
@@ -3476,17 +3569,19 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
 
     const css = '.tacit-root{box-sizing:border-box;height:100%;color:var(--dsw-alias-label-primary);padding:16px 20px 32px;font-size:13px;overflow-y:auto}'
       + '.tacit-head{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}.tacit-head-title{font-size:14px;font-weight:600;margin-right:auto}'
-      + '.tacit-progress{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 12px;margin-bottom:12px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5}.tacit-progress-title{font-weight:600;color:var(--dsw-alias-label-primary)}'
-      + '.tacit-empty{color:var(--dsw-alias-label-secondary);text-align:center;padding:24px 8px;line-height:1.6}'
+      + '.tacit-progress{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 12px;margin-bottom:12px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5}.tacit-progress-title{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary);margin-right:auto}'
+      + '.tacit-empty{color:var(--dsw-alias-label-secondary);text-align:center;font-size:12px;line-height:1.6;max-width:46ch;margin-inline:auto;padding:18px 12px;border:1px dashed var(--dsw-alias-border-l1);border-radius:8px;background:color-mix(in srgb, var(--dsw-alias-bg-layer-2) 50%, transparent)}'
       + '.tacit-error{color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 12px;margin-bottom:12px;overflow-wrap:anywhere;font-size:12px}'
       + '.tacit-btn{font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;cursor:pointer;padding:4px 10px}.tacit-btn:hover{border-color:var(--dsw-alias-label-primary)}.tacit-btn:disabled{opacity:.55;cursor:default}'
       + '.tacit-btn-primary{background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground);border-color:transparent}.tacit-btn-primary:hover{border-color:transparent;filter:brightness(1.1)}'
       + '.tacit-btn-sm{padding:2px 8px;font-size:11px}'
       + '.tacit-btn-danger{color:var(--dsw-alias-state-error-primary);border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 45%, transparent)}.tacit-btn-danger:hover{border-color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent)}'
       + '.tacit-row{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:10px 12px;margin-bottom:10px}'
-      + '.tacit-row-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}.tacit-row-heading{display:flex;align-items:baseline;gap:8px;font-weight:600}.tacit-row-turn{font-size:13px}.tacit-row-time{color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:400}.tacit-row-live{color:var(--dsw-alias-state-success-primary);font-size:11px;font-weight:600}'
-      + '.tacit-row-chips{display:flex;flex-wrap:wrap;gap:4px;margin-left:auto}.tacit-chip{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);border-radius:4px;padding:1px 7px;font-size:11px}.tacit-chip-warn{color:var(--dsw-alias-state-warn-primary)}'
-      + '.tacit-row-prompt{display:flex;align-items:flex-start;gap:8px;margin-top:8px}.tacit-row-prompt-text{font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);background:none;border:0;cursor:pointer;text-align:left;padding:0;white-space:pre-wrap;word-break:break-word;flex:1;line-height:1.55}'
+      + '.tacit-row-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.tacit-row-heading{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-weight:600;min-width:0}.tacit-row-turn{font-size:13px;font-variant-numeric:tabular-nums}.tacit-row-time{color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:400}.tacit-row-actions{display:flex;align-items:center;gap:6px;margin-left:auto}'
+      + '.tacit-chip{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);border-radius:4px;padding:1px 7px;font-size:11px}.tacit-chip-warn{color:var(--dsw-alias-state-warn-primary)}'
+      // Turn facts read as one dot-separated line, not four bordered chips.
+      + '.tacit-row-meta{display:flex;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:11px;line-height:1.5;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}.tacit-row-meta>span+span::before{content:"·";margin:0 7px;opacity:.6}.tacit-row-meta-warn{color:var(--dsw-alias-state-warn-primary)}'
+      + '.tacit-row-prompt{display:flex;align-items:flex-start;gap:8px;margin-top:8px}.tacit-row-prompt-text{font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);background:none;border:0;cursor:pointer;text-align:left;padding:0;white-space:pre-wrap;word-break:break-word;flex:1;line-height:1.55}.tacit-row-prompt-static{cursor:auto}.tacit-row-more{margin-left:8px;font-size:11px;color:var(--dsw-alias-brand-primary);white-space:nowrap}'
       + '.tacit-report{border-top:1px dashed var(--dsw-alias-border-l1);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;gap:6px}'
       + '.tacit-report-title{font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary)}'
       + '.tacit-report-note{color:var(--dsw-alias-label-secondary);font-size:12px}'
@@ -3502,7 +3597,11 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-problem-what{font-size:12px;color:var(--dsw-alias-label-primary);line-height:1.5}.tacit-problem-why{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.5}'
       + '.tacit-pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-primary)}'
       + '.tacit-settings{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px}'
-      + '.tacit-settings-title{font-size:12px;font-weight:600}.tacit-settings-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tacit-settings-label{font-size:12px;color:var(--dsw-alias-label-secondary);min-width:150px}'
+      + '.tacit-settings-title{font-size:12px;font-weight:600}'
+      // One settings row everywhere: the label takes the slack and wraps, the
+      // control stays right-aligned, and nothing needs a 150px minimum.
+      + '.tacit-field{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}.tacit-field-label{flex:1 1 150px;min-width:0;font-size:12px;line-height:1.45;color:var(--dsw-alias-label-secondary)}.tacit-field-control{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-left:auto}'
+      + '.tacit-inline,.tacit-settings-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}'
       + '.tacit-settings-notice{font-size:11px;color:var(--dsw-alias-state-success-primary)}'
       // The idle live region has to stay mounted to announce, but as an empty
       // flex item it still claims one of the panel's 10px gaps; -5px a side
@@ -3511,22 +3610,22 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-select,.tacit-input{font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:3px 8px}.tacit-input{width:90px}'
       + '.tacit-improve-btn{font:inherit;font-size:13px;font-weight:500;line-height:20px;color:var(--dsw-alias-label-secondary);background:transparent;border:0;border-radius:24px;cursor:pointer;height:28px;padding:0 8px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}.tacit-improve-btn:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}'
       + '.tacit-check{width:14px;height:14px;accent-color:var(--dsw-alias-brand-primary);flex:none;margin:2px 4px 0 0}'
-      + '.tacit-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}.tacit-toolbar-hint{flex:1;min-width:200px}.tacit-btn-quiet{color:var(--dsw-alias-label-secondary);background:transparent}.tacit-chip-muted{opacity:.7}.tacit-row-analyzed{border-left:3px solid var(--dsw-alias-brand-primary)}'
-      + '.tacit-progress-head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}.tacit-progress-count{font-variant-numeric:tabular-nums;font-weight:600;color:var(--dsw-alias-label-primary)}'
+      + '.tacit-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}.tacit-toolbar-note{font-size:11px;line-height:1.5;color:var(--dsw-alias-label-secondary);margin-bottom:10px}.tacit-btn-quiet{color:var(--dsw-alias-label-secondary);background:transparent;border-color:transparent}.tacit-btn-quiet:hover{color:var(--dsw-alias-label-primary);border-color:transparent;background:var(--dsw-alias-interactive-bg-hover)}.tacit-chip-muted{opacity:.7}.tacit-row-analyzed{border-left:3px solid var(--dsw-alias-brand-primary)}'
+      + '.tacit-progress-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-bottom:6px}'
       + '.tacit-progress-text{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.5}'
-      + '.tacit-panel{display:flex;flex-direction:column;gap:10px}.tacit-panel-section{display:flex;flex-direction:column;gap:6px}.tacit-panel-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.5}'
+      + '.tacit-panel{display:flex;flex-direction:column;gap:10px}.tacit-panel-section{display:flex;flex-direction:column;gap:6px}.tacit-panel-hint{margin:0;font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.5}'
       + '.tacit-coached-list{display:flex;flex-direction:column;gap:6px}.tacit-coached-row{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;display:flex;flex-direction:column;gap:3px}'
       + '.tacit-coached-meta{display:flex;align-items:baseline;gap:8px}.tacit-coached-turn{font-weight:600;font-size:12px}.tacit-coached-time{color:var(--dsw-alias-label-secondary);font-size:11px}'
       + '.tacit-coached-excerpt{font-size:12px;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word;line-height:1.5}.tacit-coached-improved{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.5;white-space:pre-wrap;word-break:break-word}'
       + ''
       + '.tacit-modal-backdrop{z-index:200;background:#00000073;display:flex;justify-content:center;align-items:center;position:fixed;inset:0}'
-      + '.tacit-modal-card{box-sizing:border-box;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);width:min(760px,100vw - 48px);max-height:min(84vh,800px);box-shadow:var(--dsw-shadow-lv3,0 12px 32px #0006);color:var(--dsw-alias-label-primary);border-radius:12px;padding:16px 18px 18px;font-size:13px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}'
+      + '.tacit-modal-card{box-sizing:border-box;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);width:min(760px,100vw - 48px);max-height:min(84vh,800px);box-shadow:var(--dsw-shadow-lv3,0 12px 32px #0006);color:var(--dsw-alias-label-primary);border-radius:12px;padding:16px 18px 18px;font-size:13px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}.tacit-modal-card-sm{width:min(440px,100vw - 48px)}'
       + '.tacit-modal-head{display:flex;align-items:baseline;gap:8px}.tacit-modal-title{font-size:14px;font-weight:600;margin:0 auto 0 0}.tacit-modal-close{color:var(--dsw-alias-label-secondary);cursor:pointer;background:none;border:0;border-radius:6px;padding:2px 8px;font-family:inherit;font-size:18px;line-height:1}.tacit-modal-close:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}'
       + '.tacit-modal-pending{color:var(--dsw-alias-label-secondary);padding:16px 0;text-align:center}'
       + '.tacit-modal-unchanged{color:var(--dsw-alias-label-primary);padding:16px 0;text-align:center}'
-      + '.tacit-modal-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tacit-modal-col{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);padding:8px 10px;min-width:0;max-height:300px;overflow-y:auto}'
+      + '.tacit-modal-body{display:flex;flex-direction:column;gap:10px}.tacit-modal-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tacit-modal-col{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);padding:8px 10px;min-width:0;max-height:300px;overflow-y:auto}'
       + '.tacit-modal-col-title{font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);margin-bottom:6px}'
-      + '.tacit-modal-rationale-text{font-size:12px;color:var(--dsw-alias-label-primary);line-height:1.6}.tacit-modal-savings{color:var(--dsw-alias-state-success-primary);font-size:12px;font-weight:600}'
+      + '.tacit-modal-col-improved{border-color:color-mix(in srgb, var(--dsw-alias-brand-primary) 40%, transparent)}.tacit-modal-rationale{display:flex;flex-direction:column;gap:4px}.tacit-modal-rationale-text{font-size:12px;color:var(--dsw-alias-label-primary);line-height:1.6}.tacit-modal-savings{color:var(--dsw-alias-state-success-primary);font-size:12px;font-weight:600}'
       + '.tacit-modal-actions{display:flex;gap:8px;justify-content:flex-end}'
       + '.tacit-confirm-body{margin:0;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-primary)}'
       + '.tacit-confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}'
@@ -3537,15 +3636,16 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-feedback-noted{color:var(--dsw-alias-state-success-primary);font-weight:600}'
       + '.tacit-trend{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}.tacit-chip-trigger,.tacit-coached-trigger{text-transform:uppercase;letter-spacing:.04em;font-size:10px}.tacit-coached-trigger{margin-left:auto}.tacit-row-enrichment{margin-top:8px;border-left:3px solid var(--dsw-alias-brand-primary);padding:4px 10px;background:var(--dsw-alias-bg-layer-2);border-radius:6px}'
       + '.tacit-chip-trial{color:var(--dsw-alias-brand-primary)}.tacit-chip-ok{color:var(--dsw-alias-state-success-primary)}.tacit-chip-scope{color:var(--dsw-alias-brand-primary)}.tacit-select{max-width:11rem}'
-      + '.tacit-directive{display:flex;align-items:center;gap:8px}.tacit-directive-text{flex:1;min-width:0}.tacit-directive-off .tacit-directive-text{opacity:.5;text-decoration:line-through}.tacit-directive-input{width:min(420px,100%);flex:1}.tacit-preview summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.tacit-preview pre{margin-top:6px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:8px 10px}'
+      + '.tacit-directive-input{width:min(420px,100%);flex:1}.tacit-preview summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.tacit-preview pre{margin-top:6px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:8px 10px}'
       + '.tacit-rules-list{display:flex;flex-direction:column;gap:6px}.tacit-rule{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-left:3px solid var(--dsw-alias-brand-primary);border-radius:6px;padding:6px 10px;font-size:12px;line-height:1.55;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}'
       + '.tacit-card{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1)}'
-      + '.tacit-card-head{width:100%;display:flex;align-items:center;gap:8px;text-align:left;padding:10px 12px;background:none;border:0;cursor:pointer;font:inherit;color:inherit}'
+      + '.tacit-card-head{width:100%;display:flex;align-items:center;gap:8px;text-align:left;padding:10px 12px;background:none;border:0;border-radius:7px;cursor:pointer;font:inherit;color:inherit}.tacit-card-head:hover{background:var(--dsw-alias-interactive-bg-hover)}'
       + '.tacit-card-head:focus-visible{outline:2px solid var(--dsw-alias-brand-primary)}'
       + '.tacit-card-title{font-size:13px;font-weight:600}.tacit-card-summary{font-size:11px;color:var(--dsw-alias-label-secondary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
       + '.tacit-card-count{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);border-radius:4px;padding:1px 7px;font-size:11px;font-variant-numeric:tabular-nums}'
-      + '.tacit-card-chevron{margin-left:auto;color:var(--dsw-alias-label-secondary);font-size:11px}'
-      + '.tacit-card-body{padding:0 12px 12px}'
+      // One disclosure glyph everywhere: a › that rotates down when open.
+      + '.tacit-chevron{display:inline-block;font-size:12px;line-height:1;color:inherit;transition:transform .15s ease}.tacit-chevron-open{transform:rotate(90deg)}.tacit-card-chevron{margin-left:auto;color:var(--dsw-alias-label-secondary)}'
+      + '.tacit-card-body{display:flex;flex-direction:column;gap:10px;padding:10px 12px 12px;border-top:1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 60%, transparent)}.tacit-card-body[hidden]{display:none}'
       + '.tacit-usage{display:flex;flex-direction:column;gap:10px}'
       + '.tacit-tiles{display:flex;flex-wrap:wrap;gap:8px}'
       + '.tacit-tile{flex:1 1 140px;display:flex;flex-direction:column;gap:2px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 10px;min-width:0}'
@@ -3580,7 +3680,39 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-pricing-table>.tacit-pricing-row:first-child{border-top:0}.tacit-pricing-head{color:var(--dsw-alias-label-secondary);font-weight:600;background:var(--dsw-alias-bg-layer-2)}'
       + '.tacit-pricing-cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tacit-pricing-model{font-weight:600}'
       + '.tacit-pricing-error{font-size:11px;color:var(--dsw-alias-state-warn-primary);line-height:1.5}'
-      + '@media (max-width:640px){.tacit-settings-label{min-width:0;flex-basis:100%}.tacit-modal-cols{grid-template-columns:1fr}.tacit-usage-row{display:flex;flex-direction:column}.tacit-usage-cell{white-space:normal}.tacit-pricing-row{display:flex;flex-direction:column}.tacit-pricing-cell{white-space:normal}.tacit-tile{flex-basis:45%}.tacit-breakdown-row{grid-template-columns:minmax(0,1fr) 4rem 5rem}}'
+      // Directive cards: a status-coloured rail and pill badge, the text on
+      // its own line, and a wrapping actions row, so nothing fights for width.
+      + '.tacit-dir-list{display:flex;flex-direction:column;gap:8px}'
+      + '.tacit-dir{--tacit-status:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-left:3px solid var(--tacit-status);border-radius:8px;padding:8px 10px 8px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}'
+      + '.tacit-dir-active{--tacit-status:var(--dsw-alias-state-success-primary)}.tacit-dir-trial{--tacit-status:var(--dsw-alias-brand-primary)}.tacit-dir-retired{--tacit-status:var(--dsw-alias-state-warn-primary)}'
+      + '.tacit-dir-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}.tacit-dir-start{margin-left:auto}'
+      + '.tacit-badge{--tacit-badge:var(--tacit-status, var(--dsw-alias-label-secondary));display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 8px 1px 6px;font-size:11px;font-weight:600;line-height:1.5;color:var(--tacit-badge);background:color-mix(in srgb, var(--tacit-badge) 14%, transparent)}'
+      + '.tacit-badge-active{--tacit-status:var(--dsw-alias-state-success-primary)}.tacit-badge-trial{--tacit-status:var(--dsw-alias-brand-primary)}.tacit-badge-retired{--tacit-status:var(--dsw-alias-state-warn-primary)}.tacit-badge-muted{--tacit-status:var(--dsw-alias-label-secondary)}'
+      + '.tacit-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--tacit-badge);flex:none}'
+      + '.tacit-dir-text{font-size:13px;line-height:1.55;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}.tacit-dir-off .tacit-dir-text{opacity:.5;text-decoration:line-through}'
+      + '.tacit-dir-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:11px;color:var(--dsw-alias-label-secondary)}'
+      + '.tacit-dir-enabled{display:inline-flex;align-items:center;gap:5px;cursor:pointer}.tacit-dir-enabled .tacit-check{margin:0}.tacit-dir-remove{margin-left:auto}'
+      + '.tacit-select-sm{font-size:11px;padding:2px 6px;width:auto}'
+      + '.tacit-dir-receipt summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.tacit-dir-receipt summary:hover{color:var(--dsw-alias-label-primary)}'
+      + '.tacit-dir-add{display:flex;flex-wrap:wrap;align-items:center;gap:6px}'
+      + '.tacit-options{display:flex;flex-direction:column;gap:6px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 10px}'
+      + '.tacit-option{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;cursor:pointer}.tacit-option .tacit-check{margin-top:2px}'
+      // Hairlines between rows keep the group one soft box, not a list of boxes.
+      + '.tacit-options>*+*{border-top:1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 60%, transparent);padding-top:6px}.tacit-options .tacit-select,.tacit-options .tacit-input{background:var(--dsw-alias-bg-layer-1)}'
+      // The receipt: tiles, a lifecycle timeline, trigger chips, then the
+      // identity grid.
+      + '.tacit-receipt{margin-top:8px;padding-top:10px;border-top:1px dashed var(--dsw-alias-border-l1);display:flex;flex-direction:column;gap:10px}'
+      + '.tacit-receipt-tiles .tacit-tile{flex-basis:120px;background:var(--dsw-alias-bg-layer-1)}.tacit-receipt-tile-note{font-size:10px;color:var(--dsw-alias-label-secondary);line-height:1.4}.tacit-tile-muted{font-size:12px;font-weight:500;color:var(--dsw-alias-label-secondary)}'
+      + '.tacit-timeline{list-style:none;margin:0;padding:0;display:flex}'
+      + '.tacit-timeline-step{flex:1;position:relative;min-width:0;padding:14px 6px 0 0;font-size:11px}'
+      + '.tacit-timeline-step::before{content:"";position:absolute;left:0;top:0;width:9px;height:9px;border-radius:50%;box-sizing:border-box;background:var(--dsw-alias-brand-primary)}'
+      + '.tacit-timeline-step::after{content:"";position:absolute;left:12px;right:2px;top:4px;height:1px;background:var(--dsw-alias-border-l1)}.tacit-timeline-step:last-child::after{display:none}'
+      + '.tacit-timeline-never::before{background:var(--dsw-alias-bg-layer-2);border:1.5px solid var(--dsw-alias-border-l1)}.tacit-timeline-never .tacit-timeline-value{color:var(--dsw-alias-label-secondary);font-weight:400}'
+      + '.tacit-timeline-label{display:block;color:var(--dsw-alias-label-secondary)}.tacit-timeline-value{display:block;font-weight:600;font-variant-numeric:tabular-nums}'
+      + '.tacit-receipt-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}.tacit-receipt-label{font-size:11px;color:var(--dsw-alias-label-secondary);margin-right:2px}'
+      + '.tacit-receipt-meta{margin:0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 12px;font-size:11px}.tacit-receipt-meta dt{color:var(--dsw-alias-label-secondary)}.tacit-receipt-meta dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}'
+      + '.tacit-receipt-actions{display:flex;justify-content:flex-end}'
+      + '@media (max-width:640px){.tacit-field-label{flex-basis:100%}.tacit-field-control{margin-left:0}.tacit-modal-cols{grid-template-columns:1fr}.tacit-usage-row{display:flex;flex-direction:column}.tacit-usage-cell{white-space:normal}.tacit-pricing-row{display:flex;flex-direction:column}.tacit-pricing-cell{white-space:normal}.tacit-tile{flex-basis:45%}.tacit-breakdown-row{grid-template-columns:minmax(0,1fr) 4rem 5rem}}'
 
     function injectCss() {
       const tagId = 'dsh-tacit/styles.css'

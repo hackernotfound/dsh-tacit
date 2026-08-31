@@ -69,7 +69,7 @@
         },
       },
       h('div', {
-        className: 'tacit-modal-card',
+        className: 'tacit-modal-card tacit-modal-card-sm',
         role: 'dialog',
         'aria-modal': 'true',
         'aria-labelledby': 'tacit-confirm-title',
