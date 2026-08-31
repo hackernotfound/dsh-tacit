@@ -61,6 +61,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'trigger.manual': '手动',
       'trigger.bootstrap': '引导',
       'trigger.good': '做对了',
+      'trigger.feedback': '反馈',
+      'trigger.send': '发送',
       'report.strengths': '这次做对了什么',
       'report.lesson': '经验',
       'settings.learnGood': '也从混乱之后的顺利提示词中学习',
@@ -168,10 +170,14 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'usage.last30': '最近 30 天',
       'usage.since': '自 {day} 起',
       'usage.calls': '计费调用（30 天）',
+      'usage.tokens': 'Tokens（30 天）',
       'usage.avgAnalysis': '单次分析中位成本',
       'usage.cachedRate': '输入缓存命中率（30 天）',
       'usage.unpriced': '无价目调用（30 天）',
       'usage.unpricedShort': '{n} 次无价目',
+      'usage.failedRepair': '失败或修复调用花费（30 天）',
+      'usage.failedRepairSplit': '失败 {failed} · 修复 {repair}',
+      'usage.autoToday': '今日自动分析 {n} / {budget}',
       'usage.priceUnavailable': '无价目',
       'usage.chartLabel': '每日花费，最近 {n} 天',
       'usage.chartSummary': '最近 {n} 天：合计 {total}；最高 {day} {max}',
@@ -179,6 +185,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'usage.series7': '7 天',
       'usage.series30': '30 天',
       'usage.breakdown': '按操作分类（最近 30 天）',
+      'usage.byRoute': '按线路分类（最近 30 天）',
+      'usage.byTrigger': '按触发方式分类（最近 30 天）',
       'usage.filters': '筛选',
       'usage.loading': '正在载入这次运行的调用明细…',
       'usage.page': '第 {page} / {pages} 页',
@@ -313,6 +321,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'trigger.manual': 'manual',
       'trigger.bootstrap': 'bootstrap',
       'trigger.good': 'what worked',
+      'trigger.feedback': 'feedback',
+      'trigger.send': 'send',
       'report.strengths': 'What this prompt got right',
       'report.lesson': 'Lesson',
       'settings.learnGood': 'Also learn from a clean prompt right after a messy turn',
@@ -420,10 +430,14 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'usage.last30': 'Last 30 days',
       'usage.since': 'Since {day}',
       'usage.calls': 'Billed calls (30 d)',
+      'usage.tokens': 'Tokens (30 d)',
       'usage.avgAnalysis': 'Median cost per analysis',
       'usage.cachedRate': 'Cached input rate (30 d)',
       'usage.unpriced': 'Unpriced calls (30 d)',
       'usage.unpricedShort': '{n} unpriced',
+      'usage.failedRepair': 'Spent on failed or repair calls (30 d)',
+      'usage.failedRepairSplit': 'failed {failed} · repair {repair}',
+      'usage.autoToday': 'automatic analyses today {n} / {budget}',
       'usage.priceUnavailable': 'No price',
       'usage.chartLabel': 'Daily spend, last {n} days',
       'usage.chartSummary': 'Last {n} days: total {total}; highest {day} {max}',
@@ -431,6 +445,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'usage.series7': '7 d',
       'usage.series30': '30 d',
       'usage.breakdown': 'By operation (last 30 days)',
+      'usage.byRoute': 'By route (last 30 days)',
+      'usage.byTrigger': 'By trigger (last 30 days)',
       'usage.filters': 'Filters',
       'usage.loading': 'Loading this run\u2019s calls…',
       'usage.page': 'Page {page} of {pages}',
@@ -1579,14 +1595,30 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     }
 
     /**
-     * Billed tokens in one bucket set: uncached input + output + cache reads +
-     * cache writes. `reasoningTokens` is a subset of `outputTokens`, so adding
-     * it would count every reasoning token twice.
+     * Billed tokens in one bucket set, split the way they are priced:
+     * everything the prompt cost (uncached input, cache reads, cache writes)
+     * against what came back. `reasoningTokens` is a subset of `outputTokens`,
+     * so adding it would count every reasoning token twice.
      */
-    function tokensTotal(buckets) {
-      if (buckets === null || typeof buckets !== 'object') return 0
+    function tokensInOut(buckets) {
+      if (buckets === null || typeof buckets !== 'object') return { input: 0, output: 0 }
       const num = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
-      return num(buckets.inputTokens) + num(buckets.outputTokens) + num(buckets.cacheReadTokens) + num(buckets.cacheWriteTokens)
+      return {
+        input: num(buckets.inputTokens) + num(buckets.cacheReadTokens) + num(buckets.cacheWriteTokens),
+        output: num(buckets.outputTokens),
+      }
+    }
+
+    /** Both halves of `tokensInOut` at once. */
+    function tokensTotal(buckets) {
+      const split = tokensInOut(buckets)
+      return split.input + split.output
+    }
+
+    /** `tokensInOut` as the one line the tiles and the run rows both show. */
+    function fmtTokensSplit(buckets) {
+      const split = tokensInOut(buckets)
+      return 'in ' + fmtTokens(split.input) + ' · out ' + fmtTokens(split.output)
     }
 
     function usageNum(value) {
@@ -1604,7 +1636,11 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
     }
 
-    /** One period card, zero-filled; the two derived figures stay nullable. */
+    /**
+     * One period card, zero-filled; the two averages stay nullable.
+     * `failedUsd` and `repairUsd` overlap on a failed repair, so they can sum
+     * past `failedOrRepairUsd`, which counts that union once.
+     */
     function usagePeriod(value) {
       const source = value !== null && typeof value === 'object' ? value : {}
       return {
@@ -1612,8 +1648,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         billedCalls: usageNum(source.billedCalls),
         unmeteredCalls: usageNum(source.unmeteredCalls),
         unpricedCalls: usageNum(source.unpricedCalls),
+        failedCalls: usageNum(source.failedCalls),
         tokens: usageTokens(source.tokens),
         usdKnown: usageNum(source.usdKnown),
+        failedUsd: usageNum(source.failedUsd),
+        repairUsd: usageNum(source.repairUsd),
+        failedOrRepairUsd: usageNum(source.failedOrRepairUsd),
         avgAnalysisUsd: typeof source.avgAnalysisUsd === 'number' && Number.isFinite(source.avgAnalysisUsd) ? source.avgAnalysisUsd : null,
         cachedInputRate: typeof source.cachedInputRate === 'number' && Number.isFinite(source.cachedInputRate) ? source.cachedInputRate : null,
       }
@@ -1650,8 +1690,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         billedCalls: usageNum(source.billedCalls),
         unmeteredCalls: usageNum(source.unmeteredCalls),
         unpricedCalls: usageNum(source.unpricedCalls),
+        failedCalls: usageNum(source.failedCalls),
         tokens: usageTokens(source.tokens),
         usdKnown: usageNum(source.usdKnown),
+        failedUsd: usageNum(source.failedUsd),
         trigger: text('trigger'),
         startedAt: usageNum(source.startedAt),
         endedAt: usageNum(source.endedAt),
@@ -1672,6 +1714,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       if (value === null || typeof value !== 'object' || value.ok !== true) return null
       const runs = value.runs !== null && typeof value.runs === 'object' ? value.runs : {}
       const warnings = value.warnings !== null && typeof value.warnings === 'object' ? value.warnings : {}
+      const auto = value.auto !== null && typeof value.auto === 'object' ? value.auto : {}
       return {
         trackingSince: usageNum(value.trackingSince),
         pricing: value.pricing !== null && typeof value.pricing === 'object' ? value.pricing : {},
@@ -1682,9 +1725,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         lifetime: usagePeriod(value.lifetime),
         byType: usageBuckets(value.byType),
         byModel: usageBuckets(value.byModel),
+        byProvider: usageBuckets(value.byProvider),
+        byTrigger: usageBuckets(value.byTrigger),
         series7: usageSeries(value.series7),
         series30: usageSeries(value.series30),
         warnings: { daily: usageWarning(warnings.daily), monthly: usageWarning(warnings.monthly) },
+        auto: { today: usageNum(auto.today), budget: usageNum(auto.budget) },
         runs: {
           items: (Array.isArray(runs.items) ? runs.items : []).map(usageRunItem),
           page: usageNum(runs.page) > 0 ? Math.floor(usageNum(runs.page)) : 1,
@@ -2799,10 +2845,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         typeof note === 'string' && note.length > 0 ? h('span', { className: 'tacit-tile-note' }, note) : null)
     }
 
-    /** Money tile: the period's spend plus its unpriced-call footnote. */
-    function SpendTile(kit, id, label, totals) {
-      const note = totals.unpricedCalls > 0 ? kit.t('usage.unpricedShort', { n: String(totals.unpricedCalls) }) : ''
-      return UsageTile(id, label, usageSpend(kit, totals), note)
+    /** Money tile: the period's spend, its unpriced-call footnote, and any second note that period carries. */
+    function SpendTile(kit, id, label, totals, extraNote) {
+      const notes = []
+      if (totals.unpricedCalls > 0) notes.push(kit.t('usage.unpricedShort', { n: String(totals.unpricedCalls) }))
+      if (typeof extraNote === 'string' && extraNote.length > 0) notes.push(extraNote)
+      return UsageTile(id, label, usageSpend(kit, totals), notes.join(' · '))
     }
 
     /**
@@ -2865,18 +2913,33 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           seriesButton('30', t('usage.series30'))))
     }
 
-    /** Spend per operation, costliest first, each row ending in a share bar. */
-    function UsageBreakdown(kit, { byType }) {
+    /**
+     * `trigger` is a free string on the wire, so a host that starts tagging
+     * runs with something this dictionary has never heard of shows the tag
+     * itself rather than a raw `trigger.<key>` lookup miss.
+     */
+    function triggerLabel(t, trigger) {
+      const key = 'trigger.' + trigger
+      const label = t(key)
+      return label === key ? trigger : label
+    }
+
+    /**
+     * Spend across one bucket record, costliest first, each row ending in a
+     * share bar. `label` turns a bucket key into its display name, which is a
+     * dictionary lookup for the closed sets and the raw key for the open ones.
+     */
+    function UsageBreakdown(kit, { buckets, title, label }) {
       const { t } = kit
-      const rows = Object.entries(byType).sort((a, b) => b[1].usdKnown - a[1].usdKnown)
+      const rows = Object.entries(buckets).sort((a, b) => b[1].usdKnown - a[1].usdKnown)
       if (rows.length === 0) return null
       const top = rows[0][1].usdKnown
-      return h('div', { className: 'tacit-usage-breakdown' },
-        h('div', { className: 'tacit-report-title' }, t('usage.breakdown')),
+      return h('div', { key: title, className: 'tacit-usage-breakdown' },
+        h('div', { className: 'tacit-report-title' }, t(title)),
         rows.map(([type, totals]) => {
           const share = top > 0 ? Math.round((totals.usdKnown / top) * 100) : 0
           return h('div', { key: type, className: 'tacit-breakdown-row' },
-            h('span', { className: 'tacit-breakdown-name' }, t('runtype.' + type)),
+            h('span', { className: 'tacit-breakdown-name' }, label(type)),
             h('span', { className: 'tacit-breakdown-calls' }, fmtTokens(totals.billedCalls)),
             h('span', { className: 'tacit-breakdown-tokens' }, fmtTokens(tokensTotal(totals.tokens))),
             h('span', { className: 'tacit-breakdown-usd' }, usageSpend(kit, totals)),
@@ -3016,7 +3079,9 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         cell('model', item.model.length > 0 ? item.model : '—'),
         cell('status', h('span', { className: 'tacit-chip tacit-status-' + item.status }, t('status.' + item.status))),
         cell('calls', fmtTokens(item.billedCalls)),
-        cell('tokens', fmtTokens(tokensTotal(item.tokens))),
+        cell('tokens', h('span', { className: 'tacit-usage-tokens' },
+          h('span', null, fmtTokens(tokensTotal(item.tokens))),
+          h('span', { className: 'tacit-usage-split' }, fmtTokensSplit(item.tokens)))),
         cell('cost', usageSpend(kit, item)))
     }
 
@@ -3077,19 +3142,25 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       return h('div', { className: 'tacit-usage' },
         h('p', { className: 'tacit-panel-hint' }, t('usage.label')),
         h('div', { className: 'tacit-tiles' },
-          SpendTile(kit, 'today', t('usage.today'), usage.today),
+          SpendTile(kit, 'today', t('usage.today'), usage.today,
+            t('usage.autoToday', { n: String(usage.auto.today), budget: String(usage.auto.budget) })),
           SpendTile(kit, 'month', t('usage.month'), usage.month),
           SpendTile(kit, 'last30', t('usage.last30'), last30),
           SpendTile(kit, 'lifetime', t('usage.since', { day: since }), usage.lifetime)),
         h('div', { className: 'tacit-tiles' },
           UsageTile('calls', t('usage.calls'), fmtTokens(last30.billedCalls)),
+          UsageTile('tokens', t('usage.tokens'), fmtTokensSplit(last30.tokens)),
           UsageTile('avg', t('usage.avgAnalysis'), last30.avgAnalysisUsd === null
             ? t('usage.priceUnavailable')
             : fmtUsd(last30.avgAnalysisUsd)),
           UsageTile('cached', t('usage.cachedRate'), fmtPct(last30.cachedInputRate)),
-          UsageTile('unpriced', t('usage.unpriced'), fmtTokens(last30.unpricedCalls))),
+          UsageTile('unpriced', t('usage.unpriced'), fmtTokens(last30.unpricedCalls)),
+          UsageTile('failedRepair', t('usage.failedRepair'), fmtUsd(last30.failedOrRepairUsd),
+            t('usage.failedRepairSplit', { failed: fmtUsd(last30.failedUsd), repair: fmtUsd(last30.repairUsd) }))),
         BarStrip(kit, { series: which === '7' ? usage.series7 : usage.series30, which, onSeries: props.onSeries }),
-        UsageBreakdown(kit, { byType: usage.byType }),
+        UsageBreakdown(kit, { buckets: usage.byType, title: 'usage.breakdown', label: (type) => t('runtype.' + type) }),
+        UsageBreakdown(kit, { buckets: usage.byProvider, title: 'usage.byRoute', label: (provider) => provider }),
+        UsageBreakdown(kit, { buckets: usage.byTrigger, title: 'usage.byTrigger', label: (trigger) => triggerLabel(t, trigger) }),
         WarnBar(kit, { id: 'daily', warning: usage.warnings.daily }),
         WarnBar(kit, { id: 'monthly', warning: usage.warnings.monthly }),
         UsageFilters(kit, {
@@ -3332,9 +3403,11 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-usage-filters{display:flex;flex-direction:column;gap:6px}.tacit-filter-row{display:flex;flex-wrap:wrap;gap:8px}.tacit-filter{display:flex;flex-direction:column;gap:2px;min-width:0}.tacit-filter-label{font-size:10px;color:var(--dsw-alias-label-secondary)}'
       + '.tacit-usage-runs{display:flex;flex-direction:column;gap:6px}'
       + '.tacit-usage-table{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden}'
-      + '.tacit-usage-row{display:grid;grid-template-columns:minmax(90px,1fr) minmax(90px,1.2fr) minmax(80px,1.2fr) minmax(90px,1.2fr) 5rem 4rem 5rem 5rem;gap:6px;align-items:center;padding:5px 8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;font-variant-numeric:tabular-nums}'
+      + '.tacit-usage-row{display:grid;grid-template-columns:minmax(90px,1fr) minmax(90px,1.2fr) minmax(80px,1.2fr) minmax(90px,1.2fr) 5rem 4rem 7rem 5rem;gap:6px;align-items:center;padding:5px 8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;font-variant-numeric:tabular-nums}'
       + '.tacit-usage-table>.tacit-usage-row:first-child{border-top:0}.tacit-usage-head{color:var(--dsw-alias-label-secondary);font-weight:600;background:var(--dsw-alias-bg-layer-2)}'
       + '.tacit-usage-cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      // The cell is nowrap, so the in/out split needs its own block to sit under the total.
+      + '.tacit-usage-tokens{display:flex;flex-direction:column}.tacit-usage-split{font-size:10px;color:var(--dsw-alias-label-secondary)}'
       + '.tacit-run-toggle{width:100%;text-align:left}'
       + '.tacit-usage-attempts{border-top:1px dashed var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);padding:6px 8px}.tacit-usage-attempts-cell{display:flex;flex-direction:column;gap:4px}'
       + '.tacit-attempt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-primary)}.tacit-attempt-meta,.tacit-attempt-tokens{color:var(--dsw-alias-label-secondary)}.tacit-attempt-usd{margin-left:auto;font-variant-numeric:tabular-nums}'
@@ -3451,6 +3524,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         clearUsageHistory,
         runNotice,
         fmtRate,
+        fmtTokensSplit,
         ConfirmDialog,
         UsageCard,
         PricingCard,

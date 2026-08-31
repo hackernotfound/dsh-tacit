@@ -71,14 +71,30 @@
     }
 
     /**
-     * Billed tokens in one bucket set: uncached input + output + cache reads +
-     * cache writes. `reasoningTokens` is a subset of `outputTokens`, so adding
-     * it would count every reasoning token twice.
+     * Billed tokens in one bucket set, split the way they are priced:
+     * everything the prompt cost (uncached input, cache reads, cache writes)
+     * against what came back. `reasoningTokens` is a subset of `outputTokens`,
+     * so adding it would count every reasoning token twice.
      */
-    function tokensTotal(buckets) {
-      if (buckets === null || typeof buckets !== 'object') return 0
+    function tokensInOut(buckets) {
+      if (buckets === null || typeof buckets !== 'object') return { input: 0, output: 0 }
       const num = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
-      return num(buckets.inputTokens) + num(buckets.outputTokens) + num(buckets.cacheReadTokens) + num(buckets.cacheWriteTokens)
+      return {
+        input: num(buckets.inputTokens) + num(buckets.cacheReadTokens) + num(buckets.cacheWriteTokens),
+        output: num(buckets.outputTokens),
+      }
+    }
+
+    /** Both halves of `tokensInOut` at once. */
+    function tokensTotal(buckets) {
+      const split = tokensInOut(buckets)
+      return split.input + split.output
+    }
+
+    /** `tokensInOut` as the one line the tiles and the run rows both show. */
+    function fmtTokensSplit(buckets) {
+      const split = tokensInOut(buckets)
+      return 'in ' + fmtTokens(split.input) + ' · out ' + fmtTokens(split.output)
     }
 
     function usageNum(value) {
@@ -96,7 +112,11 @@
       }
     }
 
-    /** One period card, zero-filled; the two derived figures stay nullable. */
+    /**
+     * One period card, zero-filled; the two averages stay nullable.
+     * `failedUsd` and `repairUsd` overlap on a failed repair, so they can sum
+     * past `failedOrRepairUsd`, which counts that union once.
+     */
     function usagePeriod(value) {
       const source = value !== null && typeof value === 'object' ? value : {}
       return {
@@ -104,8 +124,12 @@
         billedCalls: usageNum(source.billedCalls),
         unmeteredCalls: usageNum(source.unmeteredCalls),
         unpricedCalls: usageNum(source.unpricedCalls),
+        failedCalls: usageNum(source.failedCalls),
         tokens: usageTokens(source.tokens),
         usdKnown: usageNum(source.usdKnown),
+        failedUsd: usageNum(source.failedUsd),
+        repairUsd: usageNum(source.repairUsd),
+        failedOrRepairUsd: usageNum(source.failedOrRepairUsd),
         avgAnalysisUsd: typeof source.avgAnalysisUsd === 'number' && Number.isFinite(source.avgAnalysisUsd) ? source.avgAnalysisUsd : null,
         cachedInputRate: typeof source.cachedInputRate === 'number' && Number.isFinite(source.cachedInputRate) ? source.cachedInputRate : null,
       }
@@ -142,8 +166,10 @@
         billedCalls: usageNum(source.billedCalls),
         unmeteredCalls: usageNum(source.unmeteredCalls),
         unpricedCalls: usageNum(source.unpricedCalls),
+        failedCalls: usageNum(source.failedCalls),
         tokens: usageTokens(source.tokens),
         usdKnown: usageNum(source.usdKnown),
+        failedUsd: usageNum(source.failedUsd),
         trigger: text('trigger'),
         startedAt: usageNum(source.startedAt),
         endedAt: usageNum(source.endedAt),
@@ -164,6 +190,7 @@
       if (value === null || typeof value !== 'object' || value.ok !== true) return null
       const runs = value.runs !== null && typeof value.runs === 'object' ? value.runs : {}
       const warnings = value.warnings !== null && typeof value.warnings === 'object' ? value.warnings : {}
+      const auto = value.auto !== null && typeof value.auto === 'object' ? value.auto : {}
       return {
         trackingSince: usageNum(value.trackingSince),
         pricing: value.pricing !== null && typeof value.pricing === 'object' ? value.pricing : {},
@@ -174,9 +201,12 @@
         lifetime: usagePeriod(value.lifetime),
         byType: usageBuckets(value.byType),
         byModel: usageBuckets(value.byModel),
+        byProvider: usageBuckets(value.byProvider),
+        byTrigger: usageBuckets(value.byTrigger),
         series7: usageSeries(value.series7),
         series30: usageSeries(value.series30),
         warnings: { daily: usageWarning(warnings.daily), monthly: usageWarning(warnings.monthly) },
+        auto: { today: usageNum(auto.today), budget: usageNum(auto.budget) },
         runs: {
           items: (Array.isArray(runs.items) ? runs.items : []).map(usageRunItem),
           page: usageNum(runs.page) > 0 ? Math.floor(usageNum(runs.page)) : 1,

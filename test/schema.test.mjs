@@ -208,10 +208,12 @@ test('usageTotalsSchema defaults every counter to zero', () => {
   assert.deepEqual(usageTotalsSchema.parse({}), {
     attempts: 0,
     billedCalls: 0,
+    failedCalls: 0,
     unmeteredCalls: 0,
     unpricedCalls: 0,
     tokens: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 },
     usdKnown: 0,
+    failedUsd: 0,
   })
 })
 
@@ -255,4 +257,23 @@ test('usageSummarySchema parses an old summary without byModel', () => {
   })
   assert.equal(withDay.days['2026-08-30'].attempts, 2)
   assert.deepEqual(withDay.days['2026-08-30'].byType, {})
+})
+
+test('usageSummarySchema parses an old summary without the failed counters or the provider/trigger buckets', () => {
+  const parsed = usageSummarySchema.parse({
+    version: 1,
+    trackingSince: 5,
+    lifetime: { attempts: 3, billedCalls: 3, usdKnown: 0.9 },
+    byType: { analysis: { attempts: 3, usdKnown: 0.9 } },
+    days: { '2026-08-30': { attempts: 3, usdKnown: 0.9, byType: { analysis: { attempts: 3 } } } },
+  })
+  assert.deepEqual(parsed.byProvider, {})
+  assert.deepEqual(parsed.byTrigger, {})
+  assert.equal(parsed.lifetime.failedCalls, 0)
+  assert.equal(parsed.lifetime.failedUsd, 0)
+  assert.equal(parsed.byType.analysis.failedCalls, 0)
+  assert.equal(parsed.byType.analysis.failedUsd, 0)
+  assert.equal(parsed.days['2026-08-30'].failedCalls, 0)
+  assert.equal(parsed.days['2026-08-30'].failedUsd, 0)
+  assert.equal(parsed.days['2026-08-30'].byType.analysis.failedCalls, 0)
 })
