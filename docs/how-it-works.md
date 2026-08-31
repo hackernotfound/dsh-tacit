@@ -121,14 +121,27 @@ Rules applied to the result:
 - a genuinely new one is **queued**; one queued directive per scope (global, or
   one workspace) is on trial at a time, and becomes the **candidate** when the
   slot is free, with baselines measured at that moment (a workspace-scoped one
-  against that workspace's own turns when it has 20 finished ones);
-- retired directives are kept (the last 6) and shown to the distiller as *do
-  not re-propose*; one that comes back anyway, by id or by text, stays retired;
+  against that workspace's own turns when it has 20 finished ones); under
+  `reviewCandidates` it stays queued until you press *Start trial* on it;
+- retired and removed directives are kept together (the last 6) and shown to the
+  distiller as *do not re-propose*; one that comes back anyway, by id or by text,
+  stays as it is, and a new one whose wording overlaps a retired or removed
+  directive (normalised token overlap of 0.6 or more, decided without a model
+  call) is dropped;
 - each directive is one sentence of at most 25 words; a longer one is cut at its
   last sentence or word boundary, never mid-word;
 - a distillation replaces the global distilled set and the distilled set of every
   workspace it mentioned; distilled directives of other workspaces are kept;
-- at most 8 global directives and 4 per workspace, plus the last 6 retired ones.
+- at most 8 global directives and 4 per workspace, plus the last 6 retired or
+  removed ones.
+
+**Receipt.** Every directive records where it came from. `updatedAt` and
+`version` (bumped on each reword) date the text; `evidence` lists the reports
+the distillation read (conversation id, turn and trigger, at most 12);
+`distillationRunId` names the ledger run, so that distillation's cost is one
+lookup away; `evaluatedAt` is the verdict time and `approvedAt` the moment you
+pressed *Start trial*. **Settings → Tacit** shows this per directive, with a
+*Copy receipt* button. A receipt never carries prompt text.
 
 ## 6. Trials
 
@@ -138,7 +151,12 @@ Rules applied to the result:
 | **candidate** | freshly distilled into a free slot, or next in its scope's queue when the previous trial ended | yes | *trial n/10* (n counts finished turns in conversations that were steered by it) |
 | **active** | 10 finished turns later (`directiveTrialTurns`), correction rate ≤ baseline + 0.15 (`directiveWorseBy`) and messy-turn rate ≤ baseline + 0.30; or you typed it; or you re-enabled a retired one | yes | *active* |
 | **retired** | correction rate during the trial rose by more than 15 percentage points over the baseline, or the messy-turn rate by more than 30 | no | *retired · corrections 10% → 30% while active* (or *messy turns 20% → 60% while active*) |
-| **off** | you untick it | no | greyed out |
+| **removed** | you press *Remove* | no | not listed at all, but remembered so the distiller does not propose it again |
+| **off** | you untick it; unticking a candidate returns it to *queued*, resets its trial and frees the slot for the next queued directive of its scope, and ticking it again leaves it queued | no | greyed out |
+
+With `reviewCandidates` on, a freshly distilled directive stays queued even
+when its scope's slot is free, until you press *Start trial* on it in
+**Settings → Tacit**.
 
 A trial counts, for every finished turn of every conversation whose frozen
 steering text contained the candidate, whether the turn was messy and whether
@@ -147,7 +165,8 @@ messy-turn rate over the latest 20 finished turns at the moment the trial
 starts. Trials are a *trend check*, not an A/B test: there is no control group,
 which is why only one directive per scope is on trial at a time (its counters
 answer for it alone). Conversations that started before the candidate existed
-(or before Tacit was restarted) never contained it and count toward nothing.
+(or before Tacit was restarted) never contained it and count toward nothing. A
+verdict stamps the directive's `evaluatedAt`.
 
 ## 7. Steering section
 
@@ -170,9 +189,12 @@ harness's own permission and sandbox policy applies unchanged.
 The whole section is capped at 1400 characters (about 300 tokens). It is
 **frozen per conversation**: the first time a conversation assembles its system
 prompt the text is captured and reused for the rest of that conversation, so the
-model's prefix cache stays warm. Any change — a verdict, a toggle, an edit —
-applies to conversations started afterwards. `steerAgent: false` turns the
-section into an empty string.
+model's prefix cache stays warm. A verdict, an edit or a new directive applies
+to conversations started afterwards. Removing a directive or switching one off
+is the exception. It re-freezes every open conversation at its next
+system-prompt assembly, so the removal takes effect at once, and whatever else
+changed by then rides along. `steerAgent: false` turns the section into an empty
+string.
 
 ## 8. Optional: context before each send (`enrichPrompts`, off by default)
 
@@ -222,7 +244,7 @@ here (see §2).
 | **continuation** | a bare "continue / ok / yes" — never analyzed |
 | **report** | the result of one analysis: problems, improved prompt, explanation |
 | **pattern** | a recurring problem kind aggregated across reports, with trust counters |
-| **directive** | one sentence the agent follows on your behalf; *queued → candidate → active / retired* |
+| **directive** | one sentence the agent follows on your behalf; *queued → candidate → active / retired*, or *removed* once you delete it |
 | **trial** | the 10-turn probation of a candidate directive, graded on how often you correct the agent; one per scope at a time |
 | **steering section** | the system-prompt block that carries the directives |
 | **style rule** | a rewrite preference distilled from your 👎 reasons; used only by ✨ Improve |

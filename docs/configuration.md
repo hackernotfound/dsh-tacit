@@ -34,6 +34,7 @@ winning over YAML until you change it again in the UI (patch keys are never remo
 | `directiveEvery` | `3` | 1–100 | new analyses between two directive distillations | — |
 | `directiveTrialTurns` | `10` | 1–500 | finished turns a candidate directive stays on trial | — |
 | `directiveWorseBy` | `0.15` | 0–1 | retire a candidate when its trial correction rate exceeds the baseline by more than this (or its messy-turn rate by more than twice this) | — |
+| `reviewCandidates` | `false` | boolean | a freshly distilled directive stays queued until you press *Start trial* on it | Review new directives before their trial |
 | `bootstrapConcurrency` | `1` | 1–4 | analyses run at once during *Learn from my last 20 turns*; same calls and cost, less waiting | — |
 | `costHistoryDays` | `30` | 7–365 | days of detailed usage runs kept; older day files are deleted | Keep detailed usage history (days) |
 | `costWarnDailyUsd` | `0` | 0–10000 | visual warning at 80 %/100 % of this daily Tacit spend; `0` disables | Warn above this daily spend (USD) |
@@ -66,7 +67,10 @@ winning over YAML until you change it again in the UI (patch keys are never remo
   `costHistoryDays` set to another value inside 7–365 (e.g. via YAML) stays in
   effect, but the Data & privacy card's selector shows 30 until you pick one
   of its own options, which then overwrites it.
-- Changing `steerAgent` or any directive affects **new conversations only** — see
+- Changing `steerAgent` or any directive affects **new conversations only**, with
+  one exception. Removing a directive or switching one off reaches open
+  conversations at their next system-prompt assembly; everything else waits for
+  the next conversation. See
   [How it works §7](how-it-works.md#7-steering-section).
 
 ---

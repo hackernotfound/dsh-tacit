@@ -2,8 +2,51 @@
 
     function DirectivesEditor(kit) {
       const { t } = kit
+      const fmtDay = (ms) => {
+        const date = new Date(Number(ms))
+        return !(Number(ms) > 0) || Number.isNaN(date.getTime()) ? t('steer.receiptNever') : date.toISOString().slice(0, 10)
+      }
+      const pct = (value) => (typeof value === 'number' && value >= 0 ? Math.round(value * 100) + '%' : t('steer.receiptNever'))
+      const triggerName = (name) => {
+        const key = 'trigger.' + name
+        const label = t(key)
+        return label === key ? name : label
+      }
+      const copyReceipt = (receipt) => {
+        if (typeof navigator === 'undefined' || navigator === null || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') return
+        navigator.clipboard.writeText(JSON.stringify(receipt, null, 2)).catch(() => {})
+      }
+      const receiptRow = (label, value) => [h('dt', { key: label + '-t' }, label), h('dd', { key: label + '-d' }, value)]
+      /** What the receipt route returned for this directive, as definition rows; never any prompt text. */
+      function Receipt(receipt) {
+        if (receipt === null || typeof receipt === 'object' === false) return h('div', { className: 'tacit-panel-hint' }, t('steer.receiptLoading'))
+        const triggers = Object.entries(receipt.triggers !== null && typeof receipt.triggers === 'object' ? receipt.triggers : {})
+          .map(([name, count]) => triggerName(name) + ' ' + String(count)).join(' · ')
+        const evidence = receipt.evidence !== null && typeof receipt.evidence === 'object' ? receipt.evidence : { turns: 0, conversations: 0 }
+        const cost = receipt.cost !== null && typeof receipt.cost === 'object' ? receipt.cost : { usd: null, calls: 0 }
+        const trial = receipt.trial !== null && typeof receipt.trial === 'object' ? receipt.trial : null
+        return h('div', null,
+          h('dl', { className: 'tacit-receipt' },
+            ...receiptRow(t('steer.receiptId'), String(receipt.id)),
+            ...receiptRow(t('steer.receiptScope'), typeof receipt.scope === 'string' && receipt.scope.length > 0 ? receipt.scope : t('steer.everywhere')),
+            ...receiptRow(t('steer.receiptStatus'), String(receipt.status)),
+            ...receiptRow(t('steer.receiptSource'), receipt.source === 'user' ? t('steer.user') : t('steer.distilled')),
+            ...receiptRow(t('steer.receiptCreated'), fmtDay(receipt.createdAt)),
+            ...receiptRow(t('steer.receiptUpdated'), fmtDay(receipt.updatedAt)),
+            ...receiptRow(t('steer.receiptEvaluated'), fmtDay(receipt.evaluatedAt)),
+            ...receiptRow(t('steer.receiptVersion'), String(receipt.version)),
+            ...receiptRow(t('steer.receiptTrial'), trial === null ? t('steer.receiptNever') : t('steer.receiptTrialValue', {
+              turns: String(trial.turns), started: fmtDay(trial.startedAt), messy: pct(trial.baselineMessyRate), corrected: pct(trial.baselineCorrectionRate) })),
+            ...receiptRow(t('steer.receiptTriggers'), triggers.length > 0 ? triggers : t('steer.receiptNever')),
+            ...receiptRow(t('steer.receiptEvidence'), t('steer.receiptEvidenceValue', { turns: String(evidence.turns), conversations: String(evidence.conversations) })),
+            ...receiptRow(t('steer.receiptCost'), cost.usd === null ? t('steer.receiptNoRun') : t('steer.receiptCostValue', { usd: fmtUsd(cost.usd), calls: String(cost.calls) }))),
+          h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyReceipt(receipt) }, t('steer.receiptCopy')))
+      }
       return function DirectivesEditorView(props) {
-        const { config, directives, steering } = props
+        const { config, steering } = props
+        const directives = (Array.isArray(props.directives) ? props.directives : []).filter((entry) => entry.status !== 'removed')
+        const receipts = rootStore.receipts !== null && typeof rootStore.receipts === 'object' ? rootStore.receipts : {}
+        const reviewOn = config !== null && config.reviewCandidates === true
         const workspaces = Array.isArray(props.workspaces) ? props.workspaces : []
         const [draft, setDraft] = useState('')
         const [scope, setScope] = useState('')
@@ -27,6 +70,7 @@
           setEnrichOn(next)
           updateRootConfig({ enrichPrompts: next })
         }
+        const toggleReview = () => updateRootConfig({ reviewCandidates: !reviewOn })
         const onAdd = () => {
           const text = draft.trim()
           if (text.length === 0) return
@@ -42,10 +86,14 @@
           h('div', { className: 'tacit-settings-row' },
             h('label', { className: 'tacit-settings-label' }, t('steer.enrich')),
             h('input', { type: 'checkbox', checked: enrichOn, onChange: toggleEnrich })),
+          h('div', { className: 'tacit-settings-row' },
+            h('label', { className: 'tacit-settings-label' }, t('steer.review')),
+            h('input', { type: 'checkbox', checked: reviewOn, onChange: toggleReview })),
           directives.length === 0
             ? h('div', { className: 'tacit-empty' }, t('steer.empty'))
             : h('div', { className: 'tacit-rules-list' },
-              directives.map((entry) => h('div', { key: entry.id, className: 'tacit-rule tacit-directive' + (entry.enabled === false ? ' tacit-directive-off' : '') },
+              directives.map((entry) => h('div', { key: entry.id, className: 'tacit-directive-block' },
+                h('div', { className: 'tacit-rule tacit-directive' + (entry.enabled === false ? ' tacit-directive-off' : '') },
                 h('input', {
                   type: 'checkbox',
                   className: 'tacit-check',
@@ -68,7 +116,20 @@
                     : entry.status === 'retired'
                       ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('steer.retired', { reason: String(entry.retiredReason || '') }))
                       : h('span', { className: 'tacit-chip tacit-chip-ok' }, t('steer.active')),
-                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))))),
+                reviewOn && entry.status === 'queued' && !(entry.approvedAt > 0)
+                  ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'start-trial', id: entry.id }) }, t('steer.startTrial'))
+                  : null,
+                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
+                h('details', {
+                  className: 'tacit-preview',
+                  'data-testid': 'tacit-receipt',
+                  'data-directive-id': entry.id,
+                  onToggle: (event) => {
+                    if (event.target.open) fetchReceipt(entry.id)
+                  },
+                },
+                h('summary', null, t('steer.receipt')),
+                Receipt(receipts[entry.id] ?? null))))),
           h('div', { className: 'tacit-settings-row' },
             h('input', {
               className: 'tacit-input tacit-directive-input',

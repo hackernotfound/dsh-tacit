@@ -89,6 +89,28 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.workspace': '仅 {name}',
       'steer.scope': '适用范围',
       'steer.everywhere': '所有工作区',
+      'steer.receipt': '这条指令从哪来',
+      'steer.review': '新指令先经我确认再开始试用',
+      'steer.startTrial': '开始试用',
+      'steer.receiptLoading': '读取中…',
+      'steer.receiptCopy': '复制为 JSON',
+      'steer.receiptNever': '从未',
+      'steer.receiptNoRun': '无记账记录',
+      'steer.receiptId': '编号',
+      'steer.receiptScope': '适用范围',
+      'steer.receiptStatus': '状态',
+      'steer.receiptSource': '来源',
+      'steer.receiptCreated': '创建于',
+      'steer.receiptUpdated': '更新于',
+      'steer.receiptEvaluated': '评定于',
+      'steer.receiptVersion': '版本',
+      'steer.receiptTrial': '试用窗口',
+      'steer.receiptTrialValue': '{turns} 轮，始于 {started} · 基线：杂乱 {messy}、纠正 {corrected}',
+      'steer.receiptTriggers': '触发类别',
+      'steer.receiptEvidence': '证据',
+      'steer.receiptEvidenceValue': '{turns} 轮，来自 {conversations} 个会话',
+      'steer.receiptCost': '提炼花费',
+      'steer.receiptCostValue': '{usd} · {calls} 次调用',
       'settings.auto': '自动分析混乱轮次',
       'settings.budget': '每日自动分析上限',
       settings: '设置',
@@ -293,6 +315,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'err.internal': '内部错误：{detail}',
       'err.continuation': '这是一条纯粹的「继续」类消息（没有可分析的意图）——请分析它之前的那一轮。',
       'err.directive-policy': '指令不能改变工具权限、审批或沙箱设置，请换一种说法。',
+      'err.already-analyzed': '这一轮已有报告；点击「重新分析」可再花一次费用分析。',
+      'err.unknown-directive': '找不到这条指令。',
     }
 
     const DICT_EN = {
@@ -340,6 +364,28 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.workspace': 'only {name}',
       'steer.scope': 'Applies to',
       'steer.everywhere': 'Everywhere',
+      'steer.receipt': 'Where this directive came from',
+      'steer.review': 'Review new directives before their trial',
+      'steer.startTrial': 'Start trial',
+      'steer.receiptLoading': 'Reading…',
+      'steer.receiptCopy': 'Copy as JSON',
+      'steer.receiptNever': 'never',
+      'steer.receiptNoRun': 'no ledger run',
+      'steer.receiptId': 'Id',
+      'steer.receiptScope': 'Applies to',
+      'steer.receiptStatus': 'Status',
+      'steer.receiptSource': 'Source',
+      'steer.receiptCreated': 'Created',
+      'steer.receiptUpdated': 'Updated',
+      'steer.receiptEvaluated': 'Evaluated',
+      'steer.receiptVersion': 'Version',
+      'steer.receiptTrial': 'Trial window',
+      'steer.receiptTrialValue': '{turns} turns from {started} · baseline messy {messy}, corrections {corrected}',
+      'steer.receiptTriggers': 'Trigger categories',
+      'steer.receiptEvidence': 'Evidence',
+      'steer.receiptEvidenceValue': '{turns} turns across {conversations} conversations',
+      'steer.receiptCost': 'Distillation cost',
+      'steer.receiptCostValue': '{usd} · {calls} calls',
       'settings.auto': 'Auto-analyze messy turns',
       'settings.budget': 'Daily cap on automatic analyses',
       settings: 'Settings',
@@ -544,6 +590,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'err.internal': 'Internal error: {detail}',
       'err.continuation': 'This is a bare continuation ("continue", "go ahead") with nothing to analyze — analyze the turn before it instead.',
       'err.directive-policy': 'A directive cannot change tool permissions, approvals or the sandbox. Reword it.',
+      'err.already-analyzed': 'This turn already has a report; Re-analyze pays for a fresh one.',
+      'err.unknown-directive': 'No directive with that id.',
     }
 
     // ── API client (the host half's own routes on the harness origin) ──────
@@ -643,6 +691,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       auto: null,
       steering: null, // {enabled, text}
       workspaces: [], // [{cwd, label}] from /state
+      receipts: {}, // directive id → the /directive-receipt receipt, re-read on each expand
       trend: null, // measured early-vs-recent trend
       bootstrap: null, // {running, done, total}
       coached: [], // cross-session coached-prompt entries
@@ -1153,6 +1202,25 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       notifyRoot()
     }
 
+    /** One directive's audit receipt. Re-read on every expand: a trial's counters move while it runs. */
+    async function fetchReceipt(id) {
+      const key = String(id)
+      if (key.length === 0) return
+      rootStore.error = null
+      try {
+        const result = await api('/directive-receipt', { id: key })
+        if (result !== null && typeof result === 'object' && result.ok === true
+          && result.receipt !== null && typeof result.receipt === 'object') {
+          rootStore.receipts[key] = result.receipt
+        } else {
+          rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
+        }
+      } catch (error) {
+        rootStore.error = errorOf(error)
+      }
+      notifyRoot()
+    }
+
     async function initStore(store) {
       if (store === null || store.initStarted) return
       store.initStarted = true
@@ -1183,7 +1251,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       store.error = null
       store.notice = null
       notify(store)
-      api('/analyze', { sessionId: store.sessionId, turn })
+      // A turn that already has a report is only re-analyzed on purpose; the button reads "Re-analyze" then.
+      api('/analyze', { sessionId: store.sessionId, turn, ...(store.reports[String(turn)] ? { force: true } : {}) })
         .then((result) => {
           if (result !== null && typeof result === 'object' && result.ok && result.report !== null && typeof result.report === 'object') {
             store.reports[String(turn)] = result.report
@@ -1247,7 +1316,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
             // `busy` means an analysis of that turn was already running — a
             // race with the auto-analyzer, not a failure of this batch.
             const code = typeof entry.code === 'string' && entry.code.length > 0 ? entry.code : 'call-failed'
-            if (failure === null && code !== 'busy') failure = { code, detail: '' }
+            if (failure === null && code !== 'busy' && code !== 'already-analyzed') failure = { code, detail: '' }
           }
           if (failure !== null) store.error = failure
           if (result.profile !== null && typeof result.profile === 'object') store.profile = result.profile
@@ -2338,8 +2407,51 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
 
     function DirectivesEditor(kit) {
       const { t } = kit
+      const fmtDay = (ms) => {
+        const date = new Date(Number(ms))
+        return !(Number(ms) > 0) || Number.isNaN(date.getTime()) ? t('steer.receiptNever') : date.toISOString().slice(0, 10)
+      }
+      const pct = (value) => (typeof value === 'number' && value >= 0 ? Math.round(value * 100) + '%' : t('steer.receiptNever'))
+      const triggerName = (name) => {
+        const key = 'trigger.' + name
+        const label = t(key)
+        return label === key ? name : label
+      }
+      const copyReceipt = (receipt) => {
+        if (typeof navigator === 'undefined' || navigator === null || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') return
+        navigator.clipboard.writeText(JSON.stringify(receipt, null, 2)).catch(() => {})
+      }
+      const receiptRow = (label, value) => [h('dt', { key: label + '-t' }, label), h('dd', { key: label + '-d' }, value)]
+      /** What the receipt route returned for this directive, as definition rows; never any prompt text. */
+      function Receipt(receipt) {
+        if (receipt === null || typeof receipt === 'object' === false) return h('div', { className: 'tacit-panel-hint' }, t('steer.receiptLoading'))
+        const triggers = Object.entries(receipt.triggers !== null && typeof receipt.triggers === 'object' ? receipt.triggers : {})
+          .map(([name, count]) => triggerName(name) + ' ' + String(count)).join(' · ')
+        const evidence = receipt.evidence !== null && typeof receipt.evidence === 'object' ? receipt.evidence : { turns: 0, conversations: 0 }
+        const cost = receipt.cost !== null && typeof receipt.cost === 'object' ? receipt.cost : { usd: null, calls: 0 }
+        const trial = receipt.trial !== null && typeof receipt.trial === 'object' ? receipt.trial : null
+        return h('div', null,
+          h('dl', { className: 'tacit-receipt' },
+            ...receiptRow(t('steer.receiptId'), String(receipt.id)),
+            ...receiptRow(t('steer.receiptScope'), typeof receipt.scope === 'string' && receipt.scope.length > 0 ? receipt.scope : t('steer.everywhere')),
+            ...receiptRow(t('steer.receiptStatus'), String(receipt.status)),
+            ...receiptRow(t('steer.receiptSource'), receipt.source === 'user' ? t('steer.user') : t('steer.distilled')),
+            ...receiptRow(t('steer.receiptCreated'), fmtDay(receipt.createdAt)),
+            ...receiptRow(t('steer.receiptUpdated'), fmtDay(receipt.updatedAt)),
+            ...receiptRow(t('steer.receiptEvaluated'), fmtDay(receipt.evaluatedAt)),
+            ...receiptRow(t('steer.receiptVersion'), String(receipt.version)),
+            ...receiptRow(t('steer.receiptTrial'), trial === null ? t('steer.receiptNever') : t('steer.receiptTrialValue', {
+              turns: String(trial.turns), started: fmtDay(trial.startedAt), messy: pct(trial.baselineMessyRate), corrected: pct(trial.baselineCorrectionRate) })),
+            ...receiptRow(t('steer.receiptTriggers'), triggers.length > 0 ? triggers : t('steer.receiptNever')),
+            ...receiptRow(t('steer.receiptEvidence'), t('steer.receiptEvidenceValue', { turns: String(evidence.turns), conversations: String(evidence.conversations) })),
+            ...receiptRow(t('steer.receiptCost'), cost.usd === null ? t('steer.receiptNoRun') : t('steer.receiptCostValue', { usd: fmtUsd(cost.usd), calls: String(cost.calls) }))),
+          h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyReceipt(receipt) }, t('steer.receiptCopy')))
+      }
       return function DirectivesEditorView(props) {
-        const { config, directives, steering } = props
+        const { config, steering } = props
+        const directives = (Array.isArray(props.directives) ? props.directives : []).filter((entry) => entry.status !== 'removed')
+        const receipts = rootStore.receipts !== null && typeof rootStore.receipts === 'object' ? rootStore.receipts : {}
+        const reviewOn = config !== null && config.reviewCandidates === true
         const workspaces = Array.isArray(props.workspaces) ? props.workspaces : []
         const [draft, setDraft] = useState('')
         const [scope, setScope] = useState('')
@@ -2363,6 +2475,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           setEnrichOn(next)
           updateRootConfig({ enrichPrompts: next })
         }
+        const toggleReview = () => updateRootConfig({ reviewCandidates: !reviewOn })
         const onAdd = () => {
           const text = draft.trim()
           if (text.length === 0) return
@@ -2378,10 +2491,14 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           h('div', { className: 'tacit-settings-row' },
             h('label', { className: 'tacit-settings-label' }, t('steer.enrich')),
             h('input', { type: 'checkbox', checked: enrichOn, onChange: toggleEnrich })),
+          h('div', { className: 'tacit-settings-row' },
+            h('label', { className: 'tacit-settings-label' }, t('steer.review')),
+            h('input', { type: 'checkbox', checked: reviewOn, onChange: toggleReview })),
           directives.length === 0
             ? h('div', { className: 'tacit-empty' }, t('steer.empty'))
             : h('div', { className: 'tacit-rules-list' },
-              directives.map((entry) => h('div', { key: entry.id, className: 'tacit-rule tacit-directive' + (entry.enabled === false ? ' tacit-directive-off' : '') },
+              directives.map((entry) => h('div', { key: entry.id, className: 'tacit-directive-block' },
+                h('div', { className: 'tacit-rule tacit-directive' + (entry.enabled === false ? ' tacit-directive-off' : '') },
                 h('input', {
                   type: 'checkbox',
                   className: 'tacit-check',
@@ -2404,7 +2521,20 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
                     : entry.status === 'retired'
                       ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('steer.retired', { reason: String(entry.retiredReason || '') }))
                       : h('span', { className: 'tacit-chip tacit-chip-ok' }, t('steer.active')),
-                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))))),
+                reviewOn && entry.status === 'queued' && !(entry.approvedAt > 0)
+                  ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'start-trial', id: entry.id }) }, t('steer.startTrial'))
+                  : null,
+                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
+                h('details', {
+                  className: 'tacit-preview',
+                  'data-testid': 'tacit-receipt',
+                  'data-directive-id': entry.id,
+                  onToggle: (event) => {
+                    if (event.target.open) fetchReceipt(entry.id)
+                  },
+                },
+                h('summary', null, t('steer.receipt')),
+                Receipt(receipts[entry.id] ?? null))))),
           h('div', { className: 'tacit-settings-row' },
             h('input', {
               className: 'tacit-input tacit-directive-input',
@@ -3441,6 +3571,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         openConfirm,
         closeConfirm,
         fetchBootstrapPreview,
+        fetchReceipt,
+        storeFor,
+        analyzeTurn,
+        coachSelected,
         clearAllRoot,
         clearUsageHistory,
         runNotice,

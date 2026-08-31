@@ -65,12 +65,13 @@ All `POST`, JSON in / JSON out, on the harness web server (no extra port), body
 | `/api/tacit/state` | — | config, profile, `auto {today, budget}`, `steering {enabled, text}`, bootstrap progress |
 | `/api/tacit/reports` | `{sessionId}` | reports of that session keyed by turn |
 | `/api/tacit/history` | `{limit?}` (≤ 500) | latest reports across sessions |
-| `/api/tacit/analyze` | `{sessionId, turn}` | report + profile; codes `no-session`, `not-retained`, `continuation`, `busy`, `empty-response`, `timeout`, `no-api-key`, `no-credit`, `rate-limited`, `call-failed` |
-| `/api/tacit/analyze-batch` | `{sessionId, turns}` (1–50 turns, deduped and sorted) | one `analysis-batch` run over the picked turns: `results [{turn, ok, code, report}]` (a turn already being analyzed reports `busy` and costs nothing), profile, run summary |
+| `/api/tacit/analyze` | `{sessionId, turn, force?}` | report + profile; codes `no-session`, `not-retained`, `continuation`, `already-analyzed` (the turn already has a report; no model call and no ledger run unless `force: true`), `busy`, `empty-response`, `timeout`, `no-api-key`, `no-credit`, `rate-limited`, `call-failed` |
+| `/api/tacit/analyze-batch` | `{sessionId, turns, force?}` (1–50 turns, deduped and sorted) | one `analysis-batch` run over the picked turns: `results [{turn, ok, code, report}]` (a turn already being analyzed reports `busy`, one that already has a report reports `already-analyzed` unless `force: true`; both cost nothing and count as `skipped`, and a batch of nothing else closes as `success`), profile, run summary |
 | `/api/tacit/improve` | `{sessionId, draft}` | `improved`, `rationale`, `rewriteId`, `patternsUsed` |
 | `/api/tacit/applied` | `{sessionId, rewriteId}` | ok (starts free verification) |
 | `/api/tacit/feedback` | `{rewriteId, verdict: up\|down, reason?}` | profile |
-| `/api/tacit/directives` | `{action: toggle\|add\|remove, …}` | profile + steering |
+| `/api/tacit/directives` | `{action: toggle\|add\|remove\|start-trial, …}` | profile + steering |
+| `/api/tacit/directive-receipt` | `{id}` | that directive's receipt: text, scope, status, source, enabled, `createdAt`/`updatedAt`/`evaluatedAt`/`approvedAt`, `version`, its trial counters and baselines, `retiredReason`, the trigger counts and evidence ids derived from its evidence, and `cost {runId, calls, usd}` read from the ledger (`usd` is `null` when the run is unknown or none of its attempts is priced); never prompt text. `unknown-directive` when no directive has that id |
 | `/api/tacit/stats` | `{window?}` (3–200, default 20) | trend early vs. recent |
 | `/api/tacit/bootstrap` | `{sessionId?, limit?}` (1–50, default 20) | analyzed / skipped / directives; `busy` if one is running |
 | `/api/tacit/bootstrap-preview` | `{sessionId?, limit?}` (1–50, default 20) | what a bootstrap would do: `eligible` / `skipped` counts and `estimate {usd, basis: measured\|doc, samples, perAnalysisUsd}` (the ledger's median once 3 priced analyses exist in 30 days, the doc figure otherwise). No model call, no run, never `busy` |
@@ -93,7 +94,11 @@ bad JSON → 400; handler `bad-request` / `unknown-rewrite` → 400; every other
 `usage/<YYYY-MM-DD>.json` (one day of ledger runs and their attempts) and
 `usage/summary.json` (the rolling lifetime / byType / byModel / per-day totals,
 so a report never re-scans the day files; day buckets are kept for 400 days,
-far past the 30 any range reads). Day files are parsed once and served from an
+far past the 30 any range reads). Each directive in `profile.json` carries its
+provenance next to its text: `updatedAt`, `version`, the ids of the reports its
+distillation read, `distillationRunId`, `evaluatedAt` and `approvedAt`. A
+directive you removed stays in the profile, so the distiller can be told not to
+propose it again. Day files are parsed once and served from an
 in-memory memo keyed on the file's mtime and size, bounded by total size, so
 the ten-second poll behind the cost panel re-reads nothing that has not
 changed. The ledger is content-free: ids,

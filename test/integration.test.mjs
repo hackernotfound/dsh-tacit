@@ -193,6 +193,7 @@ test('apply() registers the projection, the service, and the routes', () => {
       '/api/tacit/clear',
       '/api/tacit/history',
       '/api/tacit/config',
+      '/api/tacit/directive-receipt',
       '/api/tacit/directives',
       '/api/tacit/feedback',
       '/api/tacit/improve',
@@ -381,7 +382,7 @@ test('analyze route: a reasoning-only model response is an empty-response error 
   })
   apply(ctx, {})
   const analyze = routes.find((r) => r.path === '/api/tacit/analyze')
-  const result = await callRoute(analyze, { sessionId: 'session-1', turn: 2 })
+  const result = await callRoute(analyze, { sessionId: 'session-1', turn: 2, force: true })
   assert.equal(result.body.ok, false)
   assert.equal(result.body.code, 'empty-response')
 })
@@ -427,7 +428,7 @@ test('analyze route: re-coaching the same turn does not double count the learnin
   const state = routes.find((r) => r.path === '/api/tacit/state')
   const before = await callRoute(state, {})
   const first = await callRoute(analyze, { sessionId: 'session-1', turn: 3 })
-  const second = await callRoute(analyze, { sessionId: 'session-1', turn: 3 })
+  const second = await callRoute(analyze, { sessionId: 'session-1', turn: 3, force: true })
   assert.equal(first.body.ok, true)
   assert.equal(second.body.ok, true)
   const after = await callRoute(state, {})
@@ -443,7 +444,7 @@ test('analyze route: an empty model response is a soft empty-response error', as
   })
   apply(ctx, {})
   const analyze = routes.find((r) => r.path === '/api/tacit/analyze')
-  const result = await callRoute(analyze, { sessionId: 'session-1', turn: 2 })
+  const result = await callRoute(analyze, { sessionId: 'session-1', turn: 2, force: true })
   assert.equal(result.body.ok, false)
   assert.equal(result.body.code, 'empty-response')
 })
@@ -478,7 +479,7 @@ test('a failing model call surfaces as a soft call-failed result', async () => {
   })
   apply(ctx, {})
   const analyze = routes.find((r) => r.path === '/api/tacit/analyze')
-  const result = await callRoute(analyze, { sessionId: 'session-1', turn: 2 })
+  const result = await callRoute(analyze, { sessionId: 'session-1', turn: 2, force: true })
   assert.equal(result.body.ok, false)
   assert.equal(result.body.code, 'no-api-key')
 })
@@ -942,9 +943,59 @@ test('directives route: toggle, add, remove — and the rendered steering text f
   assert.equal(added.body.profile.directives[1].source, 'user')
   assert.ok(added.body.steering.text.includes('Always run the tests'))
   const removed = await callRoute(directives, { action: 'remove', id: 'd1' })
-  assert.equal(removed.body.profile.directives.length, 1)
+  assert.equal(removed.body.profile.directives.filter((d) => d.status !== 'removed').length, 1)
   const bad = await callRoute(directives, { action: 'explode' })
   assert.equal(bad.status, 400)
+})
+
+test('directives route: remove keeps the record as a removed tombstone the distiller may not resurrect', async () => {
+  const text = 'Grep the repo before asking for file paths.'
+  const { routes, service } = steeringHarness({
+    config: { directiveEvery: 1, autoAnalyze: false },
+    profile: seedDirectives([{ id: 'd1', text, enabled: true, source: 'distilled', createdAt: 1, updatedAt: 1, status: 'active' }]),
+  })
+  const directives = routes.find((r) => r.path === '/api/tacit/directives')
+  const removed = await callRoute(directives, { action: 'remove', id: 'd1' })
+  const tombstone = removed.body.profile.directives.find((d) => d.id === 'd1')
+  assert.equal(tombstone.status, 'removed')
+  assert.equal(tombstone.enabled, false)
+  assert.ok(tombstone.updatedAt > 1)
+  assert.ok(!removed.body.steering.text.includes(text))
+
+  // The fake distiller re-proposes exactly that text; it stays removed, as one record.
+  fs.rmSync(path.join(tmpHome, 'storages', 'tacit', 'reports', 'session-1'), { recursive: true, force: true })
+  await callRoute(routes.find((r) => r.path === '/api/tacit/analyze'), { sessionId: 'session-1', turn: 2 })
+  await service.flushAuto()
+  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  const back = state.body.profile.directives.filter((d) => d.text === text)
+  assert.equal(back.length, 1, 'the re-emitted text does not become a second entry')
+  assert.equal(back[0].status, 'removed')
+  assert.ok(!state.body.steering.text.includes(text))
+})
+
+test('directives route: switching a candidate off frees its scope\'s trial slot for the next queued directive', async () => {
+  const { routes } = steeringHarness({
+    config: { autoAnalyze: false },
+    profile: seedDirectives([
+      { id: 'a', text: 'Candidate under trial.', enabled: true, source: 'distilled', createdAt: 1, updatedAt: 1, status: 'candidate', trial: { turns: 3, messy: 0, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0, startedAt: 1 } },
+      { id: 'b', text: 'Waiting its turn.', enabled: true, source: 'distilled', createdAt: 2, updatedAt: 2, status: 'queued' },
+    ]),
+  })
+  const directives = routes.find((r) => r.path === '/api/tacit/directives')
+  const off = await callRoute(directives, { action: 'toggle', id: 'a', enabled: false })
+  const byId = (body, id) => body.profile.directives.find((d) => d.id === id)
+  assert.equal(byId(off.body, 'a').status, 'queued')
+  assert.equal(byId(off.body, 'a').trial, undefined, 'the abandoned trial is not resumed later')
+  assert.ok(byId(off.body, 'a').updatedAt > 1)
+  assert.equal(byId(off.body, 'b').status, 'candidate')
+  assert.equal(byId(off.body, 'b').trial.turns, 0, 'the next queued directive starts a fresh trial')
+  assert.ok(!off.body.steering.text.includes('Candidate under trial.'))
+  assert.ok(off.body.steering.text.includes('Waiting its turn.'))
+
+  // Switching it back on does not preempt the slot b now holds.
+  const on = await callRoute(directives, { action: 'toggle', id: 'a', enabled: true })
+  assert.equal(byId(on.body, 'a').status, 'queued')
+  assert.equal(byId(on.body, 'b').status, 'candidate')
 })
 
 test('directives route: a typed directive about permissions is refused with directive-policy and stores nothing', async () => {
@@ -2589,4 +2640,91 @@ test('usage: /state drops the bootstrap runId when the run ends and resets every
     { running: false, done: 0, total: 0, runId: '', billedCalls: 0, unpricedCalls: 0, usdKnown: 0, tokensTotal: 0 },
     'a no-op bootstrap does not leave the previous run on the tile',
   )
+})
+
+// ── Review before trial, paid re-analysis, receipts, and the freeze ────────
+
+test('reviewCandidates holds a distilled directive in the queue until start-trial approves it', async () => {
+  const queued = { id: 'q1', text: 'Name the target file up front.', enabled: true, source: 'distilled', createdAt: 1, updatedAt: 1, status: 'queued' }
+  const { routes } = steeringHarness({ config: { reviewCandidates: true, autoAnalyze: false }, profile: seedDirectives([queued]) })
+  const directives = routes.find((r) => r.path === '/api/tacit/directives')
+  const nudged = await callRoute(directives, { action: 'add', text: 'Anything that runs the scheduler.' })
+  assert.equal(nudged.body.profile.directives.find((d) => d.id === 'q1').status, 'queued', 'not started without approval')
+  const started = await callRoute(directives, { action: 'start-trial', id: 'q1' })
+  const entry = started.body.profile.directives.find((d) => d.id === 'q1')
+  assert.equal(entry.status, 'candidate')
+  assert.ok(entry.approvedAt > 0)
+  assert.equal(entry.trial.turns, 0)
+  assert.ok(started.body.steering.text.includes('Name the target file up front.'))
+  const missing = await callRoute(directives, { action: 'start-trial', id: 'nope' })
+  assert.deepEqual([missing.body.ok, missing.body.code], [false, 'bad-request'])
+  const { routes: plain } = steeringHarness({ config: { autoAnalyze: false }, profile: seedDirectives([queued]) })
+  const auto = await callRoute(plain.find((r) => r.path === '/api/tacit/directives'), { action: 'add', text: 'Runs the scheduler again.' })
+  assert.equal(auto.body.profile.directives.find((d) => d.id === 'q1').status, 'candidate', 'with the setting off the queue drains by itself')
+})
+
+test('analyze and analyze-batch answer already-analyzed at no cost for a turn with a report, unless forced', async () => {
+  const { routes, captured } = steeringHarness({ config: { autoAnalyze: false } })
+  fs.rmSync(path.join(tmpHome, 'storages', 'tacit', 'reports', 'session-1'), { recursive: true, force: true })
+  const analyze = routes.find((r) => r.path === '/api/tacit/analyze')
+  const first = await callRoute(analyze, { sessionId: 'session-1', turn: 2 })
+  assert.equal(first.body.ok, true)
+  const calls = captured.length
+  const again = await callRoute(analyze, { sessionId: 'session-1', turn: 2 })
+  assert.deepEqual([again.status, again.body.ok, again.body.code, again.body.run], [200, false, 'already-analyzed', null])
+  assert.equal(captured.length, calls, 'no model call')
+  const batch = await callRoute(routes.find((r) => r.path === '/api/tacit/analyze-batch'), { sessionId: 'session-1', turns: [2] })
+  assert.equal(batch.body.results[0].code, 'already-analyzed')
+  assert.equal(batch.body.run.status, 'success', 'a batch of nothing but skips is not a failed run')
+  assert.equal(captured.length, calls, 'still no model call')
+  const forced = await callRoute(analyze, { sessionId: 'session-1', turn: 2, force: true })
+  assert.equal(forced.body.ok, true)
+  assert.equal(captured.length, calls + 1)
+})
+
+test('a distilled directive records its evidence and run, and the receipt route reports them without prompt text', async () => {
+  const { routes, service } = steeringHarness({ config: { directiveEvery: 1, autoAnalyze: false }, profile: seedDirectives([]) })
+  fs.rmSync(path.join(tmpHome, 'storages', 'tacit', 'reports', 'session-1'), { recursive: true, force: true })
+  await callRoute(routes.find((r) => r.path === '/api/tacit/analyze'), { sessionId: 'session-1', turn: 2 })
+  await service.flushAuto()
+  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  const distilled = state.body.profile.directives.find((d) => d.source === 'distilled')
+  assert.ok(distilled !== undefined, 'the fake distiller produced a directive')
+  assert.equal(distilled.version, 1)
+  assert.ok(distilled.evidence.length >= 1)
+  assert.ok(distilled.evidence.every((item) => typeof item.sessionId === 'string' && typeof item.turn === 'number' && typeof item.trigger === 'string'))
+  assert.ok(distilled.evidence.some((item) => item.sessionId === 'session-1'), 'the analysis that triggered it is among the evidence')
+  assert.ok(distilled.distillationRunId.length > 0)
+  const receipt = routes.find((r) => r.path === '/api/tacit/directive-receipt')
+  const got = await callRoute(receipt, { id: distilled.id })
+  assert.equal(got.body.ok, true)
+  assert.equal(got.body.receipt.id, distilled.id)
+  assert.ok(got.body.receipt.triggers.manual >= 1)
+  assert.ok(got.body.receipt.evidence.conversations >= 1)
+  assert.equal(got.body.receipt.cost.runId, distilled.distillationRunId)
+  assert.ok(got.body.receipt.cost.calls >= 1)
+  const serialized = JSON.stringify(got.body.receipt)
+  for (const banned of ['promptExcerpt', 'improvedPrompt', 'followUp', sampleTurn.prompt]) assert.ok(!serialized.includes(banned), banned + ' never reaches a receipt')
+  const unknown = await callRoute(receipt, { id: 'nope' })
+  assert.deepEqual([unknown.status, unknown.body.code, unknown.body.receipt], [200, 'unknown-directive', null])
+})
+
+test('removing or switching off a directive reaches a conversation that is already open; adding one waits', async () => {
+  const { routes, sections } = steeringHarness({
+    config: { autoAnalyze: false },
+    profile: seedDirectives([
+      { id: 'a', text: 'Gone after removal.', enabled: true, source: 'distilled', createdAt: 1, updatedAt: 1, status: 'active' },
+      { id: 'b', text: 'Gone after the toggle.', enabled: true, source: 'distilled', createdAt: 2, updatedAt: 2, status: 'active' },
+    ]),
+  })
+  const session = { id: 'session-1' }
+  const read = () => sections[0].text({ agent: { session } })
+  assert.ok(read().includes('Gone after removal.'))
+  const directives = routes.find((r) => r.path === '/api/tacit/directives')
+  await callRoute(directives, { action: 'add', text: 'Added while open.' })
+  assert.ok(!read().includes('Added while open.'), 'an addition keeps waiting for the next conversation')
+  await callRoute(directives, { action: 'remove', id: 'a' })
+  assert.ok(!read().includes('Gone after removal.'))
+  await callRoute(directives, { action: 'toggle', id: 'b', enabled: false })
+  assert.ok(!read().includes('Gone after the toggle.'))
 })
