@@ -37,12 +37,26 @@ is honoured. Nothing is sent anywhere else.
 | **✨ Improve** | your draft; the last 2 turns' prompts and answers; style rules; last 3 👎 reasons; trusted patterns | draft as typed (≤ 100 000) · 600 + 600 each · 300 · 300 · 200 |
 | **Pre-send context** (opt-in) | your draft; enabled directives; top 6 patterns; the last 2 turns | 1500 · 220 · 160 · 600 + 600 |
 
+Everything above that comes from a past turn — prompts, answers, tool arguments,
+the recent conversation — is read from the turn digest, and the digest is masked
+at capture: a credential-shaped string is already `[redacted:...]` before any of
+these calls is assembled. The one text that is not is the draft you are typing
+right now, which ✨ Improve and pre-send context send as typed.
+
 Never sent: tool *results* or file contents (only whether a tool errored), API
 keys, session ids, anything outside the clips above.
 
 ## Guarantees
 
 - **Never reads or stores API keys.** Calls use `ctx.llm.stream`, the harness's own service.
+- **Credential-shaped strings are masked at capture.** API keys, tokens, JWTs,
+  private-key blocks and `key=value` secrets in a prompt, a tool argument or an
+  answer are replaced with `[redacted:...]` in the turn digest, so nothing
+  downstream (reports, corrections, any model call) sees them; the list of shapes
+  is in `lib/redact.js`.
+- **Directives never change policy.** The steering section states that it does not
+  alter tool permissions, approvals or the sandbox, and a directive that talks
+  about those is rejected, whether distilled or typed.
 - **Visible steering.** The exact injected text is in Settings → Tacit → *Exact text
   injected*, and `steerAgent: false` removes it entirely.
 - **Append-only pre-send.** `enrichPrompts` (off by default) appends a separate,

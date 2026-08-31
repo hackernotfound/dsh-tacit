@@ -80,7 +80,9 @@ Tacit never sees your API key (every call goes through the harness's own model
 service), only calls the allowlisted official models over your session's own
 provider route, keeps reports and directives in `~/.dsh/storages/tacit/`, refuses
 cross-site requests to its own routes, and never deletes anything but its own
-reports and expired usage files. Dollar figures are estimates at list price; a cost plugin such as
+reports and expired usage files. Credential-shaped strings in what it captures —
+API keys, tokens, JWTs, private-key blocks — are masked before anything is
+stored or sent. Dollar figures are estimates at list price; a cost plugin such as
 `dsh-cost-meter` shows the real number. The full data-flow and cost tables, and
 the honest list of limitations:
 [Privacy, cost & limitations](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/privacy-and-cost.md).

@@ -248,6 +248,7 @@
       'err.network': '无法连接 Tacit 服务。',
       'err.internal': '内部错误：{detail}',
       'err.continuation': '这是一条纯粹的「继续」类消息（没有可分析的意图）——请分析它之前的那一轮。',
+      'err.directive-policy': '指令不能改变工具权限、审批或沙箱设置，请换一种说法。',
     }
 
     const DICT_EN = {
@@ -498,5 +499,6 @@
       'err.network': 'Could not reach the Tacit service.',
       'err.internal': 'Internal error: {detail}',
       'err.continuation': 'This is a bare continuation ("continue", "go ahead") with nothing to analyze — analyze the turn before it instead.',
+      'err.directive-policy': 'A directive cannot change tool permissions, approvals or the sandbox. Reword it.',
     }
 

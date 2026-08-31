@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Tacit masks credential-shaped strings as it captures a turn. An API key, a
+  token, a JWT, a private-key block or a `key=value` secret in your prompt, in a
+  tool argument or in the agent's answer becomes `[redacted:…]` in the turn
+  digest, which is what reports, corrections, the recent-conversation context and
+  every model call read. The shapes are listed in `lib/redact.js`.
+- The steering section now states that it does not change which tools may run
+  or what needs approval, and a directive that talks about permissions,
+  approvals, the sandbox or elevated execution is refused — both when the
+  distiller proposes one and when you type one in Settings → Tacit.
+- Every coach prompt now frames its input as evidence about you rather than as
+  instructions: text that arrives inside a rule, a reason, an example or the
+  conversation is read as data.
+
 ## 0.4.0 — 2026-08-31
 
 - Directive trials are now graded on how often you *correct* the agent: a
