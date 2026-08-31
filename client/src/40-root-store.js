@@ -395,13 +395,13 @@
     function closeConfirm() {
       rootStore.confirm = null
       notifyRoot()
+      restoreConfirmOpener()
     }
 
     /** Run the parked destructive action, whichever it is, and close the dialog. */
     async function confirmAction() {
       const kind = rootStore.confirm !== null && typeof rootStore.confirm === 'object' ? rootStore.confirm.kind : null
-      rootStore.confirm = null
-      notifyRoot()
+      closeConfirm()
       if (kind === 'reports') await clearAllRoot()
       else if (kind === 'usage') await clearUsageHistory()
     }

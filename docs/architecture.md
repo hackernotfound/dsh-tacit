@@ -70,14 +70,14 @@ All `POST`, JSON in / JSON out, on the harness web server (no extra port), body
 | `/api/tacit/improve` | `{sessionId, draft}` | `improved`, `rationale`, `rewriteId`, `patternsUsed` |
 | `/api/tacit/applied` | `{sessionId, rewriteId}` | ok (starts free verification) |
 | `/api/tacit/feedback` | `{rewriteId, verdict: up\|down, reason?}` | profile |
-| `/api/tacit/directives` | `{action: toggle\|add\|remove\|start-trial, …}` | profile + steering |
+| `/api/tacit/directives` | `{action: toggle\|add\|rescope\|remove\|start-trial, …}` (`rescope` takes `id` and a `workspace`, `''` for global) | profile + steering |
 | `/api/tacit/directive-receipt` | `{id}` | that directive's receipt: text, scope, status, source, enabled, `createdAt`/`updatedAt`/`evaluatedAt`/`approvedAt`, `version`, its trial counters and baselines, `retiredReason`, the trigger counts and evidence ids derived from its evidence, and `cost {runId, calls, usd}` read from the ledger (`usd` is `null` when the run is unknown or none of its attempts is priced); never prompt text. `unknown-directive` when no directive has that id |
 | `/api/tacit/stats` | `{window?}` (3–200, default 20) | trend early vs. recent |
 | `/api/tacit/bootstrap` | `{sessionId?, limit?}` (1–50, default 20) | analyzed / skipped / directives; `busy` if one is running |
 | `/api/tacit/bootstrap-preview` | `{sessionId?, limit?}` (1–50, default 20) | what a bootstrap would do: `eligible` / `skipped` counts and `estimate {usd, basis: measured\|doc, samples, perAnalysisUsd}` (the ledger's median once 3 priced analyses exist in 30 days, the doc figure otherwise). No model call, no run, never `busy` |
 | `/api/tacit/config` | `{patch}` | effective config; non-allowlisted model → 400 |
 | `/api/tacit/clear` | — | `removed` count |
-| `/api/tacit/usage` | `{range?, type?, status?, model?, workspace?, sessionId?, page?, pageSize?}` (range `today\|7d\|30d\|month\|all`, default `30d`; status `running\|success\|partial\|failed`; page ≥ 1, pageSize ≤ 100) | `today`/`month`/`last7`/`last30`/`lifetime` totals, `series7`/`series30`, `byType`/`byModel`, `warnings`, one page of `runs`, price-source status |
+| `/api/tacit/usage` | `{range?, type?, status?, model?, workspace?, sessionId?, page?, pageSize?}` (range `today\|7d\|30d\|month\|all`, default `30d`; status `running\|success\|partial\|failed`; page ≥ 1, pageSize ≤ 100) | `today`/`month`/`last7`/`last30`/`lifetime` totals, `series7`/`series30`, `byType`/`byModel`/`byProvider`/`byTrigger`, `auto {today, budget}`, `warnings`, one page of `runs`, price-source status |
 | `/api/tacit/usage-run` | `{runId}` | that run with its attempt rows (a live run included); `unknown-run` once its day expired |
 | `/api/tacit/usage-clear` | — | `removed` day files + the new `trackingSince` |
 | `/api/tacit/pricing-refresh` | — | price-source status + both models' off-peak/peak rates |
@@ -92,16 +92,16 @@ bad JSON → 400; handler `bad-request` / `unknown-rewrite` → 400; every other
 `~/.dsh/storages/tacit/` (root = `$DSH_HOME` or `~/.dsh`): `config.patch.json`,
 `profile.json`, `auto.json`, `reports/<sessionId>/<turn>.json` (a report records the conversation's absolute workspace directory as `cwd`; a directive may carry a `workspace` it is limited to),
 `usage/<YYYY-MM-DD>.json` (one day of ledger runs and their attempts) and
-`usage/summary.json` (the rolling lifetime / byType / byModel / per-day totals,
-so a report never re-scans the day files; day buckets are kept for 400 days,
-far past the 30 any range reads). Each directive in `profile.json` carries its
+`usage/summary.json` (the rolling lifetime / byType / byModel / byProvider /
+byTrigger / per-day totals, so a report never re-scans the day files; day
+buckets are kept for 400 days, far past the 30 any range reads). Each directive in `profile.json` carries its
 provenance next to its text: `updatedAt`, `version`, the ids of the reports its
 distillation read, `distillationRunId`, `evaluatedAt` and `approvedAt`. A
 directive you removed stays in the profile, so the distiller can be told not to
-propose it again. Day files are parsed once and served from an
-in-memory memo keyed on the file's mtime and size, bounded by total size, so
-the ten-second poll behind the cost panel re-reads nothing that has not
-changed. The ledger is content-free: ids,
+propose it again. Day files are
+parsed once and served from an in-memory memo keyed on the file's mtime and
+size, bounded by total size, so the ten-second poll behind the cost panel
+re-reads nothing that has not changed. The ledger is content-free: ids,
 counts, tokens and money only — no prompts, no responses, no tool arguments, and
 `workspace` is the directory's last segment, never the full path. Session ids are
 sanitised to `[A-Za-z0-9._-]{1,128}`. Writes go to a `.tmp-<pid>-<time>` file

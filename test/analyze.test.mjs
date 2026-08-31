@@ -245,7 +245,8 @@ test('buildAnalysisUserText carries the user\'s next message as correction evide
 
 // ── Ambient steering: directives → system-prompt section ───────────────────
 
-import { renderSteeringSection, buildSteeringSection, buildDirectiveUserText, workspaceLabel, normalizeGoodReport, STEERING_MAX_CHARS } from '../lib/analyze.js'
+import { renderSteeringSection, buildSteeringSection, buildDirectiveUserText, normalizeGoodReport, STEERING_MAX_CHARS } from '../lib/analyze.js'
+import { workspaceLabel } from '../lib/workspace.js'
 
 test('renderSteeringSection is empty without enabled directives and lists enabled ones', () => {
   assert.equal(renderSteeringSection({ directives: [] }), '')
@@ -620,4 +621,87 @@ test('IMPROVE_SYSTEM_PROMPT keeps its test anchor, the completeness checklist an
   assert.ok(IMPROVE_SYSTEM_PROMPT.includes('Already complete.'))
   assert.ok(IMPROVE_SYSTEM_PROMPT.includes('RESPONSE FORMAT'))
   assert.ok(IMPROVE_SYSTEM_PROMPT.includes('Reply in the same language as the draft.'))
+})
+
+// ── Workspace identity, labels and scope matching (issue #41) ──────────────
+
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { normalizeWorkspace, workspaceContains, workspaceLabels } from '../lib/workspace.js'
+import { MAX_SCOPES } from '../lib/analyze.js'
+
+test('normalizeWorkspace resolves .., strips a trailing slash, follows a symlink when the directory exists, and keeps case', () => {
+  assert.equal(normalizeWorkspace('/repos/alpha/'), '/repos/alpha')
+  assert.equal(normalizeWorkspace('/repos/beta/../alpha'), '/repos/alpha')
+  assert.equal(normalizeWorkspace('/Repos/Alpha'), '/Repos/Alpha')
+  assert.equal(normalizeWorkspace(''), '')
+  assert.equal(normalizeWorkspace(undefined), '')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tacit-ws-'))
+  const real = fs.realpathSync(dir)
+  const link = dir + '-link'
+  fs.symlinkSync(real, link)
+  assert.equal(normalizeWorkspace(link + '/'), real)
+  assert.equal(normalizeWorkspace(path.join(real, 'missing', '..', 'still-missing')), path.join(real, 'still-missing'))
+})
+
+test('workspaceContains matches the directory itself and its subdirectories by path segment, never by string prefix', () => {
+  assert.equal(workspaceContains('/repos/alpha', '/repos/alpha'), true)
+  assert.equal(workspaceContains('/repos/alpha', '/repos/alpha/packages/api'), true)
+  assert.equal(workspaceContains('/repos/alpha', '/repos/alpha2'), false)
+  assert.equal(workspaceContains('/repos/alpha', '/repos'), false)
+  assert.equal(workspaceContains('', '/repos/alpha'), false)
+})
+
+test('workspaceLabels keeps the basename and adds parent segments only while two workspaces share a label', () => {
+  const labels = workspaceLabels(['/home/u/a/web', '/home/u/b/web', '/home/u/api'])
+  assert.deepEqual([...labels], [['/home/u/a/web', 'a/web'], ['/home/u/b/web', 'b/web'], ['/home/u/api', 'api']])
+  assert.deepEqual([...workspaceLabels(['/x/a/web', '/y/a/web']).values()], ['x/a/web', 'y/a/web'])
+  assert.deepEqual([...workspaceLabels(['/repos/alpha', '/repos/alpha']).values()], ['alpha'])
+})
+
+test('buildDirectiveUserText tags two same-name workspaces distinctly', () => {
+  const text = buildDirectiveUserText({ patterns: [], styleRules: [], directives: [
+    { id: 'a', text: 'Scoped rule.', enabled: true, source: 'distilled', createdAt: 1, workspace: '/home/u/b/web' },
+  ] }, [
+    { promptExcerpt: 'fix it', followUp: 'no I meant apps/web', cwd: '/home/u/a/web' },
+    { promptExcerpt: 'other', followUp: 'wrong file', cwd: '/home/u/b/web' },
+  ])
+  assert.ok(text.includes('[workspace: a/web] "fix it"'))
+  assert.ok(text.includes('[workspace: b/web] "other"'))
+  assert.ok(text.includes('Scoped rule. [workspace: b/web]'))
+  assert.ok(text.includes('- a/web (1)'))
+  assert.ok(!text.includes('/home/u'), 'full paths never reach the model')
+})
+
+test('buildSteeringSection matches a session inside a workspace and lists the deepest scope first', () => {
+  const profile = { directives: [
+    { id: 'g', text: 'Global rule.', enabled: true, source: 'distilled', createdAt: 1 },
+    { id: 'a', text: 'Alpha rule.', enabled: true, source: 'distilled', createdAt: 2, workspace: '/repos/alpha' },
+    { id: 'p', text: 'Packages rule.', enabled: true, source: 'user', createdAt: 3, workspace: '/repos/alpha/packages' },
+    { id: 'x', text: 'Alpha2 rule.', enabled: true, source: 'user', createdAt: 4, workspace: '/repos/alpha2' },
+  ] }
+  assert.deepEqual(buildSteeringSection(profile, { cwd: '/repos/alpha/packages/api' }).ids, ['p', 'a', 'g'])
+  assert.deepEqual(buildSteeringSection(profile, { cwd: '/repos/alpha' }).ids, ['a', 'g'])
+  assert.deepEqual(buildSteeringSection(profile, { cwd: '/repos/alpha2' }).ids, ['x', 'g'])
+})
+
+test('capDirectives keeps at most MAX_SCOPES workspaces, dropping the least recently seen scope\'s distilled directives first', () => {
+  const list = []
+  const seenAt = {}
+  for (let i = 0; i < MAX_SCOPES + 2; i += 1) {
+    list.push({ id: 'd' + i, text: 'Rule ' + i + '.', enabled: true, source: 'distilled', createdAt: 100 + i, workspace: '/repos/w' + i })
+    seenAt['/repos/w' + i] = 1000 + i
+  }
+  list.push({ id: 'u1', text: 'Mine.', enabled: true, source: 'user', createdAt: 1, workspace: '/repos/mine' })
+  seenAt['/repos/mine'] = 0
+  seenAt['/repos/w5'] = 1
+  const kept = capDirectives(list, { seenAt })
+  const scopes = new Set(kept.map((entry) => entry.workspace))
+  assert.equal(scopes.size, MAX_SCOPES)
+  assert.ok(scopes.has('/repos/mine'), 'a scope with only user-typed directives is never emptied')
+  assert.ok(!scopes.has('/repos/w5'), 'the least recently seen distilled scope goes first')
+  assert.ok(!scopes.has('/repos/w0') && !scopes.has('/repos/w1'), 'then the next ones')
+  assert.ok(scopes.has('/repos/w2'))
+  assert.equal(capDirectives(list.slice(0, MAX_SCOPES), { seenAt }).length, MAX_SCOPES, 'nothing is dropped under the cap')
 })

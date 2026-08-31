@@ -1,7 +1,7 @@
 # Privacy, cost & limitations
 
 *For anyone deciding whether to trust Tacit with their conversations. Everything
-below is the actual behaviour of v0.2.1; where the code has a rough edge it says so.*
+below is the actual behaviour of the code on `main`; where it has a rough edge it says so.*
 
 ## What stays on your machine
 
@@ -11,12 +11,12 @@ rename) and never truncated in place.
 
 | File | Holds |
 | --- | --- |
-| `profile.json` | mistake patterns with trust counters, directives (max 8 global + 4 per workspace, each with the absolute workspace path it is scoped to, if any, and its provenance: `updatedAt`, `version`, the ids of the reports it was distilled from, the ledger run id of that distillation, `evaluatedAt` and `approvedAt`), the last 6 retired or removed directives so the distiller is not told to propose them again (their own sentence, ids and counters; no prompt text), style rules (max 6), the last 10 👎 verdicts, counters |
+| `profile.json` | mistake patterns with trust counters, directives (max 8 global + 4 per workspace, each with the normalised absolute workspace path it is scoped to, if any, and its provenance: `updatedAt`, `version`, the ids of the reports it was distilled from, the ledger run id of that distillation, `evaluatedAt` and `approvedAt`), when a session was last seen in each of those workspaces, the last 6 retired or removed directives so the distiller is not told to propose them again (their own sentence, ids and counters; no prompt text), style rules (max 6), the last 10 👎 verdicts, counters |
 | `reports/<conversation>/<turn>.json` | one analysis report per analyzed turn (problems, improved prompt, explanation, a 200-char excerpt of the prompt, your correction if any, the absolute workspace directory of the conversation) |
 | `config.patch.json` | the settings you changed in the UI |
 | `auto.json` | today's date and how many automatic analyses were spent |
-| `usage/<YYYY-MM-DD>.json` | one day's usage ledger: *runs* (one bootstrap batch, auto-analysis, ✨ Improve, distillation, ...), each with its *attempts* (op, timing, model, provider, token counts, finish reason/code, priced USD) — never prompt or response text |
-| `usage/summary.json` | rolling lifetime / by-type / by-model / by-day usage totals, kept alongside the day files so nothing has to re-scan them |
+| `usage/<YYYY-MM-DD>.json` | one day's usage ledger: *runs* (one bootstrap batch, auto-analysis, ✨ Improve, distillation, ...), each with its *attempts* (op, timing, model, provider, token counts, finish reason/code, the attempt's status, priced USD) — never prompt or response text |
+| `usage/summary.json` | rolling lifetime / by-type / by-model / by-provider / by-trigger / by-day usage totals, kept alongside the day files so nothing has to re-scan them; every bucket also carries `failedCalls` and `failedUsd`, the count and the cost of calls that were billed but whose attempt failed |
 
 The turn digests themselves are not here — they live in the harness's own session
 projection store, next to the session.
@@ -187,13 +187,22 @@ Cache-hit input is ~30× cheaper ($0.007–0.044), and Tacit's system prompts ar
 stable, so real spend is often below the estimates. Peak/off-peak hours and
 current prices: [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing).
 
+**What the Usage card breaks down.** Spend on failed or repair calls is shown as
+one figure. A repair retry that itself failed is both a failed call and a repair
+call, and the figure counts it once, not twice. Spend by route separates an
+official DeepSeek route from a proxy or self-hosted one. Spend by trigger
+separates auto, correction, good, manual and bootstrap runs. The input and
+output token split is on the tiles as well as the run rows. Today's automatic
+analyses are shown against the daily cap (`autoDailyBudget`), beside today's
+spend.
+
 Guards: automatic analyses are capped per local calendar day (`autoDailyBudget`);
 each turn is analyzed at most once automatically; bare continuations are skipped
 without a call; turns that finished before the plugin started are ignored.
 
 ## Known limitations
 
-Honest list — these are v0.2 behaviours, not hidden surprises:
+Honest list — these are deliberate behaviours, not hidden surprises:
 
 - **Steering is frozen per conversation.** A verdict, an edit or a new directive
   applies to conversations started afterwards; the running one keeps what it started

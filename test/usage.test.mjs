@@ -94,10 +94,12 @@ test('a single attempt fills the run totals, the attempt row, and the summary', 
   assert.deepEqual(run.totals, {
     attempts: 1,
     billedCalls: 1,
+    failedCalls: 0,
     unmeteredCalls: 0,
     unpricedCalls: 0,
     tokens: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 10, cacheWriteTokens: 4, reasoningTokens: 20 },
     usdKnown: 0.5,
+    failedUsd: 0,
   })
 
   const summary = usage.summary()
@@ -115,10 +117,12 @@ test('a single attempt fills the run totals, the attempt row, and the summary', 
     status: 'running',
     attempts: 1,
     billedCalls: 1,
+    failedCalls: 0,
     unmeteredCalls: 0,
     unpricedCalls: 0,
     tokens: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 10, cacheWriteTokens: 4, reasoningTokens: 20 },
     usdKnown: 0.5,
+    failedUsd: 0,
   })
   assert.equal(usage.runSummary('nope'), null)
   assert.equal(store.readUsageDay(day).runs.length, 0, 'nothing is written before endRun/flush')
@@ -264,6 +268,79 @@ test('lifetime / byType / byModel / days accumulate across runs and days', () =>
   const persisted = store.readUsageSummary().summary
   assert.equal(persisted.lifetime.attempts, 3)
   assert.equal(persisted.days[dayTwo].byType.improve.attempts, 2)
+})
+
+test('a failed attempt that still billed lands in failedCalls/failedUsd in every bucket it touches', () => {
+  const { usage, clock } = setup()
+  const runId = usage.beginRun({ type: 'analysis', trigger: 'auto', model: 'deepseek-v4-flash', provider: 'deepseek-official' })
+  const sink = usage.attemptSink(runId, { op: 'analysis' })
+  sink(record(clock))
+  sink(record(clock, { status: 'failed' }))
+  usage.endRun(runId, {})
+  usage.flush()
+
+  const summary = usage.summary()
+  const day = dayKey(clock.ms)
+  const buckets = {
+    'run totals': usage.run(runId).totals,
+    lifetime: summary.lifetime,
+    byType: summary.byType.analysis,
+    byModel: summary.byModel['deepseek-v4-flash'],
+    byProvider: summary.byProvider['deepseek-official'],
+    byTrigger: summary.byTrigger.auto,
+    day: summary.days[day],
+    'day byType': summary.days[day].byType.analysis,
+  }
+  for (const [name, totals] of Object.entries(buckets)) {
+    assert.equal(totals.billedCalls, 2, `${name}: a failed call that returned usage is still billed`)
+    assert.equal(totals.failedCalls, 1, name)
+    assert.equal(totals.failedUsd, 0.5, name)
+    assert.equal(totals.usdKnown, 1, `${name}: failedUsd is part of usdKnown, not separate from it`)
+  }
+})
+
+test('the summary folds attempts into byProvider, skipping the ones with no route', () => {
+  const { usage, clock } = setup()
+  const first = usage.beginRun({ type: 'analysis' })
+  usage.attemptSink(first, { op: 'analysis' })(record(clock))
+  usage.endRun(first, {})
+
+  const second = usage.beginRun({ type: 'analysis' })
+  const sink = usage.attemptSink(second, { op: 'analysis' })
+  sink(record(clock, { provider: 'openrouter' }))
+  sink(record(clock, { provider: 'openrouter' }))
+  sink(record(clock, { provider: '' }))
+  usage.endRun(second, {})
+
+  const { byProvider } = usage.summary()
+  assert.deepEqual(Object.keys(byProvider).sort(), ['deepseek-official', 'openrouter'])
+  assert.equal(byProvider['deepseek-official'].attempts, 1)
+  assert.equal(byProvider['deepseek-official'].usdKnown, 0.5)
+  assert.equal(byProvider.openrouter.attempts, 2)
+  assert.equal(byProvider.openrouter.usdKnown, 1)
+})
+
+test('the summary folds attempts into byTrigger, keyed on the run that started them', () => {
+  const { usage, clock } = setup()
+  const auto = usage.beginRun({ type: 'analysis', trigger: 'auto' })
+  usage.attemptSink(auto, { op: 'analysis' })(record(clock))
+  usage.endRun(auto, {})
+
+  const manual = usage.beginRun({ type: 'improve', trigger: 'manual' })
+  const sink = usage.attemptSink(manual, { op: 'improve' })
+  sink(record(clock))
+  sink(record(clock))
+  usage.endRun(manual, {})
+
+  const untriggered = usage.beginRun({ type: 'analysis' })
+  usage.attemptSink(untriggered, { op: 'analysis' })(record(clock))
+  usage.endRun(untriggered, {})
+
+  const { byTrigger } = usage.summary()
+  assert.deepEqual(Object.keys(byTrigger).sort(), ['auto', 'manual'])
+  assert.equal(byTrigger.auto.attempts, 1)
+  assert.equal(byTrigger.manual.attempts, 2)
+  assert.equal(byTrigger.manual.usdKnown, 1)
 })
 
 test('a written run round-trips through the day-file schema (never dropped as corrupt)', () => {
@@ -637,6 +714,47 @@ test('report: byModel skips attempts the harness never named a model for', () =>
   usage.flush()
   assert.deepEqual(Object.keys(report(usage).byModel), ['deepseek-v4-flash'])
   assert.equal(report(usage).byModel['deepseek-v4-flash'].attempts, 1)
+})
+
+test('report: failedOrRepairUsd counts a failed repair once, where repairUsd and failedUsd each count it', () => {
+  const { usage, clock } = setup({ pricing: steppedPricing([2, 3, 7]) })
+  const runId = usage.beginRun({ type: 'analysis', model: 'deepseek-v4-flash', provider: 'deepseek-official' })
+  usage.attemptSink(runId, { op: 'analysis-repair' })(record(clock, { status: 'failed' }))
+  usage.attemptSink(runId, { op: 'analysis-repair' })(record(clock))
+  usage.attemptSink(runId, { op: 'analysis' })(record(clock, { status: 'failed' }))
+  usage.endRun(runId, {})
+  usage.flush()
+
+  const { last30 } = report(usage)
+  assert.equal(last30.failedUsd, 9)
+  assert.equal(last30.repairUsd, 5)
+  assert.equal(last30.failedOrRepairUsd, 12, 'the union, not the 14 the two halves sum to')
+})
+
+test('report: byProvider splits the last 30 days by route and skips attempts with no route', () => {
+  const { usage, clock } = setup()
+  finishRun(usage, clock, { ops: ['analysis'], over: { provider: '' } })
+  finishRun(usage, clock, { ops: ['analysis', 'analysis'], over: { provider: 'openrouter' } })
+  finishRun(usage, clock, { ops: ['analysis'] })
+  usage.flush()
+  const { byProvider } = report(usage)
+  assert.deepEqual(Object.keys(byProvider).sort(), ['deepseek-official', 'openrouter'])
+  assert.equal(byProvider.openrouter.attempts, 2)
+  assert.equal(byProvider.openrouter.usdKnown, 1)
+  assert.equal(byProvider['deepseek-official'].attempts, 1)
+})
+
+test('report: byTrigger splits the last 30 days by what started the run', () => {
+  const { usage, clock } = setup()
+  finishRun(usage, clock, { trigger: 'auto', ops: ['analysis'] })
+  finishRun(usage, clock, { trigger: 'correction', ops: ['analysis', 'analysis'] })
+  finishRun(usage, clock, { ops: ['analysis'] })
+  usage.flush()
+  const { byTrigger } = report(usage)
+  assert.deepEqual(Object.keys(byTrigger).sort(), ['auto', 'correction'])
+  assert.equal(byTrigger.auto.attempts, 1)
+  assert.equal(byTrigger.correction.attempts, 2)
+  assert.equal(byTrigger.correction.usdKnown, 1)
 })
 
 test('report: warning levels follow the limit, and a limit of 0 is off', () => {

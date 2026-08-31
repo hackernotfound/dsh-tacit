@@ -14,10 +14,12 @@
         typeof note === 'string' && note.length > 0 ? h('span', { className: 'tacit-tile-note' }, note) : null)
     }
 
-    /** Money tile: the period's spend plus its unpriced-call footnote. */
-    function SpendTile(kit, id, label, totals) {
-      const note = totals.unpricedCalls > 0 ? kit.t('usage.unpricedShort', { n: String(totals.unpricedCalls) }) : ''
-      return UsageTile(id, label, usageSpend(kit, totals), note)
+    /** Money tile: the period's spend, its unpriced-call footnote, and any second note that period carries. */
+    function SpendTile(kit, id, label, totals, extraNote) {
+      const notes = []
+      if (totals.unpricedCalls > 0) notes.push(kit.t('usage.unpricedShort', { n: String(totals.unpricedCalls) }))
+      if (typeof extraNote === 'string' && extraNote.length > 0) notes.push(extraNote)
+      return UsageTile(id, label, usageSpend(kit, totals), notes.join(' · '))
     }
 
     /**
@@ -80,18 +82,33 @@
           seriesButton('30', t('usage.series30'))))
     }
 
-    /** Spend per operation, costliest first, each row ending in a share bar. */
-    function UsageBreakdown(kit, { byType }) {
+    /**
+     * `trigger` is a free string on the wire, so a host that starts tagging
+     * runs with something this dictionary has never heard of shows the tag
+     * itself rather than a raw `trigger.<key>` lookup miss.
+     */
+    function triggerLabel(t, trigger) {
+      const key = 'trigger.' + trigger
+      const label = t(key)
+      return label === key ? trigger : label
+    }
+
+    /**
+     * Spend across one bucket record, costliest first, each row ending in a
+     * share bar. `label` turns a bucket key into its display name, which is a
+     * dictionary lookup for the closed sets and the raw key for the open ones.
+     */
+    function UsageBreakdown(kit, { buckets, title, label }) {
       const { t } = kit
-      const rows = Object.entries(byType).sort((a, b) => b[1].usdKnown - a[1].usdKnown)
+      const rows = Object.entries(buckets).sort((a, b) => b[1].usdKnown - a[1].usdKnown)
       if (rows.length === 0) return null
       const top = rows[0][1].usdKnown
-      return h('div', { className: 'tacit-usage-breakdown' },
-        h('div', { className: 'tacit-report-title' }, t('usage.breakdown')),
+      return h('div', { key: title, className: 'tacit-usage-breakdown' },
+        h('div', { className: 'tacit-report-title' }, t(title)),
         rows.map(([type, totals]) => {
           const share = top > 0 ? Math.round((totals.usdKnown / top) * 100) : 0
           return h('div', { key: type, className: 'tacit-breakdown-row' },
-            h('span', { className: 'tacit-breakdown-name' }, t('runtype.' + type)),
+            h('span', { className: 'tacit-breakdown-name' }, label(type)),
             h('span', { className: 'tacit-breakdown-calls' }, fmtTokens(totals.billedCalls)),
             h('span', { className: 'tacit-breakdown-tokens' }, fmtTokens(tokensTotal(totals.tokens))),
             h('span', { className: 'tacit-breakdown-usd' }, usageSpend(kit, totals)),
@@ -231,7 +248,9 @@
         cell('model', item.model.length > 0 ? item.model : '—'),
         cell('status', h('span', { className: 'tacit-chip tacit-status-' + item.status }, t('status.' + item.status))),
         cell('calls', fmtTokens(item.billedCalls)),
-        cell('tokens', fmtTokens(tokensTotal(item.tokens))),
+        cell('tokens', h('span', { className: 'tacit-usage-tokens' },
+          h('span', null, fmtTokens(tokensTotal(item.tokens))),
+          h('span', { className: 'tacit-usage-split' }, fmtTokensSplit(item.tokens)))),
         cell('cost', usageSpend(kit, item)))
     }
 
@@ -292,19 +311,25 @@
       return h('div', { className: 'tacit-usage' },
         h('p', { className: 'tacit-panel-hint' }, t('usage.label')),
         h('div', { className: 'tacit-tiles' },
-          SpendTile(kit, 'today', t('usage.today'), usage.today),
+          SpendTile(kit, 'today', t('usage.today'), usage.today,
+            t('usage.autoToday', { n: String(usage.auto.today), budget: String(usage.auto.budget) })),
           SpendTile(kit, 'month', t('usage.month'), usage.month),
           SpendTile(kit, 'last30', t('usage.last30'), last30),
           SpendTile(kit, 'lifetime', t('usage.since', { day: since }), usage.lifetime)),
         h('div', { className: 'tacit-tiles' },
           UsageTile('calls', t('usage.calls'), fmtTokens(last30.billedCalls)),
+          UsageTile('tokens', t('usage.tokens'), fmtTokensSplit(last30.tokens)),
           UsageTile('avg', t('usage.avgAnalysis'), last30.avgAnalysisUsd === null
             ? t('usage.priceUnavailable')
             : fmtUsd(last30.avgAnalysisUsd)),
           UsageTile('cached', t('usage.cachedRate'), fmtPct(last30.cachedInputRate)),
-          UsageTile('unpriced', t('usage.unpriced'), fmtTokens(last30.unpricedCalls))),
+          UsageTile('unpriced', t('usage.unpriced'), fmtTokens(last30.unpricedCalls)),
+          UsageTile('failedRepair', t('usage.failedRepair'), fmtUsd(last30.failedOrRepairUsd),
+            t('usage.failedRepairSplit', { failed: fmtUsd(last30.failedUsd), repair: fmtUsd(last30.repairUsd) }))),
         BarStrip(kit, { series: which === '7' ? usage.series7 : usage.series30, which, onSeries: props.onSeries }),
-        UsageBreakdown(kit, { byType: usage.byType }),
+        UsageBreakdown(kit, { buckets: usage.byType, title: 'usage.breakdown', label: (type) => t('runtype.' + type) }),
+        UsageBreakdown(kit, { buckets: usage.byProvider, title: 'usage.byRoute', label: (provider) => provider }),
+        UsageBreakdown(kit, { buckets: usage.byTrigger, title: 'usage.byTrigger', label: (trigger) => triggerLabel(t, trigger) }),
         WarnBar(kit, { id: 'daily', warning: usage.warnings.daily }),
         WarnBar(kit, { id: 'monthly', warning: usage.warnings.monthly }),
         UsageFilters(kit, {

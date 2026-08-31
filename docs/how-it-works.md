@@ -108,9 +108,12 @@ after a messy turn) and the current directives, and returns the complete new set
 directives**: one imperative sentence each, ≤ 220 characters, written for the
 *agent* ("The user often omits which app they mean — check `apps/web` first.").
 Each correction in the evidence is tagged with the name of the workspace it
-came from; when every piece of evidence for a habit carries the same tag, the
-model may return that directive **scoped to that workspace**, and it is then
-allowed to mention that project's layout. Everything else stays global.
+came from (two workspaces that share a name are told apart by their parent
+folder, `a/web` and `b/web`); when every piece of evidence for a habit carries
+the same tag, the model may return that directive **scoped to that workspace**,
+and it is then allowed to mention that project's layout. Everything else stays
+global. A directive tagged with a name none of the evidence carried is dropped
+and logged, never widened to every workspace.
 
 Rules applied to the result:
 
@@ -150,7 +153,7 @@ pressed *Start trial*. **Settings → Tacit** shows this per directive, with a
 | **queued** | freshly distilled while another directive of its scope is on trial | no | *waiting for trial* (greyed) |
 | **candidate** | freshly distilled into a free slot, or next in its scope's queue when the previous trial ended | yes | *trial n/10* (n counts finished turns in conversations that were steered by it) |
 | **active** | 10 finished turns later (`directiveTrialTurns`), correction rate ≤ baseline + 0.15 (`directiveWorseBy`) and messy-turn rate ≤ baseline + 0.30; or you typed it; or you re-enabled a retired one | yes | *active* |
-| **retired** | correction rate during the trial rose by more than 15 percentage points over the baseline, or the messy-turn rate by more than 30 | no | *retired · corrections 10% → 30% while active* (or *messy turns 20% → 60% while active*) |
+| **retired** | correction rate during the trial rose by more than 15 percentage points over the baseline, or the messy-turn rate by more than 30 | no | *retired · corrections rose 10% → 30% during its trial* (or *messy turns rose 20% → 60% during its trial*) |
 | **removed** | you press *Remove* | no | not listed at all, but remembered so the distiller does not propose it again |
 | **off** | you untick it; unticking a candidate returns it to *queued*, resets its trial and frees the slot for the next queued directive of its scope, and ticking it again leaves it queued | no | greyed out |
 
@@ -172,9 +175,15 @@ verdict stamps the directive's `evaluatedAt`.
 
 Active and candidate directives are rendered as a system-prompt section named
 `tacit:steering` (order 60 — after the persona, before tool guidance). A
-conversation gets the directives scoped to its own workspace (the directory it
-was started in) first, then the global ones; directives scoped to other
-workspaces are left out:
+conversation gets the directives of the workspaces it sits in (the directory it
+was started in, or any parent directory a directive is scoped to, deepest
+first), then the global ones; directives scoped to other workspaces are left
+out. Workspace paths are normalised once (`..` resolved, trailing slash dropped,
+symlinks followed), so a moved or renamed workspace is a new scope: its old
+directives show *not seen since* in Settings, a candidate among them pauses its
+trial and frees the slot until a session opens there again, and *Move to
+workspace* re-scopes any of them. At most 12 workspaces keep distilled
+directives; the least recently seen one loses its distilled set first:
 
 ```
 ## About this user (learned by Tacit from their past prompts)
