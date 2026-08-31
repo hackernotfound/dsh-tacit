@@ -11,6 +11,31 @@ line per change; the PR has the detail.
 
 Nothing yet.
 
+## [0.6.0] - 2026-09-01
+
+One pass over the whole UI: the same card, badge, chip and row idioms on every
+surface, fewer visible controls, and a directive receipt you can actually read.
+
+### Upgrading
+
+- Restart `dsh web` after updating; host code only reloads on a restart.
+- No new settings, routes or storage changes.
+
+### Changed
+
+- Directive cards carry a status-coloured rail and a pill badge; the receipt
+  reads as tiles, a lifecycle timeline, trigger chips and an identity grid. (#54)
+- Every settings row shares one shape, and each checkbox setting is a
+  whole-sentence clickable label. (#54)
+- Turn rows lead with the heading and two actions; tools, steps, tokens and
+  retries read as one quiet dot-separated line under the prompt. (#54)
+- One rotating chevron marks every card head and disclosure; zero counts are
+  hidden, and the Learning and Agent guidance heads summarize while collapsed. (#54)
+- The Improve preview leads with what changed and highlights the proposed
+  rewrite; the confirm dialog narrows to fit its two buttons. (#54)
+- Long prompts expand by clicking the text itself; empty states read as quiet
+  dashed panels. (#54)
+
 ## [0.5.0] - 2026-08-31
 
 Everything the review on [deepseek-harness discussion #5061](https://github.com/deepseek-ai/deepseek-harness/discussions/5061)
@@ -193,7 +218,8 @@ First public release. Renamed from `dsh-prompt-coach` to **Tacit**; an existing
 Published as `dsh-prompt-coach`: manual prompt coaching gated behind a learning
 threshold. Superseded.
 
-[Unreleased]: https://github.com/hackernotfound/dsh-tacit/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/hackernotfound/dsh-tacit/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.2.3...v0.3.0
