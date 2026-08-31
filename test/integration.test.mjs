@@ -1458,8 +1458,11 @@ test('the steering section gives a session its own workspace\'s directives first
   assert.ok(!elsewhere.includes('Check apps/web first.'))
 })
 
-test('distillation resolves a workspace name back to the directory of the reports it came from; unknown names stay global', async () => {
+test('distillation resolves a workspace name back to the directory of the reports it came from; an unresolvable name drops the directive', async () => {
   const captured = []
+  const infos = []
+  const info = console.info
+  console.info = (...args) => { infos.push(args.map(String).join(' ')) }
   const workspaceLlm = {
     async *stream(options) {
       captured.push(options)
@@ -1489,6 +1492,7 @@ test('distillation resolves a workspace name back to the directory of the report
   const service = provided.get('tacit')
   await callRoute(routes.find((r) => r.path === '/api/tacit/analyze'), { sessionId: 'session-ws', turn: 2 })
   await service.flushAuto()
+  console.info = info
   const saved = JSON.parse(fs.readFileSync(path.join(tmpHome, 'storages', 'tacit', 'reports', 'session-ws', '2.json'), 'utf8'))
   assert.equal(saved.cwd, '/repos/alpha', 'the report remembers the workspace')
   const distillCall = captured.find((c) => typeof c.system === 'string' && c.system.includes('directives'))
@@ -1498,7 +1502,8 @@ test('distillation resolves a workspace name back to the directory of the report
   const scoped = profile.directives.find((d) => d.text === 'Check apps/web first.')
   assert.equal(scoped.workspace, '/repos/alpha')
   assert.equal(profile.directives.find((d) => d.text === 'State assumptions before continuing.').workspace, undefined)
-  assert.equal(profile.directives.find((d) => d.text === 'Nowhere rule.').workspace, undefined, 'an unknown name is treated as global')
+  assert.equal(profile.directives.find((d) => d.text === 'Nowhere rule.'), undefined, 'a directive whose workspace label does not resolve is dropped, never globalised')
+  assert.ok(infos.some((line) => line.includes('Nowhere rule.') && line.includes('never-seen')), 'and logged once')
   // /state with the session id previews that workspace; without it, global only.
   const scopedState = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), { sessionId: 'session-ws' })
   assert.ok(scopedState.body.steering.text.includes('Check apps/web first.'))
@@ -2630,4 +2635,153 @@ test('usage: /state drops the bootstrap runId when the run ends and resets every
     { running: false, done: 0, total: 0, runId: '', billedCalls: 0, unpricedCalls: 0, usdKnown: 0, tokensTotal: 0 },
     'a no-op bootstrap does not leave the previous run on the tile',
   )
+})
+
+// ── Workspace scope: identity, rename, rescope, scope cap (issue #41) ──────
+
+function scopeHarness({ config = {}, profile, sessions = [] } = {}) {
+  const live = { list: sessions }
+  const sections = []
+  const { ctx, routes, provided, fireProjectionChange } = makeFakeCtx({
+    llm: fakeLlm(),
+    sessions: { get: (id) => live.list.find((session) => session.id === id), list: () => live.list },
+    snapshotValue: [sampleTurn],
+  })
+  const baseGet = ctx.get
+  const systemPrompt = { section: (definition) => { sections.push(definition); return () => {} } }
+  ctx.get = (name) => (name === 'systemPrompt' ? systemPrompt : baseGet(name))
+  seedProfile(profile ?? seedDirectives([]))
+  apply(ctx, { autoAnalyze: false, ...config })
+  const directives = (body) => callRoute(routes.find((r) => r.path === '/api/tacit/directives'), body).then((r) => r.body)
+  const state = (body = {}) => callRoute(routes.find((r) => r.path === '/api/tacit/state'), body).then((r) => r.body)
+  return { live, sections, service: provided.get('tacit'), directives, state, fireProjectionChange }
+}
+
+test('a session whose cwd has a trailing slash, sits in a subdirectory, or goes through a symlink still gets its workspace\'s directives', () => {
+  const real = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tacit-scope-')))
+  const link = real + '-link'
+  fs.symlinkSync(real, link)
+  const { sections } = scopeHarness({
+    profile: seedDirectives([
+      { id: 'a', text: 'Alpha rule.', enabled: true, source: 'user', createdAt: 1, workspace: '/repos/alpha' },
+      { id: 'r', text: 'Real dir rule.', enabled: true, source: 'user', createdAt: 2, workspace: real },
+    ]),
+  })
+  const textFor = (id, cwd) => sections[0].text({ agent: { session: { id, header: { cwd } } } })
+  assert.ok(textFor('s-slash', '/repos/alpha/').includes('Alpha rule.'), 'trailing slash')
+  assert.ok(textFor('s-sub', '/repos/alpha/packages/api').includes('Alpha rule.'), 'subdirectory')
+  assert.ok(!textFor('s-sibling', '/repos/alpha2').includes('Alpha rule.'), 'a sibling that shares the prefix is another workspace')
+  assert.ok(textFor('s-link', link + '/').includes('Real dir rule.'), 'symlink')
+})
+
+test('a directive added or rescoped through the route stores the normalised workspace; rescope to "" makes it global', async () => {
+  const { directives } = scopeHarness({
+    profile: seedDirectives([{ id: 'a', text: 'Move me.', enabled: true, source: 'user', createdAt: 1, workspace: '/repos/alpha' }]),
+  })
+  const added = await directives({ action: 'add', text: 'Added with a slash.', workspace: '/repos/beta/sub/../' })
+  assert.equal(added.profile.directives.find((d) => d.text === 'Added with a slash.').workspace, '/repos/beta')
+  const moved = await directives({ action: 'rescope', id: 'a', workspace: '/repos/gamma/' })
+  assert.equal(moved.ok, true)
+  assert.equal(moved.profile.directives.find((d) => d.id === 'a').workspace, '/repos/gamma')
+  const global = await directives({ action: 'rescope', id: 'a', workspace: '' })
+  assert.equal(global.profile.directives.find((d) => d.id === 'a').workspace, undefined)
+  assert.ok(global.steering.text.includes('Move me.'), 'a global directive shows in the global preview')
+  const missing = await directives({ action: 'rescope', id: 'nope', workspace: '' })
+  assert.deepEqual([missing.ok, missing.code], [false, 'bad-request'])
+})
+
+test('a legacy profile whose directive workspace carries a trailing slash is normalised on load', async () => {
+  const { state } = scopeHarness({
+    profile: seedDirectives([{ id: 'a', text: 'Legacy.', enabled: true, source: 'user', createdAt: 1, workspace: '/repos/alpha/' }]),
+  })
+  assert.equal((await state()).profile.directives[0].workspace, '/repos/alpha')
+})
+
+test('a candidate whose workspace no longer has a loaded session goes back to queued, and resumes its trial when the workspace is seen again', async () => {
+  const { live, sections, directives, state } = scopeHarness({
+    config: { directiveTrialTurns: 4 },
+    profile: seedDirectives([
+      { ...trialSeed('old', 'Candidate of a renamed workspace.'), workspace: '/repos/old' },
+      { id: 'q', text: 'Queued behind it.', enabled: true, source: 'distilled', createdAt: 2, status: 'queued', workspace: '/repos/old' },
+    ]),
+    sessions: [{ id: 's-new', header: { cwd: '/repos/new' } }],
+  })
+  await directives({ action: 'add', text: 'Anything that runs the trial scheduler.' })
+  let profile = (await state()).profile
+  assert.equal(profile.directives.find((d) => d.id === 'old').status, 'queued', 'the slot is freed')
+  assert.equal(profile.directives.find((d) => d.id === 'old').trial, undefined)
+  assert.equal(profile.directives.find((d) => d.id === 'q').status, 'queued', 'nothing of an unseen workspace starts a trial')
+  assert.equal(profile.workspaceSeenAt['/repos/old'], undefined)
+
+  live.list = [{ id: 's-back', header: { cwd: '/repos/old/packages/api' } }]
+  const text = sections[0].text({ agent: { session: live.list[0] } })
+  profile = (await state()).profile
+  const revived = profile.directives.find((d) => d.id === 'old')
+  assert.equal(revived.status, 'candidate', 'the first session seen in that workspace restarts the trial')
+  assert.equal(revived.trial.turns, 0)
+  assert.ok(text.includes('Candidate of a renamed workspace.'), 'and that session is steered by it')
+  assert.equal(profile.directives.find((d) => d.id === 'q').status, 'queued', 'still one trial per scope')
+  assert.equal(typeof profile.workspaceSeenAt['/repos/old'], 'number')
+})
+
+test('a rescoped candidate resumes its trial in the workspace it was moved to', async () => {
+  const { directives } = scopeHarness({
+    profile: seedDirectives([{ ...trialSeed('old', 'Moved candidate.'), workspace: '/repos/old' }]),
+    sessions: [{ id: 's-new', header: { cwd: '/repos/new' } }],
+  })
+  const moved = await directives({ action: 'rescope', id: 'old', workspace: '/repos/new' })
+  const entry = moved.profile.directives.find((d) => d.id === 'old')
+  assert.deepEqual([entry.status, entry.workspace, entry.trial.turns], ['candidate', '/repos/new', 0])
+})
+
+test('/state labels two same-name workspaces by their parent, and the distiller maps that label back to the right directory', async () => {
+  const captured = []
+  const sameNameLlm = {
+    async *stream(options) {
+      captured.push(options)
+      if (typeof options.system === 'string' && options.system.includes('directives')) {
+        const payload = JSON.stringify({ directives: [{ text: 'Check apps/web first.', workspace: 'b/web' }] })
+        yield { type: 'text-delta', index: 0, text: payload }
+        yield { type: 'block-end', index: 0 }
+        return
+      }
+      yield* fakeLlm().stream(options)
+    },
+  }
+  fs.rmSync(path.join(tmpHome, 'storages', 'tacit', 'reports'), { recursive: true, force: true })
+  const sessions = [{ id: 's-a', header: { cwd: '/home/u/a/web' } }, { id: 's-b', header: { cwd: '/home/u/b/web' } }]
+  const { ctx, routes, provided } = makeFakeCtx({
+    llm: sameNameLlm,
+    sessions: { get: (id) => sessions.find((s) => s.id === id), list: () => sessions },
+    snapshotValue: [sampleTurn],
+  })
+  seedProfile(seedDirectives([]))
+  apply(ctx, { directiveEvery: 2, autoAnalyze: false })
+  const service = provided.get('tacit')
+  await callRoute(routes.find((r) => r.path === '/api/tacit/analyze'), { sessionId: 's-a', turn: 2 })
+  await callRoute(routes.find((r) => r.path === '/api/tacit/analyze'), { sessionId: 's-b', turn: 2 })
+  await service.flushAuto()
+  const distill = captured.find((c) => typeof c.system === 'string' && c.system.includes('directives'))
+  const prompt = JSON.stringify(distill)
+  assert.ok(prompt.includes('a/web') && prompt.includes('b/web'), 'the model sees distinct labels')
+  assert.ok(!prompt.includes('/home/u'), 'but never the full path')
+  assert.equal(readProfile().directives.find((d) => d.text === 'Check apps/web first.').workspace, '/home/u/b/web')
+  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  assert.deepEqual(state.body.workspaces, [{ cwd: '/home/u/a/web', label: 'a/web' }, { cwd: '/home/u/b/web', label: 'b/web' }])
+})
+
+test('saving the profile keeps at most 12 workspaces, dropping the least recently seen one\'s distilled directives', async () => {
+  const list = []
+  const workspaceSeenAt = {}
+  for (let i = 0; i < 13; i += 1) {
+    list.push({ id: 'd' + i, text: 'Rule ' + i + '.', enabled: true, source: 'distilled', createdAt: 100 + i, workspace: '/repos/w' + i })
+    workspaceSeenAt['/repos/w' + i] = 1000 + i
+  }
+  workspaceSeenAt['/repos/w7'] = 1
+  const { directives } = scopeHarness({ profile: { ...seedDirectives(list), workspaceSeenAt } })
+  const saved = await directives({ action: 'add', text: 'A global one.' })
+  const scopes = new Set(saved.profile.directives.filter((d) => typeof d.workspace === 'string').map((d) => d.workspace))
+  assert.equal(scopes.size, 12)
+  assert.ok(!scopes.has('/repos/w7'))
+  assert.equal(saved.profile.workspaceSeenAt['/repos/w7'], undefined, 'the seen map is pruned with the scope')
 })

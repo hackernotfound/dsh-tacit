@@ -2022,3 +2022,31 @@ test('clearing usage history re-prices the preview whose measured basis it delet
     rootStore.profile = null
   }
 })
+
+test('the settings page offers a workspace picker per directive and marks a workspace no loaded session is in', () => {
+  const rootStore = testKit.rootStore
+  rootStore.config = { model: 'deepseek-v4-flash', liveSuggestions: true, steerAgent: true }
+  rootStore.profile = {
+    analyzedCount: 3,
+    patterns: [],
+    styleRules: [],
+    directives: [
+      { id: 'live', text: 'Alpha rule.', enabled: true, source: 'user', createdAt: 2, workspace: '/repos/alpha' },
+      { id: 'gone', text: 'Orphaned rule.', enabled: true, source: 'user', createdAt: Date.UTC(2026, 0, 5), workspace: '/repos/gone' },
+      { id: 'stale', text: 'Stale rule.', enabled: true, source: 'distilled', createdAt: 1, status: 'queued', workspace: '/repos/stale' },
+    ],
+    workspaceSeenAt: { '/repos/stale': Date.UTC(2026, 2, 9) },
+  }
+  rootStore.steering = { enabled: true, text: '' }
+  rootStore.workspaces = [{ cwd: '/repos/alpha', label: 'alpha' }, { cwd: '/repos/beta', label: 'beta' }]
+  const Section = slotEntries.find((e) => e.name === 'settings.section').registration.component
+  const markup = renderToStaticMarkup(React.createElement(Section, {}))
+  const pickers = markup.split('aria-label="Move to workspace"').length - 1
+  assert.equal(pickers, 3, 'one picker per directive')
+  assert.ok(markup.includes('not seen since 2026-01-05'), 'an orphaned scope falls back to the directive date')
+  assert.ok(markup.includes('not seen since 2026-03-09'), 'a recorded last-seen date wins')
+  assert.ok(!markup.includes('not seen since 1970'), 'a live workspace is not marked')
+  assert.ok(markup.includes('<option value="/repos/gone">gone</option>'), 'the current dead scope stays selectable so the picker can show it')
+  rootStore.workspaces = []
+  rootStore.profile = null
+})

@@ -70,7 +70,7 @@ All `POST`, JSON in / JSON out, on the harness web server (no extra port), body
 | `/api/tacit/improve` | `{sessionId, draft}` | `improved`, `rationale`, `rewriteId`, `patternsUsed` |
 | `/api/tacit/applied` | `{sessionId, rewriteId}` | ok (starts free verification) |
 | `/api/tacit/feedback` | `{rewriteId, verdict: up\|down, reason?}` | profile |
-| `/api/tacit/directives` | `{action: toggle\|add\|remove, …}` | profile + steering |
+| `/api/tacit/directives` | `{action: toggle\|add\|rescope\|remove, …}` (`rescope` takes `id` and a `workspace`, `''` for global) | profile + steering |
 | `/api/tacit/stats` | `{window?}` (3–200, default 20) | trend early vs. recent |
 | `/api/tacit/bootstrap` | `{sessionId?, limit?}` (1–50, default 20) | analyzed / skipped / directives; `busy` if one is running |
 | `/api/tacit/bootstrap-preview` | `{sessionId?, limit?}` (1–50, default 20) | what a bootstrap would do: `eligible` / `skipped` counts and `estimate {usd, basis: measured\|doc, samples, perAnalysisUsd}` (the ledger's median once 3 priced analyses exist in 30 days, the doc figure otherwise). No model call, no run, never `busy` |

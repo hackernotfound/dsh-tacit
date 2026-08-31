@@ -5,6 +5,22 @@
       return function DirectivesEditorView(props) {
         const { config, directives, steering } = props
         const workspaces = Array.isArray(props.workspaces) ? props.workspaces : []
+        const seenAt = props.seenAt !== null && typeof props.seenAt === 'object' ? props.seenAt : {}
+        const liveScope = (scope) => workspaces.some((entry) => entry.cwd === scope || String(entry.cwd).startsWith(scope + '/'))
+        const notSeenSince = (entry) => {
+          const stamp = typeof seenAt[entry.workspace] === 'number' ? seenAt[entry.workspace] : entry.createdAt
+          const date = new Date(Number(stamp))
+          return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+        }
+        const scopeOptions = (current) => {
+          const options = [
+            h('option', { key: '-', value: '-' }, t('steer.moveTo')),
+            h('option', { key: '', value: '' }, t('steer.everywhere')),
+          ]
+          for (const entry of workspaces) options.push(h('option', { key: entry.cwd, value: entry.cwd }, entry.label))
+          if (current.length > 0 && !workspaces.some((entry) => entry.cwd === current)) options.push(h('option', { key: current, value: current }, labelOf(current)))
+          return options
+        }
         const [draft, setDraft] = useState('')
         const [scope, setScope] = useState('')
         const labelOf = (cwd) => {
@@ -58,6 +74,9 @@
                 typeof entry.workspace === 'string' && entry.workspace.length > 0
                   ? h('span', { className: 'tacit-chip tacit-chip-scope', title: entry.workspace }, t('steer.workspace', { name: labelOf(entry.workspace) }))
                   : null,
+                typeof entry.workspace === 'string' && entry.workspace.length > 0 && !liveScope(entry.workspace)
+                  ? h('span', { className: 'tacit-chip tacit-chip-muted', title: entry.workspace }, t('steer.notSeen', { date: notSeenSince(entry) }))
+                  : null,
                 entry.status === 'queued'
                   ? h('span', { className: 'tacit-chip tacit-chip-muted' }, t('steer.queued'))
                   : entry.status === 'candidate'
@@ -68,6 +87,13 @@
                     : entry.status === 'retired'
                       ? h('span', { className: 'tacit-chip tacit-chip-warn' }, t('steer.retired', { reason: String(entry.retiredReason || '') }))
                       : h('span', { className: 'tacit-chip tacit-chip-ok' }, t('steer.active')),
+                h('select', {
+                  className: 'tacit-input tacit-select tacit-select-sm',
+                  'aria-label': t('steer.moveTo'),
+                  onChange: (event) => {
+                    if (event.target.value !== '-') editDirectives({ action: 'rescope', id: entry.id, workspace: event.target.value })
+                  },
+                }, ...scopeOptions(typeof entry.workspace === 'string' ? entry.workspace : '')),
                 h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))))),
           h('div', { className: 'tacit-settings-row' },
             h('input', {
@@ -321,7 +347,8 @@
           ]),
           card('guidance', [
             h(DirectivesEditorView, {
-              workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering }),
+              workspaces: rootStore.workspaces, config, directives, steering: rootStore.steering,
+              seenAt: rootStore.profile !== null && typeof rootStore.profile === 'object' ? rootStore.profile.workspaceSeenAt : null }),
           ]),
           card('improve', [
             h('div', { className: 'tacit-settings-row' },

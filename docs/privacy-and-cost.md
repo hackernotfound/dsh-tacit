@@ -11,7 +11,7 @@ rename) and never truncated in place.
 
 | File | Holds |
 | --- | --- |
-| `profile.json` | mistake patterns with trust counters, directives (max 8 global + 4 per workspace, each with the absolute workspace path it is scoped to, if any), style rules (max 6), the last 10 👎 verdicts, counters |
+| `profile.json` | mistake patterns with trust counters, directives (max 8 global + 4 per workspace, each with the normalised absolute workspace path it is scoped to, if any), when a session was last seen in each of those workspaces, style rules (max 6), the last 10 👎 verdicts, counters |
 | `reports/<conversation>/<turn>.json` | one analysis report per analyzed turn (problems, improved prompt, explanation, a 200-char excerpt of the prompt, your correction if any, the absolute workspace directory of the conversation) |
 | `config.patch.json` | the settings you changed in the UI |
 | `auto.json` | today's date and how many automatic analyses were spent |
