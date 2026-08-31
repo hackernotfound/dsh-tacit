@@ -108,9 +108,12 @@ after a messy turn) and the current directives, and returns the complete new set
 directives**: one imperative sentence each, ≤ 220 characters, written for the
 *agent* ("The user often omits which app they mean — check `apps/web` first.").
 Each correction in the evidence is tagged with the name of the workspace it
-came from; when every piece of evidence for a habit carries the same tag, the
-model may return that directive **scoped to that workspace**, and it is then
-allowed to mention that project's layout. Everything else stays global.
+came from (two workspaces that share a name are told apart by their parent
+folder, `a/web` and `b/web`); when every piece of evidence for a habit carries
+the same tag, the model may return that directive **scoped to that workspace**,
+and it is then allowed to mention that project's layout. Everything else stays
+global. A directive tagged with a name none of the evidence carried is dropped
+and logged, never widened to every workspace.
 
 Rules applied to the result:
 
@@ -153,9 +156,15 @@ answer for it alone). Conversations that started before the candidate existed
 
 Active and candidate directives are rendered as a system-prompt section named
 `tacit:steering` (order 60 — after the persona, before tool guidance). A
-conversation gets the directives scoped to its own workspace (the directory it
-was started in) first, then the global ones; directives scoped to other
-workspaces are left out:
+conversation gets the directives of the workspaces it sits in (the directory it
+was started in, or any parent directory a directive is scoped to, deepest
+first), then the global ones; directives scoped to other workspaces are left
+out. Workspace paths are normalised once (`..` resolved, trailing slash dropped,
+symlinks followed), so a moved or renamed workspace is a new scope: its old
+directives show *not seen since* in Settings, a candidate among them pauses its
+trial and frees the slot until a session opens there again, and *Move to
+workspace* re-scopes any of them. At most 12 workspaces keep distilled
+directives; the least recently seen one loses its distilled set first:
 
 ```
 ## About this user (learned by Tacit from their past prompts)

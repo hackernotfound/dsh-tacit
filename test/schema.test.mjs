@@ -18,8 +18,7 @@ import {
   usageDayFileSchema,
   usageSummarySchema,
   USAGE_OPS,
-  USAGE_RUN_TYPES,
-} from '../lib/schema.js'
+  USAGE_RUN_TYPES, directivesArgSchema } from '../lib/schema.js'
 
 // Regression: the loader passes `undefined` when the patch row has no
 // `config:` block — Config must resolve to all defaults, not throw.
@@ -276,4 +275,13 @@ test('usageSummarySchema parses an old summary without the failed counters or th
   assert.equal(parsed.days['2026-08-30'].failedCalls, 0)
   assert.equal(parsed.days['2026-08-30'].failedUsd, 0)
   assert.equal(parsed.days['2026-08-30'].byType.analysis.failedCalls, 0)
+})
+
+test('the directives route accepts a rescope action, and the profile records when each scope was last seen', () => {
+  assert.deepEqual(directivesArgSchema.parse({ action: 'rescope', id: 'a', workspace: '/repos/beta' }), { action: 'rescope', id: 'a', workspace: '/repos/beta' })
+  assert.deepEqual(directivesArgSchema.parse({ action: 'rescope', id: 'a', workspace: '' }), { action: 'rescope', id: 'a', workspace: '' })
+  assert.equal(directivesArgSchema.safeParse({ action: 'rescope', id: 'a' }).success, false)
+  const profile = profileSchema.parse({ analyzedCount: 0, patterns: [], updatedAt: 0, workspaceSeenAt: { '/repos/alpha': 5 } })
+  assert.deepEqual(profile.workspaceSeenAt, { '/repos/alpha': 5 })
+  assert.deepEqual(profileSchema.parse({ analyzedCount: 0, patterns: [], updatedAt: 0 }).workspaceSeenAt, {})
 })
