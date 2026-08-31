@@ -13,18 +13,21 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const DATE = /^\d{4}-\d{2}-\d{2}$/
 
 /** The body of one version section plus its "Full diff" line; throws when there is nothing to publish. */
 export function releaseNotes(markdown, version) {
-  const start = markdown.search(new RegExp('^## \\[' + escape(version) + '\\] - \\d{4}-\\d{2}-\\d{2}$', 'm'))
+  const lines = markdown.split('\n')
+  const headingPrefix = '## [' + version + '] - '
+  const start = lines.findIndex((line) => line.startsWith(headingPrefix) && DATE.test(line.slice(headingPrefix.length)))
   if (start < 0) throw new Error('CHANGELOG.md has no released section for ' + version)
-  const afterHeading = markdown.indexOf('\n', start) + 1
-  const next = markdown.slice(afterHeading).search(/^## /m)
-  const body = (next < 0 ? markdown.slice(afterHeading) : markdown.slice(afterHeading, afterHeading + next)).trim()
+  let end = lines.findIndex((line, index) => index > start && line.startsWith('## '))
+  if (end < 0) end = lines.length
+  const body = lines.slice(start + 1, end).join('\n').trim()
   if (body.length === 0 || body === 'Nothing yet.') throw new Error('the ' + version + ' section of CHANGELOG.md is empty')
-  const link = markdown.match(new RegExp('^\\[' + escape(version) + '\\]: (\\S+)$', 'm'))
-  return body + (link === null ? '' : '\n\n**Full diff**: ' + link[1]) + '\n'
+  const linkPrefix = '[' + version + ']: '
+  const link = lines.find((line) => line.startsWith(linkPrefix))
+  return body + (link === undefined ? '' : '\n\n**Full diff**: ' + link.slice(linkPrefix.length).trim()) + '\n'
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
