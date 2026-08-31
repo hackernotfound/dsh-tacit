@@ -728,8 +728,12 @@ const period = (over) => ({
   billedCalls: 0,
   unmeteredCalls: 0,
   unpricedCalls: 0,
+  failedCalls: 0,
   tokens: emptyTokens(),
   usdKnown: 0,
+  failedUsd: 0,
+  repairUsd: 0,
+  failedOrRepairUsd: 0,
   avgAnalysisUsd: null,
   cachedInputRate: null,
   ...(over === undefined ? {} : over),
@@ -751,8 +755,10 @@ const sampleRun = {
   billedCalls: 2,
   unmeteredCalls: 0,
   unpricedCalls: 0,
+  failedCalls: 1,
   tokens: { inputTokens: 800, outputTokens: 200, cacheReadTokens: 100, cacheWriteTokens: 0, reasoningTokens: 50 },
   usdKnown: 0.0004,
+  failedUsd: 0.0001,
   trigger: 'auto',
   startedAt: 1756500000000,
   endedAt: 1756500002000,
@@ -788,8 +794,13 @@ function usageEnvelope(over) {
       attempts: 42,
       billedCalls: 40,
       unpricedCalls: 2,
+      failedCalls: 3,
       tokens: { inputTokens: 40000, outputTokens: 10000, cacheReadTokens: 4230, cacheWriteTokens: 0, reasoningTokens: 900 },
       usdKnown: 0.36,
+      // A failed repair is in both sets, so the union is under `failedUsd + repairUsd`.
+      failedUsd: 0.02,
+      repairUsd: 0.03,
+      failedOrRepairUsd: 0.04,
       avgAnalysisUsd: 0.0196,
       cachedInputRate: 0.5,
     }),
@@ -804,6 +815,16 @@ function usageEnvelope(over) {
       }),
     },
     byModel: { 'deepseek-v4-flash': period({ billedCalls: 40, usdKnown: 0.36 }) },
+    byProvider: {
+      'proxy-eu': period({ attempts: 8, billedCalls: 8, usdKnown: 0.06 }),
+      'deepseek-official': period({ attempts: 34, billedCalls: 32, usdKnown: 0.3 }),
+    },
+    byTrigger: {
+      auto: period({ attempts: 30, billedCalls: 30, usdKnown: 0.3 }),
+      feedback: period({ attempts: 6, billedCalls: 6, usdKnown: 0.05 }),
+      'shipped-by-a-later-host': period({ attempts: 6, billedCalls: 4, usdKnown: 0.01 }),
+    },
+    auto: { today: 7, budget: 30 },
     series7: seriesDays(7),
     series30: seriesDays(30),
     warnings: {
@@ -835,6 +856,23 @@ function resetUsage() {
   rootStore.profile = null
 }
 
+test('fmtTokensSplit folds cache traffic into input and never counts reasoning as extra output', () => {
+  assert.equal(
+    testKit.fmtTokensSplit({ inputTokens: 40000, outputTokens: 10000, cacheReadTokens: 4230, cacheWriteTokens: 7, reasoningTokens: 900 }),
+    'in 44,237 · out 10,000')
+  assert.equal(testKit.fmtTokensSplit(null), 'in 0 · out 0', 'a bucket set that never arrived is zero, not an em dash pair')
+})
+
+test('token counts read as an input/output split in the tiles and beside the run total', () => {
+  seedUsage()
+  const markup = renderSettings()
+  assert.ok(markup.includes(EN()['usage.tokens']), 'the tokens tile is labelled')
+  assert.ok(markup.includes('in 44,230 · out 10,000'), 'the tile splits the 30-day buckets')
+  assert.ok(markup.includes('in 900 · out 200'), 'the run row splits its own buckets')
+  assert.ok(markup.includes('1,100'), 'and keeps the grouped run total beside the split')
+  resetUsage()
+})
+
 test('the usage card shows spend tiles, stat tiles and the unpriced note', () => {
   seedUsage()
   const markup = renderSettings()
@@ -848,6 +886,29 @@ test('the usage card shows spend tiles, stat tiles and the unpriced note', () =>
   assert.ok(markup.includes('50%'), 'cached-input rate is a percentage')
   assert.ok(markup.includes(EN()['usage.label']))
   assert.ok(!markup.includes('$0.00 '), 'no truncated two-decimal money')
+  resetUsage()
+})
+
+test('the today tile carries the daily automatic-analysis count against its cap', () => {
+  seedUsage()
+  assert.ok(renderSettings().includes(tr('usage.autoToday', { n: 7, budget: 30 })))
+  resetUsage()
+})
+
+test('the today tile joins its unpriced footnote and its automatic-analysis line instead of dropping one', () => {
+  seedUsage({ today: period({ attempts: 4, billedCalls: 4, unpricedCalls: 1, usdKnown: 0.0196 }) })
+  assert.ok(renderSettings().includes(
+    tr('usage.unpricedShort', { n: 1 }) + ' · ' + tr('usage.autoToday', { n: 7, budget: 30 })))
+  resetUsage()
+})
+
+test('a tile prices failed and repair calls as one union, with the overlapping halves split underneath', () => {
+  seedUsage()
+  const markup = renderSettings()
+  assert.ok(markup.includes(EN()['usage.failedRepair']), 'the failed-or-repair tile is labelled')
+  assert.ok(markup.includes('$0.0400'), 'the value is the union, counted once')
+  assert.ok(markup.includes(tr('usage.failedRepairSplit', { failed: '$0.0200', repair: '$0.0300' })),
+    'the note carries each set on its own, which may sum past the union')
   resetUsage()
 })
 
@@ -899,6 +960,40 @@ test('the by-operation breakdown is ordered by spend, with share bars', () => {
   assert.ok(markup.includes('tacit-usage-breakdown'))
   assert.ok(/class="tacit-share"[^>]*style="width:100%"/.test(markup), 'the top row fills its share bar')
   resetUsage()
+})
+
+test('spend is broken out by route, naming each provider exactly as the ledger recorded it', () => {
+  seedUsage()
+  const markup = renderSettings()
+  assert.ok(markup.includes(EN()['usage.byRoute']), 'the by-route table has its own title')
+  const officialAt = markup.indexOf('deepseek-official')
+  const proxyAt = markup.indexOf('proxy-eu')
+  assert.ok(officialAt > -1 && proxyAt > -1, 'both routes render under their raw provider strings')
+  assert.ok(officialAt < proxyAt, 'the costliest route is listed first')
+  resetUsage()
+})
+
+test('an envelope with no per-route spend renders no by-route table at all', () => {
+  seedUsage({ byProvider: {} })
+  assert.equal(renderSettings().includes(EN()['usage.byRoute']), false)
+  resetUsage()
+})
+
+test('spend is broken out by trigger, and a trigger with no dictionary entry reads as its raw key', () => {
+  seedUsage()
+  const markup = renderSettings()
+  assert.ok(markup.includes(EN()['usage.byTrigger']), 'the by-trigger table has its own title')
+  assert.ok(markup.includes('shipped-by-a-later-host'), 'an unlabelled trigger still names itself')
+  assert.equal(markup.includes('trigger.shipped-by-a-later-host'), false, 'never the bare dictionary key')
+  resetUsage()
+})
+
+test('every trigger the service tags a run with has a label in both dictionaries', () => {
+  const dicts = localeDicts['dsh-tacit']
+  for (const trigger of ['auto', 'correction', 'good', 'manual', 'bootstrap', 'feedback', 'send']) {
+    assert.equal(typeof dicts.en['trigger.' + trigger], 'string', 'en is missing trigger.' + trigger)
+    assert.equal(typeof dicts.zh['trigger.' + trigger], 'string', 'zh is missing trigger.' + trigger)
+  }
 })
 
 test('budget warnings render as progress bars carrying their level', () => {

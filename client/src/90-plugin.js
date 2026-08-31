@@ -89,6 +89,7 @@
         clearUsageHistory,
         runNotice,
         fmtRate,
+        fmtTokensSplit,
         ConfirmDialog,
         UsageCard,
         PricingCard,

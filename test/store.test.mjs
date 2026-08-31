@@ -280,6 +280,8 @@ test('readUsageSummary defaults an absent summary without warning', () => {
   assert.equal(summary.version, 1)
   assert.ok(typeof summary.trackingSince === 'number' && summary.trackingSince > 0)
   assert.deepEqual(summary.byModel, {})
+  assert.deepEqual(summary.byProvider, {})
+  assert.deepEqual(summary.byTrigger, {})
   assert.deepEqual(summary.byType, {})
   assert.deepEqual(summary.days, {})
 })

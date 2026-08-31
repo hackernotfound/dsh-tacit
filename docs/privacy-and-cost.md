@@ -15,8 +15,8 @@ rename) and never truncated in place.
 | `reports/<conversation>/<turn>.json` | one analysis report per analyzed turn (problems, improved prompt, explanation, a 200-char excerpt of the prompt, your correction if any, the absolute workspace directory of the conversation) |
 | `config.patch.json` | the settings you changed in the UI |
 | `auto.json` | today's date and how many automatic analyses were spent |
-| `usage/<YYYY-MM-DD>.json` | one day's usage ledger: *runs* (one bootstrap batch, auto-analysis, ✨ Improve, distillation, ...), each with its *attempts* (op, timing, model, provider, token counts, finish reason/code, priced USD) — never prompt or response text |
-| `usage/summary.json` | rolling lifetime / by-type / by-model / by-day usage totals, kept alongside the day files so nothing has to re-scan them |
+| `usage/<YYYY-MM-DD>.json` | one day's usage ledger: *runs* (one bootstrap batch, auto-analysis, ✨ Improve, distillation, ...), each with its *attempts* (op, timing, model, provider, token counts, finish reason/code, the attempt's status, priced USD) — never prompt or response text |
+| `usage/summary.json` | rolling lifetime / by-type / by-model / by-provider / by-trigger / by-day usage totals, kept alongside the day files so nothing has to re-scan them; every bucket also carries `failedCalls` and `failedUsd`, the count and the cost of calls that were billed but whose attempt failed |
 
 The turn digests themselves are not here — they live in the harness's own session
 projection store, next to the session.
@@ -183,6 +183,15 @@ other calls are smaller):
 Cache-hit input is ~30× cheaper ($0.007–0.044), and Tacit's system prompts are
 stable, so real spend is often below the estimates. Peak/off-peak hours and
 current prices: [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing).
+
+**What the Usage card breaks down.** Spend on failed or repair calls is shown as
+one figure. A repair retry that itself failed is both a failed call and a repair
+call, and the figure counts it once, not twice. Spend by route separates an
+official DeepSeek route from a proxy or self-hosted one. Spend by trigger
+separates auto, correction, good, manual and bootstrap runs. The input and
+output token split is on the tiles as well as the run rows. Today's automatic
+analyses are shown against the daily cap (`autoDailyBudget`), beside today's
+spend.
 
 Guards: automatic analyses are capped per local calendar day (`autoDailyBudget`);
 each turn is analyzed at most once automatically; bare continuations are skipped

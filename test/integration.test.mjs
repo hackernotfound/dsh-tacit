@@ -1945,37 +1945,43 @@ function seedRun({
     totals: {
       attempts: attempts.length,
       billedCalls: attempts.length,
+      failedCalls: 0,
       unmeteredCalls: 0,
       unpricedCalls: 0,
       tokens,
       usdKnown: usd * attempts.length,
+      failedUsd: 0,
     },
   }
 }
 
 const zeroTotals = () => ({
-  attempts: 0, billedCalls: 0, unmeteredCalls: 0, unpricedCalls: 0,
+  attempts: 0, billedCalls: 0, failedCalls: 0, unmeteredCalls: 0, unpricedCalls: 0,
   tokens: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 },
-  usdKnown: 0,
+  usdKnown: 0, failedUsd: 0,
 })
 
 function addSeedTotals(target, run) {
   target.attempts += run.totals.attempts
   target.billedCalls += run.totals.billedCalls
+  target.failedCalls += run.totals.failedCalls
   target.unmeteredCalls += run.totals.unmeteredCalls
   target.unpricedCalls += run.totals.unpricedCalls
   target.usdKnown += run.totals.usdKnown
+  target.failedUsd += run.totals.failedUsd
   for (const key of Object.keys(target.tokens)) target.tokens[key] += run.totals.tokens[key]
 }
 
 /** The summary the tracker would have accumulated from `runs` (seeded so reports never rescan). */
 function buildSeedSummary(runs, trackingSince) {
-  const summary = { version: 1, trackingSince, lifetime: zeroTotals(), byType: {}, byModel: {}, days: {} }
+  const summary = { version: 1, trackingSince, lifetime: zeroTotals(), byType: {}, byModel: {}, byProvider: {}, byTrigger: {}, days: {} }
   for (const run of runs) {
     const day = dayKey(run.startedAt)
     addSeedTotals(summary.lifetime, run)
     addSeedTotals((summary.byType[run.type] ??= zeroTotals()), run)
     if (run.model.length > 0) addSeedTotals((summary.byModel[run.model] ??= zeroTotals()), run)
+    if (run.provider.length > 0) addSeedTotals((summary.byProvider[run.provider] ??= zeroTotals()), run)
+    if (run.trigger.length > 0) addSeedTotals((summary.byTrigger[run.trigger] ??= zeroTotals()), run)
     const bucket = (summary.days[day] ??= { ...zeroTotals(), byType: {} })
     addSeedTotals(bucket, run)
     addSeedTotals((bucket.byType[run.type] ??= zeroTotals()), run)
@@ -2018,12 +2024,12 @@ async function reportHarness({ runs = [], config = {}, trackingSince = 1000 } = 
   return { ...fake, byPath, store, service: lastService }
 }
 
-test('usage report: seeded day files roll up into totals, series, byType/byModel and warnings', async () => {
+test('usage report: seeded day files roll up into totals, series, the four breakdowns and warnings', async () => {
   const runs = [
     seedRun({ runId: 'r-today-a', offset: 0, usd: 1 }),
     seedRun({ runId: 'r-today-b', offset: 0, shiftMs: 1000, usd: 3, type: 'improve', ops: ['improve'] }),
     seedRun({ runId: 'r-3d', offset: 3, usd: 5, ops: ['analysis', 'analysis-repair'] }),
-    seedRun({ runId: 'r-20d', offset: 20, usd: 2, model: 'deepseek-v4-pro' }),
+    seedRun({ runId: 'r-20d', offset: 20, usd: 2, model: 'deepseek-v4-pro', provider: 'openrouter', trigger: 'auto' }),
   ]
   const { byPath } = await reportHarness({ runs, trackingSince: 4242 })
   const result = await callRoute(byPath('/usage'), {})
@@ -2075,6 +2081,12 @@ test('usage report: seeded day files roll up into totals, series, byType/byModel
   assert.equal(body.byType.improve.usdKnown, 3)
   assert.deepEqual(Object.keys(body.byModel).sort(), ['deepseek-v4-flash', 'deepseek-v4-pro'])
   assert.equal(body.byModel['deepseek-v4-pro'].usdKnown, 2)
+  assert.deepEqual(Object.keys(body.byProvider).sort(), ['deepseek-official', 'openrouter'])
+  assert.equal(body.byProvider['deepseek-official'].usdKnown, 14)
+  assert.equal(body.byProvider.openrouter.usdKnown, 2)
+  assert.deepEqual(Object.keys(body.byTrigger).sort(), ['auto', 'manual'])
+  assert.equal(body.byTrigger.manual.usdKnown, 14)
+  assert.equal(body.byTrigger.auto.usdKnown, 2)
 
   // No limits configured → nothing to warn about.
   assert.deepEqual(body.warnings, {
@@ -2096,6 +2108,15 @@ test('usage report: seeded day files roll up into totals, series, byType/byModel
   assert.equal(newest.sessionId, 'seed-session')
   assert.ok(!('priced' in newest))
   assert.ok(!Array.isArray(newest.attempts))
+})
+
+test('usage report: the response carries the daily automatic-analysis cap and today\'s count against it', async () => {
+  const { byPath, store } = await reportHarness({ runs: [seedRun({ runId: 'r-auto' })], config: { autoDailyBudget: 12 } })
+  const spent = store.bumpAuto(dayKey()).count
+
+  const result = await callRoute(byPath('/usage'), {})
+  assert.equal(result.status, 200)
+  assert.deepEqual(result.body.auto, { today: spent, budget: 12 })
 })
 
 test('usage report: every filter narrows runs.items', async () => {

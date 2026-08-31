@@ -90,9 +90,11 @@
       + '.tacit-usage-filters{display:flex;flex-direction:column;gap:6px}.tacit-filter-row{display:flex;flex-wrap:wrap;gap:8px}.tacit-filter{display:flex;flex-direction:column;gap:2px;min-width:0}.tacit-filter-label{font-size:10px;color:var(--dsw-alias-label-secondary)}'
       + '.tacit-usage-runs{display:flex;flex-direction:column;gap:6px}'
       + '.tacit-usage-table{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden}'
-      + '.tacit-usage-row{display:grid;grid-template-columns:minmax(90px,1fr) minmax(90px,1.2fr) minmax(80px,1.2fr) minmax(90px,1.2fr) 5rem 4rem 5rem 5rem;gap:6px;align-items:center;padding:5px 8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;font-variant-numeric:tabular-nums}'
+      + '.tacit-usage-row{display:grid;grid-template-columns:minmax(90px,1fr) minmax(90px,1.2fr) minmax(80px,1.2fr) minmax(90px,1.2fr) 5rem 4rem 7rem 5rem;gap:6px;align-items:center;padding:5px 8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;font-variant-numeric:tabular-nums}'
       + '.tacit-usage-table>.tacit-usage-row:first-child{border-top:0}.tacit-usage-head{color:var(--dsw-alias-label-secondary);font-weight:600;background:var(--dsw-alias-bg-layer-2)}'
       + '.tacit-usage-cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      // The cell is nowrap, so the in/out split needs its own block to sit under the total.
+      + '.tacit-usage-tokens{display:flex;flex-direction:column}.tacit-usage-split{font-size:10px;color:var(--dsw-alias-label-secondary)}'
       + '.tacit-run-toggle{width:100%;text-align:left}'
       + '.tacit-usage-attempts{border-top:1px dashed var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);padding:6px 8px}.tacit-usage-attempts-cell{display:flex;flex-direction:column;gap:4px}'
       + '.tacit-attempt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-primary)}.tacit-attempt-meta,.tacit-attempt-tokens{color:var(--dsw-alias-label-secondary)}.tacit-attempt-usd{margin-left:auto;font-variant-numeric:tabular-nums}'
