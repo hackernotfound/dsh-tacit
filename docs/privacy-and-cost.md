@@ -1,7 +1,7 @@
 # Privacy, cost & limitations
 
 *For anyone deciding whether to trust Tacit with their conversations. Everything
-below is the actual behaviour of v0.2.1; where the code has a rough edge it says so.*
+below is the actual behaviour of the code on `main`; where it has a rough edge it says so.*
 
 ## What stays on your machine
 
@@ -199,7 +199,7 @@ without a call; turns that finished before the plugin started are ignored.
 
 ## Known limitations
 
-Honest list — these are v0.2 behaviours, not hidden surprises:
+Honest list — these are deliberate behaviours, not hidden surprises:
 
 - **Steering is frozen per conversation.** Any verdict, toggle, edit or new directive
   applies to conversations started afterwards; the running one keeps what it started with.

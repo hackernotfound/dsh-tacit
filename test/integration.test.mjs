@@ -564,6 +564,26 @@ test('improve returns rewriteId + patternsUsed and marks applied on /applied', a
   assert.equal(readProfile().patterns[0].accepted, 0)
 })
 
+test('improve reads past a background-job notification to the last turn the user actually wrote', async () => {
+  seedReadyProfile()
+  const real = { ...sampleTurn, turn: 2, prompt: 'Deploy the docs from apps/web/README.md to staging.', finalText: 'Deployed apps/web to staging.' }
+  const notification = { ...sampleTurn, turn: 3, prompt: 'background job bash-1 (pnpm test) finished with exit code 0', finalText: 'Noted.' }
+  const bare = { ...sampleTurn, turn: 4, prompt: 'continue', finalText: 'Carried on.' }
+  const captured = []
+  const fake = makeFakeCtx({
+    llm: fakeLlm(captured),
+    sessions: { get: (id) => (id === 'session-1' ? { id: 'session-1' } : undefined) },
+    snapshotValue: [real, notification, bare],
+  })
+  apply(fake.ctx, {})
+  const improve = fake.routes.find((route) => route.path === '/api/tacit/improve')
+  await callRoute(improve, { sessionId: 'session-1', draft: 'push it out' })
+  const text = capturedImproveText(captured)
+  assert.ok(text.includes('apps/web/README.md'), 'the facts of the last real exchange reach the rewrite')
+  assert.equal(text.includes('background job bash-1'), false, 'the notification turn is not context')
+  assert.equal(text.includes('prompt: continue'), false, 'nor is a bare continuation')
+})
+
 test('feedback 👍 bumps accepted for every pattern used by the rewrite', async () => {
   seedReadyProfile()
   const { improve, feedback } = routesOf()
@@ -1178,7 +1198,7 @@ test('a candidate that coincides with more messy turns retires itself; a clean t
   let entry = state.body.profile.directives.find((d) => d.id === 'bad')
   assert.equal(entry.status, 'retired')
   assert.equal(entry.enabled, false)
-  assert.match(entry.retiredReason, /20% → 100%/)
+  assert.equal(entry.retiredReason, 'messy turns rose 20% → 100% during its trial')
   assert.ok(!state.body.steering.text.includes('makes things worse'))
 
   // A clean run activates — in a conversation that started after the candidate existed.
@@ -1300,7 +1320,7 @@ test('a candidate whose steered turns keep drawing corrections is retired on the
   const entry = state.body.profile.directives.find((d) => d.id === 'c')
   assert.equal(entry.status, 'retired')
   assert.equal(entry.enabled, false)
-  assert.equal(entry.retiredReason, 'corrections 0% → 75% while active')
+  assert.equal(entry.retiredReason, 'corrections rose 0% → 75% during its trial')
   assert.deepEqual([entry.trial.turns, entry.trial.messy, entry.trial.corrected], [4, 0, 3])
 })
 

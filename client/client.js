@@ -53,7 +53,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'status.trendCorrections': '你纠正智能体：{a} → {b}',
       'status.trendMessy': '混乱轮次：{a} → {b}',
       'status.trendTokens': '每轮 tokens：{a} → {b}',
-      'status.trendHint': '（最早 {n} 轮 vs 最近 {n} 轮，真实数据）',
+      'status.trendHint': '（最早 {n} 轮 vs 最近 {n} 轮，真实数据——这是你自己轮次的前后对比，不是对照实验）',
+      'status.trendDocs': '试用与趋势的判定方式见《How it works》：§6 Trials https://github.com/hackernotfound/dsh-tacit/blob/main/docs/how-it-works.md#6-trials · §10 The measured trend https://github.com/hackernotfound/dsh-tacit/blob/main/docs/how-it-works.md#10-the-measured-trend',
       'turn.enrichment': '发送前补充的上下文',
       'trigger.auto': '自动',
       'trigger.correction': '纠正',
@@ -312,7 +313,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'status.trendCorrections': 'You corrected the agent: {a} → {b}',
       'status.trendMessy': 'Messy turns: {a} → {b}',
       'status.trendTokens': 'Tokens/turn: {a} → {b}',
-      'status.trendHint': '(first {n} turns vs. latest {n}, measured)',
+      'status.trendHint': '(first {n} turns vs. latest {n}, measured — before/after on your own turns, not a controlled comparison)',
+      'status.trendDocs': 'How these are judged: §6 Trials https://github.com/hackernotfound/dsh-tacit/blob/main/docs/how-it-works.md#6-trials · §10 The measured trend https://github.com/hackernotfound/dsh-tacit/blob/main/docs/how-it-works.md#10-the-measured-trend',
       'turn.enrichment': 'Context added before the send',
       'trigger.auto': 'auto',
       'trigger.correction': 'correction',
@@ -1047,13 +1049,13 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     function closeConfirm() {
       rootStore.confirm = null
       notifyRoot()
+      restoreConfirmOpener()
     }
 
     /** Run the parked destructive action, whichever it is, and close the dialog. */
     async function confirmAction() {
       const kind = rootStore.confirm !== null && typeof rootStore.confirm === 'object' ? rootStore.confirm.kind : null
-      rootStore.confirm = null
-      notifyRoot()
+      closeConfirm()
       if (kind === 'reports') await clearAllRoot()
       else if (kind === 'usage') await clearUsageHistory()
     }
@@ -1806,7 +1808,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           h('span', { className: 'tacit-progress-count' }, autoOn ? t('status.autoOn', { today: String(today), budget: String(budget) }) : '')),
         h('div', { className: 'tacit-progress-text' }, autoOn ? t('status.autoHint') : t('status.autoOff')),
         hasTrend
-          ? h('div', { className: 'tacit-trend' },
+          ? h('div', { className: 'tacit-trend', title: t('status.trendDocs') },
             h('span', { className: 'tacit-chip' }, t('status.trendCorrections', { a: pct(trend.early.correctionRate), b: pct(trend.recent.correctionRate) })),
             h('span', { className: 'tacit-chip' }, t('status.trendMessy', { a: pct(trend.early.messyRate), b: pct(trend.recent.messyRate) })),
             h('span', { className: 'tacit-chip' }, t('status.trendTokens', { a: fmt(trend.early.tokensPerTurn), b: fmt(trend.recent.tokensPerTurn) })),
@@ -2305,7 +2307,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
      *
      * It is captured by the store action that opens the dialog rather than by
      * the dialog itself: React focuses the `autoFocus`ed Cancel button while it
-     * commits, so by the time an effect runs the opener is already gone.
+     * commits, so by the time the dialog is mounted the opener is already gone.
      */
     let confirmOpener = null
 
@@ -2321,25 +2323,28 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     }
 
     /**
+     * Hand focus back one macrotask after the close. The host's Settings modal
+     * moves focus on the same Escape, so a restore that runs inside the close is
+     * overwritten and the user lands on the host's Close button instead.
+     */
+    function restoreConfirmOpener() {
+      const opener = confirmOpener
+      confirmOpener = null
+      if (opener === null || typeof opener.focus !== 'function') return
+      setTimeout(() => opener.focus(), 0)
+    }
+
+    /**
      * One small modal confirmation, rendered unconditionally by its owner (and
      * `null` when closed) so React's hook count never changes between renders.
-     * Hook-free but for the focus restore, which is the one thing it cannot do
-     * with markup alone.
+     * Hook-free: focus is restored by `closeConfirm`, the one path out.
      *
      * Cancel comes first and takes focus: the safe answer is the one a keyboard
      * or screen-reader user reaches without looking.
      */
     function ConfirmDialog(kit, { open, title, body, confirmLabel, onConfirm, onCancel }) {
       const { t } = kit
-      const isOpen = open === true
-      useEffect(() => {
-        if (!isOpen || typeof document === 'undefined') return undefined
-        const opener = confirmOpener
-        return () => {
-          if (opener !== null && typeof opener.focus === 'function') opener.focus()
-        }
-      }, [isOpen])
-      if (!isOpen) return null
+      if (open !== true) return null
       const cancel = typeof onCancel === 'function' ? onCancel : () => {}
       return h('div', {
         className: 'tacit-modal-backdrop',
@@ -3513,6 +3518,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         refreshPricing,
         openConfirm,
         closeConfirm,
+        confirmAction,
         fetchBootstrapPreview,
         clearAllRoot,
         clearUsageHistory,
