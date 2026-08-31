@@ -40,7 +40,7 @@ test('every released version in the changelog has a compare link, and an Unrelea
   let released = 0
   for (const [, version] of doc.matchAll(/^## \[(\d+\.\d+\.\d+)\] - \d{4}-\d{2}-\d{2}$/gm)) {
     released += 1
-    assert.ok(new RegExp('^\\[' + version.replace(/\./g, '\\.') + '\\]: https://', 'm').test(doc), version + ' has a link reference')
+    assert.ok(doc.includes('\n[' + version + ']: https://'), version + ' has a link reference')
   }
   assert.ok(released >= 7)
   assert.ok(/^## \[Unreleased\]$/m.test(doc))
