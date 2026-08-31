@@ -49,7 +49,7 @@ jobs:
             throw new Error(`Tag ${tag} does not match package version ${pkg.version}`)
           }
           const changelog = readFileSync('CHANGELOG.md', 'utf8')
-          if (!changelog.includes(`## ${pkg.version} — `)) {
+          if (!changelog.includes(`## [${pkg.version}] - `)) {
             throw new Error(`CHANGELOG.md has no dated ${pkg.version} section`)
           }
           NODE
