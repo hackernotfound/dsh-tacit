@@ -81,7 +81,7 @@ expand or collapse it:
 | **Usage** | the cost dashboard: today / this month / last 30 days / lifetime spend tiles, a daily spend bar chart (7 d or 30 d), spend by operation, budget warning bars, filters (range, operation, status, model, workspace, session), and a paginated run list — expand a run to see its individual attempts |
 | **Pricing** | the list price per 1M tokens for both models at each tier, which tier is in force right now, the price source (bundled table or `dsh-cost-meter`) and a *Refresh prices* button |
 | **Learning** | analysis model (`deepseek-v4-flash` / `deepseek-v4-pro`); *Auto-analyze messy turns*; *Also learn from a clean prompt right after a messy turn*; *Daily cap on automatic analyses* |
-| **Agent guidance** | every directive with its state chip (*waiting for trial*, *trial 3/10*, *active*, *retired · reason*) and source chip (*yours* / *distilled*); toggle / remove / add directives; *Inject learned directives into the system prompt* and *Add learned context before each send*; *Exact text injected* |
+| **Agent guidance** | every directive with its state chip (*waiting for trial*, *trial 3/10*, *active*, *retired · reason*), its source chip (*yours* / *distilled*) and its receipt, where the directive came from, with a *Copy receipt* button; toggle / remove / add directives; *Start trial* on a queued directive while *Review new directives before their trial* is on; *Inject learned directives into the system prompt* and *Add learned context before each send*; *Exact text injected* |
 | **Improve & feedback** | *Enable the composer Improve button*; *Learned style rules* |
 | **Analysis history** | the latest analyzed prompts, across every conversation |
 | **Data & privacy** | what one usage record holds; *Keep detailed usage history (days)* (7 / 14 / 30 / 90 / 180 / 365); *Warn above this daily/monthly spend (USD)* — Tacit warns at 80 % of the amount and marks it exceeded above it; *Clear all analysis reports* and *Clear usage history* — both open a confirmation dialog (Escape cancels) before deleting anything |
@@ -97,7 +97,8 @@ always analyze a turn by hand from the Tacit tab.
 
 **I edited a directive and the agent still ignores it.**
 The steering text is frozen when a conversation starts (it keeps the model's
-prompt cache warm). Open a new conversation.
+prompt cache warm). Open a new conversation. Removing a directive or switching
+one off is the exception, and reaches the conversations you already have open.
 
 **The trend chips are missing.**
 They need at least 40 finished turns across the conversations currently loaded.

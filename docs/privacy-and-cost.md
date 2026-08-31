@@ -11,7 +11,7 @@ rename) and never truncated in place.
 
 | File | Holds |
 | --- | --- |
-| `profile.json` | mistake patterns with trust counters, directives (max 8 global + 4 per workspace, each with the normalised absolute workspace path it is scoped to, if any), when a session was last seen in each of those workspaces, style rules (max 6), the last 10 👎 verdicts, counters |
+| `profile.json` | mistake patterns with trust counters, directives (max 8 global + 4 per workspace, each with the normalised absolute workspace path it is scoped to, if any, and its provenance: `updatedAt`, `version`, the ids of the reports it was distilled from, the ledger run id of that distillation, `evaluatedAt` and `approvedAt`), when a session was last seen in each of those workspaces, the last 6 retired or removed directives so the distiller is not told to propose them again (their own sentence, ids and counters; no prompt text), style rules (max 6), the last 10 👎 verdicts, counters |
 | `reports/<conversation>/<turn>.json` | one analysis report per analyzed turn (problems, improved prompt, explanation, a 200-char excerpt of the prompt, your correction if any, the absolute workspace directory of the conversation) |
 | `config.patch.json` | the settings you changed in the UI |
 | `auto.json` | today's date and how many automatic analyses were spent |
@@ -48,6 +48,9 @@ keys, session ids, anything outside the clips above.
 
 ## Guarantees
 
+- **No telemetry.** Tacit sends no telemetry or analytics of any kind. The only
+  network traffic it produces is the model call through the harness's own model
+  service.
 - **Never reads or stores API keys.** Calls use `ctx.llm.stream`, the harness's own service.
 - **Credential-shaped strings are masked at capture.** API keys, tokens, JWTs,
   private-key blocks and `key=value` secrets in a prompt, a tool argument or an
@@ -201,8 +204,10 @@ without a call; turns that finished before the plugin started are ignored.
 
 Honest list — these are deliberate behaviours, not hidden surprises:
 
-- **Steering is frozen per conversation.** Any verdict, toggle, edit or new directive
-  applies to conversations started afterwards; the running one keeps what it started with.
+- **Steering is frozen per conversation.** A verdict, an edit or a new directive
+  applies to conversations started afterwards; the running one keeps what it started
+  with. Removing a directive or switching one off is the exception, and re-freezes
+  every open conversation at its next system-prompt assembly.
 - **Trials are a trend check, not an A/B test.** A candidate is judged only on turns
   from conversations whose frozen steering text actually contained it; conversations
   started before it existed (or before a restart) contribute nothing, so a trial can

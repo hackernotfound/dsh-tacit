@@ -6,6 +6,7 @@
       auto: null,
       steering: null, // {enabled, text}
       workspaces: [], // [{cwd, label}] from /state
+      receipts: {}, // directive id → the /directive-receipt receipt, re-read on each expand
       trend: null, // measured early-vs-recent trend
       bootstrap: null, // {running, done, total}
       coached: [], // cross-session coached-prompt entries
@@ -516,6 +517,25 @@
       notifyRoot()
     }
 
+    /** One directive's audit receipt. Re-read on every expand: a trial's counters move while it runs. */
+    async function fetchReceipt(id) {
+      const key = String(id)
+      if (key.length === 0) return
+      rootStore.error = null
+      try {
+        const result = await api('/directive-receipt', { id: key })
+        if (result !== null && typeof result === 'object' && result.ok === true
+          && result.receipt !== null && typeof result.receipt === 'object') {
+          rootStore.receipts[key] = result.receipt
+        } else {
+          rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
+        }
+      } catch (error) {
+        rootStore.error = errorOf(error)
+      }
+      notifyRoot()
+    }
+
     async function initStore(store) {
       if (store === null || store.initStarted) return
       store.initStarted = true
@@ -546,7 +566,8 @@
       store.error = null
       store.notice = null
       notify(store)
-      api('/analyze', { sessionId: store.sessionId, turn })
+      // A turn that already has a report is only re-analyzed on purpose; the button reads "Re-analyze" then.
+      api('/analyze', { sessionId: store.sessionId, turn, ...(store.reports[String(turn)] ? { force: true } : {}) })
         .then((result) => {
           if (result !== null && typeof result === 'object' && result.ok && result.report !== null && typeof result.report === 'object') {
             store.reports[String(turn)] = result.report
@@ -610,7 +631,7 @@
             // `busy` means an analysis of that turn was already running — a
             // race with the auto-analyzer, not a failure of this batch.
             const code = typeof entry.code === 'string' && entry.code.length > 0 ? entry.code : 'call-failed'
-            if (failure === null && code !== 'busy') failure = { code, detail: '' }
+            if (failure === null && code !== 'busy' && code !== 'already-analyzed') failure = { code, detail: '' }
           }
           if (failure !== null) store.error = failure
           if (result.profile !== null && typeof result.profile === 'object') store.profile = result.profile

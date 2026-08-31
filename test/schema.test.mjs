@@ -11,6 +11,9 @@ import {
   feedbackArgSchema,
   appliedArgSchema,
   configArgSchema,
+  analyzeArgSchema,
+  analyzeBatchArgSchema,
+  directiveReceiptArgSchema,
   tokenBucketsSchema,
   usageAttemptSchema,
   usageTotalsSchema,
@@ -46,6 +49,7 @@ test('Config.parse(undefined) resolves to all defaults', () => {
     costHistoryDays: 30,
     costWarnDailyUsd: 0,
     costWarnMonthlyUsd: 0,
+    reviewCandidates: false,
   })
 })
 
@@ -134,6 +138,51 @@ test('a trial written before corrections were graded parses: baselineRate become
     directives: [{ id: 'c', text: 'Old candidate.', createdAt: 1, status: 'candidate', trial: { turns: 3, messy: 1, baselineRate: 0.2, startedAt: 1 } }],
   })
   assert.deepEqual(profile.directives[0].trial, { turns: 3, messy: 1, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: -1, startedAt: 1 })
+})
+
+test('a legacy directive (no provenance fields) migrates: updatedAt = createdAt, version 1, empty evidence, no run, never evaluated or approved', () => {
+  const profile = profileSchema.parse({
+    analyzedCount: 0, patterns: [], updatedAt: 1,
+    directives: [{ id: 'a', text: 'Old.', enabled: true, source: 'distilled', createdAt: 7, status: 'active' }],
+  })
+  assert.deepEqual(profile.directives[0], {
+    id: 'a', text: 'Old.', enabled: true, source: 'distilled', createdAt: 7, status: 'active',
+    updatedAt: 7, version: 1, evidence: [], distillationRunId: '', evaluatedAt: 0, approvedAt: 0,
+  })
+})
+
+test('a directive keeps its provenance fields, and a removed status parses', () => {
+  const evidence = [{ sessionId: 's1', turn: 3, trigger: 'correction' }]
+  const profile = profileSchema.parse({
+    analyzedCount: 0, patterns: [], updatedAt: 1,
+    directives: [{ id: 'r', text: 'Gone.', enabled: false, source: 'user', createdAt: 1, updatedAt: 9, version: 3, status: 'removed', evidence, distillationRunId: 'run-1', evaluatedAt: 5, approvedAt: 4 }],
+  })
+  const [entry] = profile.directives
+  assert.equal(entry.status, 'removed')
+  assert.deepEqual([entry.updatedAt, entry.version, entry.evidence, entry.distillationRunId, entry.evaluatedAt, entry.approvedAt], [9, 3, evidence, 'run-1', 5, 4])
+})
+
+test('a candidate written disabled is read back as queued without its trial', () => {
+  const profile = profileSchema.parse({
+    analyzedCount: 0, patterns: [], updatedAt: 1,
+    directives: [{ id: 'c', text: 'Off while on trial.', enabled: false, createdAt: 1, status: 'candidate', trial: { turns: 3, messy: 1, baselineMessyRate: 0.2, startedAt: 1 } }],
+  })
+  assert.equal(profile.directives[0].status, 'queued')
+  assert.equal(profile.directives[0].trial, undefined)
+})
+
+test('reviewCandidates is a patchable config key, off by default', () => {
+  assert.equal(Config.parse({}).reviewCandidates, false)
+  assert.deepEqual(configArgSchema.parse({ patch: { reviewCandidates: true } }).patch, { reviewCandidates: true })
+})
+
+test('route codecs: start-trial, force on analyze and analyze-batch, and the receipt id', () => {
+  assert.deepEqual(directivesArgSchema.parse({ action: 'start-trial', id: 'q1' }), { action: 'start-trial', id: 'q1' })
+  assert.equal(analyzeArgSchema.parse({ sessionId: 's', turn: 1, force: true }).force, true)
+  assert.equal(analyzeArgSchema.parse({ sessionId: 's', turn: 1 }).force, undefined)
+  assert.equal(analyzeBatchArgSchema.parse({ sessionId: 's', turns: [1], force: true }).force, true)
+  assert.deepEqual(directiveReceiptArgSchema.parse({ id: 'd1' }), { id: 'd1' })
+  assert.equal(directiveReceiptArgSchema.safeParse({}).success, false)
 })
 
 // ── Usage ledger schemas ────────────────────────────────────────────────────

@@ -2023,6 +2023,168 @@ test('clearing usage history re-prices the preview whose measured basis it delet
   }
 })
 
+// ── Directive receipt (audit view) ────────────────────────────────────────
+
+const receiptFixture = (over) => ({
+  id: 'd1',
+  text: 'Say what changed, not how you feel about it.',
+  scope: '',
+  status: 'active',
+  source: 'distilled',
+  enabled: true,
+  createdAt: 1756500000000,
+  updatedAt: 1756500600000,
+  evaluatedAt: 1756501200000,
+  approvedAt: 0,
+  version: 2,
+  trial: null,
+  retiredReason: '',
+  triggers: { auto: 2, correction: 1, bootstrap: 1 },
+  evidence: { turns: 4, conversations: 2, items: [{ sessionId: 's-1', turn: 3, trigger: 'auto' }] },
+  cost: { runId: 'run-x', calls: 1, usd: 0.0012 },
+  ...(over === undefined ? {} : over),
+})
+
+function seedReceiptSettings(receiptOver) {
+  const rootStore = seedSettings()
+  rootStore.profile.directives = [
+    { id: 'd1', text: 'Say what changed, not how you feel about it.', enabled: true, source: 'distilled', createdAt: 1756500000000, status: 'active' },
+  ]
+  rootStore.receipts = { d1: receiptFixture(receiptOver) }
+  return rootStore
+}
+
+/** The rendered `<details data-testid="tacit-receipt">` element, markup only. */
+function receiptSlice(markup) {
+  const marker = markup.indexOf('data-testid="tacit-receipt"')
+  assert.ok(marker > 0, 'a receipt element renders')
+  const start = markup.lastIndexOf('<details', marker)
+  const end = markup.indexOf('</details>', marker)
+  assert.ok(start >= 0 && end > start, 'the receipt element is a complete <details>')
+  return markup.slice(start, end)
+}
+
+test('a directive receipt renders its id, evidence, triggers, cost and a copy button', () => {
+  const rootStore = seedReceiptSettings()
+  try {
+    const slice = receiptSlice(renderSettings())
+    assert.ok(slice.includes('<dd>d1</dd>'), 'the directive id is shown')
+    assert.ok(slice.includes(tr('steer.receiptEvidenceValue', { turns: 4, conversations: 2 })), 'evidence counts')
+    assert.ok(slice.includes('auto 2'), 'trigger counts')
+    assert.ok(slice.includes('correction 1'), 'every trigger category')
+    assert.ok(slice.includes('$0.0012'), 'the distillation cost')
+    assert.ok(slice.includes(tr('steer.receiptCopy')), 'a copy button')
+  } finally {
+    rootStore.receipts = {}
+    rootStore.profile = null
+  }
+})
+
+test('the receipt never carries prompt text', () => {
+  const rootStore = seedReceiptSettings({
+    promptExcerpt: 'SENTINEL PROMPT TEXT',
+    improvedPrompt: 'SENTINEL PROMPT TEXT',
+    followUp: 'SENTINEL PROMPT TEXT',
+  })
+  rootStore.coached = [{ turn: 1, time: 1, trigger: 'manual', promptExcerpt: 'SENTINEL PROMPT TEXT', improvedPrompt: 'SENTINEL PROMPT TEXT' }]
+  testKit.toggleSection('history')
+  try {
+    const markup = renderSettings()
+    assert.ok(markup.includes('SENTINEL PROMPT TEXT'), 'the sentinel really is on the page, so the slice is doing work')
+    const slice = receiptSlice(markup)
+    for (const banned of ['promptExcerpt', 'improvedPrompt', 'followUp', 'SENTINEL PROMPT TEXT']) {
+      assert.equal(slice.includes(banned), false, banned + ' must not reach the receipt')
+    }
+  } finally {
+    testKit.toggleSection('history')
+    rootStore.coached = []
+    rootStore.receipts = {}
+    rootStore.profile = null
+  }
+})
+
+test('fetchReceipt stores the receipt an ok envelope carries', async () => {
+  const rootStore = seedSettings()
+  rootStore.profile.directives = [{ id: 'd9', text: 'Name the file.', enabled: true, source: 'user', createdAt: 1, status: 'active' }]
+  try {
+    await withApiStub({ '/directive-receipt': { ok: true, code: '', detail: '', receipt: receiptFixture({ id: 'd9' }) } }, async (calls) => {
+      await testKit.fetchReceipt('d9')
+      assert.ok(calls.includes('/directive-receipt'), 'the receipt route is posted')
+      assert.equal(rootStore.receipts.d9.id, 'd9', 'the receipt is stored under its id')
+    })
+    rootStore.receipts = {}
+    assert.ok(renderSettings().includes(tr('steer.receiptLoading')), 'an unread receipt shows its loading line')
+  } finally {
+    rootStore.receipts = {}
+    rootStore.usage = null
+    rootStore.profile = null
+  }
+})
+
+// ── Review before trial, removed entries, and paid re-analysis ────────────
+
+test('Start trial appears only for an unapproved queued directive while reviewCandidates is on', () => {
+  const rootStore = seedSettings()
+  const queued = { id: 'q1', text: 'Name the target file.', enabled: true, source: 'distilled', createdAt: 1, status: 'queued', approvedAt: 0 }
+  try {
+    rootStore.profile.directives = [queued]
+    rootStore.config = { ...rootStore.config, reviewCandidates: false }
+    assert.ok(!renderSettings().includes(tr('steer.startTrial')), 'no button while the setting is off')
+    rootStore.config = { ...rootStore.config, reviewCandidates: true }
+    assert.ok(renderSettings().includes(tr('steer.startTrial')), 'a button for an unapproved queued directive')
+    rootStore.profile.directives = [{ ...queued, approvedAt: 5 }]
+    assert.ok(!renderSettings().includes(tr('steer.startTrial')), 'none once approved')
+    assert.ok(renderSettings().includes(tr('steer.review')), 'the setting itself is offered')
+  } finally {
+    rootStore.profile = null
+    rootStore.config = null
+  }
+})
+
+test('a removed directive is kept out of the editor', () => {
+  const rootStore = seedSettings()
+  try {
+    rootStore.profile.directives = [
+      { id: 'live', text: 'Still here.', enabled: true, source: 'distilled', createdAt: 1, status: 'active' },
+      { id: 'gone', text: 'REMOVED SENTINEL TEXT', enabled: false, source: 'distilled', createdAt: 1, status: 'removed' },
+    ]
+    const markup = renderSettings()
+    assert.ok(markup.includes('Still here.'))
+    assert.ok(!markup.includes('REMOVED SENTINEL TEXT'))
+  } finally {
+    rootStore.profile = null
+  }
+})
+
+test('analyzeTurn asks for a paid re-analysis only when the turn already has a report', async () => {
+  const bodies = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    bodies.push(JSON.parse(init.body))
+    return new Response(JSON.stringify({ ok: true, report: null, profile: null, code: 'busy', detail: '' }), { headers: { 'content-type': 'application/json' } })
+  }
+  try {
+    const store = testKit.storeFor('s-force')
+    store.reports = { 7: { ok: true, turn: 7 } }
+    testKit.analyzeTurn(store, 7)
+    testKit.analyzeTurn(store, 8)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    assert.equal(bodies.find((body) => body.turn === 7).force, true)
+    assert.equal('force' in bodies.find((body) => body.turn === 8), false)
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test('an already-analyzed entry in a batch result is not a failure', async () => {
+  const store = testKit.storeFor('s-batch')
+  store.selection = new Set([2])
+  await withApiStub({ '/analyze-batch': { ok: true, results: [{ turn: 2, ok: false, code: 'already-analyzed', report: null }], profile: null, run: null, code: '', detail: '' } }, async () => {
+    await testKit.coachSelected(store)
+  })
+  assert.equal(store.error, null)
+})
+
 test('the settings page offers a workspace picker per directive and marks a workspace no loaded session is in', () => {
   const rootStore = testKit.rootStore
   rootStore.config = { model: 'deepseek-v4-flash', liveSuggestions: true, steerAgent: true }

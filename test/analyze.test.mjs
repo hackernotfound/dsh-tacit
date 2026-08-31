@@ -275,7 +275,7 @@ test('classifyDirectives parses the tool payload into clipped, deduped imperativ
   assert.deepEqual(classifyDirectives('nonsense').kept, [])
 })
 
-import { mergeDirectives, capDirectives, MAX_RETIRED } from '../lib/analyze.js'
+import { mergeDirectives, capDirectives, MAX_REMEMBERED } from '../lib/analyze.js'
 
 const distilledEntry = (id, text, extra = {}) => ({ id, text, enabled: true, source: 'distilled', createdAt: 1, status: 'active', ...extra })
 const trialOf = (turns) => ({ turns, messy: 1, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0.1, startedAt: 1 })
@@ -306,12 +306,53 @@ test('mergeDirectives queues a genuinely new directive and leaves a retired one 
   assert.equal(out[0].trial, undefined)
 })
 
-test('capDirectives keeps retired directives outside the live caps, the last MAX_RETIRED of them', () => {
+test('capDirectives keeps retired and removed directives outside the live caps, under one MAX_REMEMBERED cap', () => {
   const live = Array.from({ length: 8 }, (_, i) => distilledEntry('a' + i, 'Live ' + i + '.'))
-  const retired = Array.from({ length: MAX_RETIRED + 2 }, (_, i) => distilledEntry('r' + i, 'Retired ' + i + '.', { status: 'retired' }))
-  const out = capDirectives([...retired, ...live, distilledEntry('a9', 'One too many.')])
-  assert.deepEqual(out.filter((entry) => entry.status === 'retired').map((entry) => entry.id), ['r2', 'r3', 'r4', 'r5', 'r6', 'r7'])
-  assert.deepEqual(out.filter((entry) => entry.status !== 'retired').map((entry) => entry.id), live.map((entry) => entry.id))
+  const dead = Array.from({ length: MAX_REMEMBERED + 2 }, (_, i) => distilledEntry('r' + i, 'Gone ' + i + '.', { status: i % 2 === 0 ? 'retired' : 'removed', enabled: false }))
+  const out = capDirectives([...dead, ...live, distilledEntry('a9', 'One too many.')])
+  assert.deepEqual(out.filter((entry) => entry.status === 'retired' || entry.status === 'removed').map((entry) => entry.id), ['r2', 'r3', 'r4', 'r5', 'r6', 'r7'])
+  assert.deepEqual(out.filter((entry) => entry.status !== 'retired' && entry.status !== 'removed').map((entry) => entry.id), live.map((entry) => entry.id))
+})
+
+import { directiveSimilarity, DIRECTIVE_SIMILARITY } from '../lib/analyze.js'
+
+test('directiveSimilarity scores a rewording of the same directive high and an unrelated one low', () => {
+  const original = 'Grep the repo before asking for file paths.'
+  assert.ok(directiveSimilarity(original, 'Always grep the repo before asking the user for file paths.') >= DIRECTIVE_SIMILARITY)
+  assert.ok(directiveSimilarity(original, 'Run the tests before claiming success.') < 0.3)
+  assert.equal(directiveSimilarity('', original), 0)
+})
+
+test('mergeDirectives drops a rewording of a retired or a removed directive and keeps an unrelated new one', () => {
+  const retired = distilledEntry('r1', 'Grep the repo before asking for file paths.', { status: 'retired', enabled: false })
+  const removed = distilledEntry('x1', 'Run the tests before claiming success.', { status: 'removed', enabled: false })
+  const out = mergeInto([retired, removed], [
+    { text: 'Always grep the repo before asking the user for file paths.' },
+    { text: 'Always run the tests before claiming success.' },
+    { text: 'Name the target file up front.' },
+  ])
+  assert.deepEqual(out.map((entry) => [entry.id, entry.status, entry.text]), [
+    ['new', 'queued', 'Name the target file up front.'],
+    ['r1', 'retired', 'Grep the repo before asking for file paths.'],
+    ['x1', 'removed', 'Run the tests before claiming success.'],
+  ])
+})
+
+test('mergeDirectives keeps a removed entry removed when it comes back by id, by text, or from a user record', () => {
+  const removed = distilledEntry('x1', 'Always rewrite the whole file.', { status: 'removed', enabled: false })
+  const removedUser = { ...distilledEntry('u1', 'Never touch the lockfile.', { status: 'removed', enabled: false }), source: 'user' }
+  const out = mergeInto([removed, removedUser], [
+    { id: 'x1', text: 'Always rewrite the whole file.' },
+    { text: 'Never touch the lockfile.' },
+    { text: 'Prefer small patches.' },
+  ])
+  assert.deepEqual(out.map((entry) => [entry.id, entry.status, entry.text]), [
+    ['new', 'queued', 'Prefer small patches.'],
+    ['x1', 'removed', 'Always rewrite the whole file.'],
+    ['u1', 'removed', 'Never touch the lockfile.'],
+  ])
+  assert.equal(out.filter((entry) => entry.text === 'Always rewrite the whole file.').length, 1)
+  assert.equal(out.filter((entry) => entry.text === 'Never touch the lockfile.').length, 1)
 })
 
 test('classifyDirectives passes a non-empty id through and drops an empty one', () => {
@@ -319,16 +360,20 @@ test('classifyDirectives passes a non-empty id through and drops an empty one', 
   assert.deepEqual(kept, [{ text: 'Keep me.', id: 'c1' }, { text: 'New one.' }])
 })
 
-test('buildDirectiveUserText lists current directives with their ids and retired ones under a do-not-re-propose block', () => {
+test('buildDirectiveUserText lists current directives with their ids and retired or removed ones under a do-not-re-propose block', () => {
   const text = buildDirectiveUserText({ patterns: [], styleRules: [], directives: [
     distilledEntry('c1', 'Current one.', { status: 'candidate' }),
     distilledEntry('r1', 'Retired one.', { status: 'retired' }),
+    distilledEntry('x1', 'Removed one.', { status: 'removed', enabled: false }),
   ] })
   const current = text.slice(text.indexOf('=== CURRENT DIRECTIVES'), text.indexOf('=== RETIRED'))
   assert.ok(current.includes('- [c1] Current one.'))
   assert.ok(current.includes('return it with its [id]'))
   assert.ok(!current.includes('Retired one.'))
-  assert.ok(text.slice(text.indexOf('=== RETIRED (made things worse while active; do not re-propose these) ===')).includes('- Retired one.'))
+  assert.ok(!current.includes('Removed one.'))
+  const dead = text.slice(text.indexOf('=== RETIRED OR REMOVED BY THE USER (do not re-propose these, nor a rewording of them) ==='))
+  assert.ok(dead.includes('- Retired one.'))
+  assert.ok(dead.includes('- Removed one.'))
 })
 
 test('buildDirectiveUserText feeds patterns, examples, style rules and recent corrections to the distiller', () => {
@@ -463,16 +508,18 @@ test('classifyDirectives rejects directives that talk about tool permissions, ap
   }
 })
 
-test('renderSteeringSection renders candidates and active directives but never retired or queued ones', () => {
+test('renderSteeringSection renders candidates and active directives but never retired, removed or queued ones', () => {
   const text = renderSteeringSection({ directives: [
     { id: 'a', text: 'Active one.', enabled: true, source: 'distilled', createdAt: 1, status: 'active' },
     { id: 'c', text: 'Candidate one.', enabled: true, source: 'distilled', createdAt: 2, status: 'candidate' },
     { id: 'r', text: 'Retired one.', enabled: true, source: 'distilled', createdAt: 3, status: 'retired' },
+    { id: 'x', text: 'Removed one.', enabled: true, source: 'user', createdAt: 3, status: 'removed' },
     { id: 'q', text: 'Queued one.', enabled: true, source: 'distilled', createdAt: 4, status: 'queued' },
   ] })
   assert.ok(text.includes('Active one.'))
   assert.ok(text.includes('Candidate one.'))
   assert.ok(!text.includes('Retired one.'))
+  assert.ok(!text.includes('Removed one.'))
   assert.ok(!text.includes('Queued one.'))
 })
 
