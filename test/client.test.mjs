@@ -491,6 +491,26 @@ test('the status card shows the measured trend when enough turns exist', () => {
   rootStore.trend = null
 })
 
+test('the trend chips disclaim a controlled comparison and point at the two doc sections', () => {
+  const rootStore = testKit.rootStore
+  rootStore.config = { model: 'deepseek-v4-flash', liveSuggestions: true, autoAnalyze: true, autoDailyBudget: 30, steerAgent: true }
+  rootStore.profile = { analyzedCount: 4, patterns: [] }
+  rootStore.trend = { enough: true, window: 20, early: { n: 20, correctionRate: 0.3, messyRate: 0.4, tokensPerTurn: 12000 }, recent: { n: 20, correctionRate: 0.1, messyRate: 0.2, tokensPerTurn: 9000 } }
+  const Section = slotEntries.find((e) => e.name === 'settings.section').registration.component
+  const markup = renderToStaticMarkup(React.createElement(Section, {}))
+  assert.ok(markup.includes('before/after on your own turns, not a controlled comparison'),
+    'the hint says what the numbers are not')
+  const chips = /<div class="tacit-trend" title="([^"]*)">/.exec(markup)
+  assert.ok(chips, 'the chips carry a tooltip')
+  assert.ok(chips[1].includes('https://github.com/hackernotfound/dsh-tacit/blob/main/docs/how-it-works.md#6-trials'))
+  assert.ok(chips[1].includes('https://github.com/hackernotfound/dsh-tacit/blob/main/docs/how-it-works.md#10-the-measured-trend'))
+  const zh = localeDicts['dsh-tacit'].zh
+  assert.ok(zh['status.trendHint'].includes('对照'), 'the zh hint carries the same caveat')
+  assert.ok(zh['status.trendDocs'].includes('#6-trials'), 'and the same doc links')
+  rootStore.profile = null
+  rootStore.trend = null
+})
+
 test('a turn row shows the context the coach added before the send', () => {
   const Tab = slotEntries.find((e) => e.name === 'conversation.view').registration.component
   const props = { ...tabProps, useProjection: () => ({ turns: [{ ...sampleTurn, enrichment: 'Context from Tacit: check apps/web first.' }] }) }
@@ -1783,6 +1803,49 @@ test('Escape cancels the confirm dialog without closing the settings page around
   tree.props.onKeyDown({ key: 'Escape', stopPropagation: () => { stopped += 1 }, preventDefault: () => {} })
   assert.equal(cancelled, 1, 'Escape cancels')
   assert.equal(stopped, 1, 'and the keydown never reaches the host modal, which closes on Escape too')
+})
+
+test('closing the confirm dialog hands focus back to the opener, after the host has had its turn', async () => {
+  const rootStore = testKit.rootStore
+  const focused = []
+  const opener = { focus: () => focused.push('opener') }
+  const hostClose = { focus: () => focused.push('host-close') }
+  globalThis.document = { activeElement: opener, getElementById: () => null }
+  try {
+    testKit.openConfirm('usage')
+    globalThis.document.activeElement = { focus: () => focused.push('cancel') }
+    testKit.closeConfirm()
+    // Whatever answered the same Escape above us has already moved focus.
+    globalThis.document.activeElement = hostClose
+    assert.deepEqual(focused, [], 'nothing is focused while the host is still handling the key')
+    await new Promise((resolve) => { setTimeout(resolve, 0) })
+    assert.deepEqual(focused, ['opener'], 'the opener wins the last word')
+  } finally {
+    delete globalThis.document
+    rootStore.confirm = null
+  }
+})
+
+test('confirming a destructive action also returns focus to the opener', async () => {
+  const rootStore = testKit.rootStore
+  const focused = []
+  const opener = { focus: () => focused.push('opener') }
+  globalThis.document = { activeElement: opener, getElementById: () => null }
+  try {
+    await withApiStub({ '/usage-clear': { ok: true, removed: 0, trackingSince: 0, code: '', detail: '' } }, async () => {
+      testKit.openConfirm('usage')
+      await testKit.confirmAction()
+    })
+    await new Promise((resolve) => { setTimeout(resolve, 0) })
+    assert.deepEqual(focused, ['opener'])
+  } finally {
+    delete globalThis.document
+    rootStore.confirm = null
+    rootStore.notice = null
+    rootStore.preview = null
+    rootStore.usage = null
+    rootStore.profile = null
+  }
 })
 
 /**

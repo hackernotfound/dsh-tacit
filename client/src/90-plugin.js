@@ -84,6 +84,7 @@
         refreshPricing,
         openConfirm,
         closeConfirm,
+        confirmAction,
         fetchBootstrapPreview,
         clearAllRoot,
         clearUsageHistory,
