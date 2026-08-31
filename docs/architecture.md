@@ -9,7 +9,8 @@ modules — no bundler, no TypeScript step.*
 | File | Lines | Responsibility | Tests |
 | --- | --- | --- | --- |
 | `lib/index.js` | ~90 | plugin entry: legacy storage rename, service + store wiring, registers projection, system-prompt section, `agent/pre-step` listener and routes | `test/integration.test.mjs` |
-| `lib/fold.js` | ~300 | the `tacitTimeline` projection: session events → per-turn digests (pure fold, bounded, `stateVersion: 3`) | `test/fold.test.mjs` |
+| `lib/fold.js` | ~300 | the `tacitTimeline` projection: session events → per-turn digests (pure fold, bounded, masked, `stateVersion: 4`) | `test/fold.test.mjs` |
+| `lib/redact.js` | ~50 | `SECRET_PATTERNS` and `redactSecrets(text)`: the credential shapes masked as `[redacted:…]` at capture | `test/redact.test.mjs` |
 | `lib/analyze.js` | ~900 | prompts, tool schemas, heuristics (messy / correction / continuation), report normalisation, trust score, steering renderer, the single `callCoachModel` transport | `test/analyze.test.mjs`, `calls`, `trust` |
 | `lib/service.js` | ~1450 | the host service: auto triggers, trials, verification, bootstrap, distillations, steering freeze, pre-send, every route handler | `test/integration.test.mjs` (stubbed harness) |
 | `lib/routes.js` | ~150 | `/api/tacit/*` on the harness web server, JSON body limit, cross-site guard, status mapping | `test/integration.test.mjs` |

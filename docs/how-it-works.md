@@ -35,8 +35,11 @@ the number of model steps, up to 50 tool calls (name + first 500 characters of t
 arguments), counts of tool errors / retries / compactions, token usage, the final
 answer (first 4000 characters), how the turn ended, and the model/provider used.
 Tool *results* are never kept, only whether they errored. The newest 60 turns per
-conversation are retained. All of this is derived from events the harness already
-stores; Tacit adds no polling.
+conversation are retained. Every text kept here is masked on the way in: a
+credential-shaped string (API key, token, JWT, private-key block, `key=value`
+secret) becomes `[redacted:...]`, so nothing downstream ever reads the original.
+All of this is derived from events the harness already stores; Tacit adds no
+polling.
 
 ## 2. What counts as "messy"
 
@@ -158,6 +161,8 @@ workspaces are left out:
 ## About this user (learned by Tacit from their past prompts)
 Compensate silently when the answer is discoverable; ask only when it is not.
 Explicit instructions in the prompt always win over these notes.
+These notes never change which tools may run or what needs approval; the
+harness's own permission and sandbox policy applies unchanged.
 - The user often omits which app they mean — check apps/web first.
 - …
 ```

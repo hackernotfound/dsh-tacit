@@ -233,7 +233,7 @@ test('turn/end data.reason is captured into the digest as endReason', () => {
   assert.equal(open.view.turns[0].endReason, '')
 })
 
-test('endReason is clipped to 40 chars and the definition is stateVersion 3', () => {
+test('endReason is clipped to 40 chars and the definition is stateVersion 4', () => {
   const events = [
     ev('turn/start', 1, { turn: 1 }),
     ev('user/message', 2, textMessage('clip me')),
@@ -242,7 +242,37 @@ test('endReason is clipped to 40 chars and the definition is stateVersion 3', ()
   const { state, view } = foldAll(events)
   assert.equal(view.turns[0].endReason.length, 40)
   assert.doesNotThrow(() => timelineStateSchema.parse(state))
-  assert.equal(createTimelineDefinition(() => DEFAULT_BOUNDS).stateVersion, 3)
+  assert.equal(createTimelineDefinition(() => DEFAULT_BOUNDS).stateVersion, 4)
+})
+
+test('a credential in the prompt is stored masked', () => {
+  const { view } = foldAll([
+    ev('turn/start', 1, { turn: 1 }),
+    ev('user/message', 2, textMessage('deploy with sk-' + 'proj-a1b2c3d4e5f6g7h8i9j0k1l2m3n4 please')),
+    ev('turn/end', 3, { turn: 1, reason: 'success' }),
+  ])
+  assert.equal(view.turns[0].prompt, 'deploy with [redacted:api-key] please')
+})
+
+test('a credential in a tool-call argument preview is stored masked', () => {
+  const { view } = foldAll([
+    ev('turn/start', 1, { turn: 1 }),
+    ev('user/message', 2, textMessage('push it')),
+    ev('tool/call', 3, { name: 'bash', arguments: '{"command":"curl -H \'Authorization: token ghp_abcdefghijklmnopqrstuvwxyz012345\'"}' }),
+    ev('turn/end', 4, { turn: 1, reason: 'success' }),
+  ])
+  assert.ok(!view.turns[0].toolCalls[0].args.includes('ghp_'))
+  assert.ok(view.turns[0].toolCalls[0].args.includes('[redacted:github-token]'))
+})
+
+test('the provisional prompt falls back clipped to maxPromptChars, not to 100000', () => {
+  const bounds = { ...DEFAULT_BOUNDS, maxPromptChars: 50 }
+  const { view } = foldAll([
+    ev('turn/start', 1, { turn: 1 }),
+    ev('user/message', 2, textMessage('y'.repeat(400), { kind: 'agent' })),
+    ev('turn/end', 3, { turn: 1, reason: 'success' }),
+  ], bounds)
+  assert.equal(view.turns[0].prompt.length, 50)
 })
 
 test('a plugin-sourced user message from the coach is folded as the turn enrichment, not as the prompt', () => {

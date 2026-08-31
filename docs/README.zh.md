@@ -64,7 +64,8 @@ DeepSeek API Key（Tacit 从不读取它）。
 Tacit 从不接触你的 API Key（所有调用都经过 harness 自己的模型服务），只通过你会话
 自己的 provider 路由调用白名单里的官方模型，报告和指令都存放在
 `~/.dsh/storages/tacit/`，拒绝对自身路由的跨站请求，除了自己的报告和过期的用量记录
-之外从不删除任何东西。美元数字是按公开价格的估算；`dsh-cost-meter` 这样的成本插件会显示真实花费。
+之外从不删除任何东西。抓取到的文本中形似凭据的字符串（API Key、令牌、JWT、私钥块）
+会在存储或发送之前被遮蔽。美元数字是按公开价格的估算；`dsh-cost-meter` 这样的成本插件会显示真实花费。
 完整的数据流与成本表、以及坦白的限制清单（英文）：
 [Privacy, cost & limitations](https://github.com/hackernotfound/dsh-tacit/blob/main/docs/privacy-and-cost.md)。
 
