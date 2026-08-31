@@ -14,6 +14,81 @@
 - Every coach prompt now frames its input as evidence about you rather than as
   instructions: text that arrives inside a rule, a reason, an example or the
   conversation is read as data.
+- *Remove* on a directive now keeps the record instead of forgetting it. The
+  directive leaves the list and is never injected again, but the distiller is
+  told not to propose it, and one that comes back by id or by text stays
+  removed. Retired and removed directives share one budget of 6.
+- A distillation can no longer slip a retired or removed directive back in under
+  new wording. A proposed directive whose normalised tokens overlap a retired or
+  removed one by 0.6 or more is dropped, with no extra model call.
+- Unticking a candidate now frees its scope's trial slot. The candidate returns
+  to *queued* with its trial reset, and the next queued directive of that scope
+  can start straight away. Ticking it again leaves it queued.
+- Analyzing a turn that already has a report costs nothing. `/api/tacit/analyze`
+  and `/api/tacit/analyze-batch` answer `already-analyzed` with no model call and
+  no ledger run; pass `force: true` to analyze it again. In a batch those turns
+  count as *skipped*, and a batch of nothing but skips closes as a success.
+- Removing a directive or switching one off now reaches the conversations you
+  already have open. Their steering text is re-frozen at the next system-prompt
+  assembly, so the directive stops applying at once. Adding or rewording one
+  still waits for the next conversation.
+- Every directive now records where it came from: when its text last changed,
+  its version, the analysis reports its distillation read, the ledger run of
+  that distillation, when its trial was judged and when you approved it.
+- Settings → Tacit shows that provenance per directive as a receipt, with a
+  *Copy receipt* button, the triggers behind it and what the distillation cost.
+  `/api/tacit/directive-receipt` returns the same record by id. A receipt never
+  carries prompt text.
+- New setting *Review new directives before their trial* (`reviewCandidates`,
+  off by default). With it on, a freshly distilled directive waits as *queued*
+  until you press *Start trial* on it, so nothing new is injected unasked.
+- The privacy page now says outright that Tacit sends no telemetry or analytics
+  of any kind, and that the only network traffic it produces is the model call
+  through the harness's own model service.
+- Two workspaces that share a folder name no longer cross-wire their directives.
+  The distiller sees them as `a/web` and `b/web`, and a directive it returns for a
+  name none of the evidence carried is dropped and logged rather than applied
+  everywhere.
+- A workspace is now one normalised path (`..` resolved, trailing slash dropped,
+  symlinks followed), and a conversation started anywhere inside it gets its
+  directives, deepest workspace first.
+- Renaming or moving a workspace no longer strands its directives. Settings marks
+  a workspace no open session is in as *not seen since* a date, a candidate on
+  trial there pauses and frees its scope's slot until a session opens in that
+  workspace again, and every directive has a *Move to workspace* picker
+  (`rescope` on the directives route).
+- At most 12 workspaces keep distilled directives; the least recently seen one
+  loses its distilled set first, and directives you typed yourself are never
+  dropped this way.
+- The Usage card now answers "what did my failures cost". A tile shows what was
+  spent on failed or repair calls over the last 30 days, with the two halves in
+  its footnote; a failed repair sits in both halves but is counted once in the
+  headline figure. `failedCalls` and `failedUsd` ride every bucket the ledger
+  keeps, so a failed call is no longer indistinguishable inside a total.
+- Spend is now split by route and by trigger, next to the existing by-operation
+  table. A proxy route and the official one can be told apart, and an automatic
+  analysis, a correction and a ✨ Improve you asked for each show their own
+  share. The ledger keeps `byProvider` and `byTrigger` alongside `byModel`.
+- Input and output tokens are now separate in the tiles and in every run row,
+  not only inside an expanded attempt. Input counts uncached input plus cache
+  reads and cache writes; reasoning tokens stay inside output, where the
+  provider bills them.
+- The daily automatic-analysis cap is shown next to today's spend, so the
+  budget and the money it buys are read in one place.
+- ✨ Improve now reads past background-job notifications and bare "continue" turns
+  when it gathers recent context, so the first click sees the last exchange you
+  actually wrote instead of a harness notice.
+- Escape out of a confirm dialog returns focus to the button that opened it
+  ("Clear usage history" / "Clear all analysis reports"), not to the Settings
+  Close button. Confirming the action returns focus there too.
+
+
+- The measured-trend chips in Settings now say the numbers are a before/after
+  over your own turns, not a controlled comparison, and carry a tooltip linking
+  How it works §6 (Trials) and §10 (The measured trend).
+- A retired directive now reads "corrections rose 10% → 30% during its trial"
+  (or "messy turns rose …"), so the number reads as what happened during the
+  trial rather than as a verdict the directive earned.
 
 ## 0.4.0 — 2026-08-31
 
