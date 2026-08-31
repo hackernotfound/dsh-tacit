@@ -137,7 +137,7 @@ Rules applied to the result:
 | **queued** | freshly distilled while another directive of its scope is on trial | no | *waiting for trial* (greyed) |
 | **candidate** | freshly distilled into a free slot, or next in its scope's queue when the previous trial ended | yes | *trial n/10* (n counts finished turns in conversations that were steered by it) |
 | **active** | 10 finished turns later (`directiveTrialTurns`), correction rate ≤ baseline + 0.15 (`directiveWorseBy`) and messy-turn rate ≤ baseline + 0.30; or you typed it; or you re-enabled a retired one | yes | *active* |
-| **retired** | correction rate during the trial rose by more than 15 percentage points over the baseline, or the messy-turn rate by more than 30 | no | *retired · corrections 10% → 30% while active* (or *messy turns 20% → 60% while active*) |
+| **retired** | correction rate during the trial rose by more than 15 percentage points over the baseline, or the messy-turn rate by more than 30 | no | *retired · corrections rose 10% → 30% during its trial* (or *messy turns rose 20% → 60% during its trial*) |
 | **off** | you untick it | no | greyed out |
 
 A trial counts, for every finished turn of every conversation whose frozen
