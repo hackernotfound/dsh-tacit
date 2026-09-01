@@ -9,6 +9,11 @@ line per change; the PR has the detail.
 
 ## [Unreleased]
 
+### Added
+
+- `pnpm rehearse` drives real headless turns in a throwaway `DSH_HOME` and
+  checks what Tacit learned from them. (#59)
+
 ### Changed
 
 - The weekly compatibility check also runs against `@deepseek-ai/dsh@alpha`. (#57)
