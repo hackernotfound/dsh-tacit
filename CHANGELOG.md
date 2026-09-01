@@ -9,7 +9,10 @@ line per change; the PR has the detail.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- A run that ends right before the harness exits still counts in the Usage
+  card; the summary is written when the run ends. (#58)
 
 ## [0.6.0] - 2026-09-01
 
