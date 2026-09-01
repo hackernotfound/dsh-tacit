@@ -3,11 +3,10 @@
 /**
  * dsh-tacit — audit of this repo's own public GitHub Actions logs.
  *
- * The maintainer ships under a pseudonym, so a run log must never carry a real
- * name, an email, a developer home path, an API key, a token, or the contents
- * of a credential file. `scanLines` is the pure, unit-tested half. It runs a
- * table of credential and identity shapes plus a literal deny list of the
- * maintainer's own words read from TACIT_LOG_DENY. The CLI half fetches the
+ * A public run log must never carry an email, a developer home path, an API
+ * key, a token, or the contents of a credential file. `scanLines` is the
+ * pure, unit-tested half. It runs a table of credential and path shapes plus
+ * an optional literal deny list read from TACIT_LOG_DENY. The CLI half fetches the
  * last N runs with `gh`, strips the `job<TAB>step<TAB>timestamp ` columns gh
  * prefixes to every line so only the message is scanned, and prints the hits.
  *
