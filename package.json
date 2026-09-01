@@ -43,7 +43,8 @@
     "check:docs": "node scripts/check-doc-links.mjs",
     "check:package": "node scripts/check-package.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "rehearse": "node scripts/rehearse.mjs"
+    "rehearse": "node scripts/rehearse.mjs",
+    "check:ci-logs": "node scripts/check-ci-logs.mjs"
   },
   "publishConfig": {
     "access": "public"

@@ -22,6 +22,7 @@ modules — no bundler, no TypeScript step.*
 | `client/src/*.js` | ~3400 | the whole browser UI, one file per section (`10-i18n`, `20-api`, `30-session-store`, `40-root-store`, `50-format`, `55-usage-format`, `60-components`, `65-feedback-strip`, `68-section-card`, `69-confirm-dialog`, `70-panel`, `72-usage-panel`, `80-css`, `90-plugin`); `scripts/build-client.mjs` concatenates them into the shipped `client/client.js` (one classic script per plugin is all the harness loads) | `test/client.test.mjs` (SSR render of the built file), `pnpm check:client` |
 | `scripts/smoke.mjs` | — | live HTTP smoke against a running `dsh web` | — |
 | `scripts/rehearse.mjs` | — | live rehearsal: packs the plugin, installs it into a throwaway `DSH_HOME`, drives real headless turns, and asserts on what landed on disk | — |
+| `scripts/check-ci-logs.mjs` | — | log audit: reads the repo's own recent GitHub Actions run logs through `gh` and scans them for credentials, personal paths, addresses and the maintainer's own identity (`TACIT_LOG_DENY`); the `scanLines` half is pure | `test/ci-logs.test.mjs` |
 
 ## Harness hooks (host side)
 
