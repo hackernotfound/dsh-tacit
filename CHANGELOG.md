@@ -9,6 +9,18 @@ line per change; the PR has the detail.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.6.1] - 2026-09-01
+
+Small fixes to what a profile reads back and to the usage ledger, a live
+rehearsal script, and a compatibility check against the host's alpha line.
+
+### Upgrading
+
+- Restart `dsh web` after updating; host code only reloads on a restart.
+- No new settings, routes or storage changes.
+
 ### Added
 
 - `pnpm rehearse` drives real headless turns in a throwaway `DSH_HOME` and
@@ -234,7 +246,8 @@ First public release. Renamed from `dsh-prompt-coach` to **Tacit**; an existing
 Published as `dsh-prompt-coach`: manual prompt coaching gated behind a learning
 threshold. Superseded.
 
-[Unreleased]: https://github.com/hackernotfound/dsh-tacit/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/hackernotfound/dsh-tacit/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/hackernotfound/dsh-tacit/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.3.0...v0.4.0
