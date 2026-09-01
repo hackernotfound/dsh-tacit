@@ -19,6 +19,8 @@ line per change; the PR has the detail.
   counts. (#57)
 - A profile keeps one directive on trial per scope; extra candidates from an
   older profile wait in the queue. (#57)
+- A run that ends right before the harness exits still counts in the Usage
+  card; the summary is written when the run ends. (#58)
 
 ## [0.6.0] - 2026-09-01
 
