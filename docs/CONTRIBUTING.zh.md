@@ -60,6 +60,7 @@ TACIT_SMOKE_SESSION=<id> pnpm smoke           # 额外测试 ✨ 改进：一次
 TACIT_BASE=http://127.0.0.1:4000 pnpm smoke   # 如果你的 dsh web 不在 :3080
 pnpm rehearse             # 在一次性 DSH_HOME 里跑真实 headless 回合：端到端验证零点击闭环
                           # 需要在 harness 里配好 DeepSeek API key；每次 Tacit 调用约 $0.001，另加 agent 自身的回合开销
+pnpm check:ci-logs        # 扫描本仓库最近的 GitHub Actions 日志，查凭证、个人路径和邮箱地址；需要 gh 已登录
 ```
 
 CI 会在每次 push 和 PR 上用 Node 22 和 24 跑 `pnpm test`，外加文档和包检查。

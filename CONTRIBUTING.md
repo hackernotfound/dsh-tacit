@@ -67,6 +67,7 @@ TACIT_SMOKE_SESSION=<id> pnpm smoke           # also exercises ✨ Improve: one 
 TACIT_BASE=http://127.0.0.1:4000 pnpm smoke   # if your dsh web is not on :3080
 pnpm rehearse             # real headless turns in a throwaway DSH_HOME: proves the zero-click loop end to end
                           # needs a DeepSeek API key configured in the harness; ≈ $0.001 in Tacit calls per run, plus the agent's own turn
+pnpm check:ci-logs        # scans this repo's own recent GitHub Actions logs for credentials, personal paths and addresses; needs gh logged in
 ```
 
 CI runs `pnpm test` on Node 22 and 24 plus the docs and package checks for every

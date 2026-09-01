@@ -50,7 +50,8 @@ keys, session ids, anything outside the clips above.
 
 - **No telemetry.** Tacit sends no telemetry or analytics of any kind. The only
   network traffic it produces is the model call through the harness's own model
-  service.
+  service. A weekly `log-audit` workflow scans this repository's own CI logs
+  for credentials, personal paths and addresses.
 - **Never reads or stores API keys.** Calls use `ctx.llm.stream`, the harness's own service.
 - **Credential-shaped strings are masked at capture.** API keys, tokens, JWTs,
   private-key blocks and `key=value` secrets in a prompt, a tool argument or an
