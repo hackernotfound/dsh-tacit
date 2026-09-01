@@ -9,7 +9,10 @@ line per change; the PR has the detail.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- `pnpm rehearse` drives real headless turns in a throwaway `DSH_HOME` and
+  checks what Tacit learned from them. (#59)
 
 ## [0.6.0] - 2026-09-01
 
