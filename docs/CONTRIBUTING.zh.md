@@ -58,6 +58,8 @@ pnpm check                # 以上四项全部
 pnpm smoke                # 对运行中的 dsh web 做 HTTP 端到端测试（不调用模型，免费）
 TACIT_SMOKE_SESSION=<id> pnpm smoke           # 额外测试 ✨ 改进：一次真实模型调用，约 $0.001
 TACIT_BASE=http://127.0.0.1:4000 pnpm smoke   # 如果你的 dsh web 不在 :3080
+pnpm rehearse             # 在一次性 DSH_HOME 里跑真实 headless 回合：端到端验证零点击闭环
+                          # 需要在 harness 里配好 DeepSeek API key；每次 Tacit 调用约 $0.001，另加 agent 自身的回合开销
 ```
 
 CI 会在每次 push 和 PR 上用 Node 22 和 24 跑 `pnpm test`，外加文档和包检查。
