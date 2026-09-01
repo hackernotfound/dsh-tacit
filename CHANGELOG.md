@@ -9,7 +9,16 @@ line per change; the PR has the detail.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- The weekly compatibility check also runs against `@deepseek-ai/dsh@alpha`. (#57)
+
+### Fixed
+
+- Pattern rows whose kinds spell the same thing fold into one row with summed
+  counts. (#57)
+- A profile keeps one directive on trial per scope; extra candidates from an
+  older profile wait in the queue. (#57)
 
 ## [0.6.0] - 2026-09-01
 

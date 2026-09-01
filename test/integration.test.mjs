@@ -1183,6 +1183,25 @@ test('every analysis carries the previous finished turn as context (auto and man
   assert.ok(captured[captured.length - 1].messages[0].content[0].text.includes('Manual previous prompt.'))
 })
 
+test('a profile holding several global candidates reads back with one on trial and the rest queued', async () => {
+  const trial = (startedAt) => ({ turns: 0, messy: 0, corrected: 0, baselineMessyRate: 0.2, baselineCorrectionRate: 0, startedAt })
+  const { routes } = steeringHarness({
+    config: { autoAnalyze: false },
+    profile: seedDirectives([
+      { id: 'c4', text: 'Fourth candidate.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: trial(4) },
+      { id: 'c2', text: 'Second candidate.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: trial(2) },
+      { id: 'c3', text: 'Third candidate.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: trial(3) },
+      { id: 'c1', text: 'First candidate.', enabled: true, source: 'distilled', createdAt: 1, status: 'candidate', trial: trial(1) },
+    ]),
+  })
+  const state = await callRoute(routes.find((r) => r.path === '/api/tacit/state'), {})
+  const byStatus = (status) => state.body.profile.directives.filter((d) => d.status === status).map((d) => d.id)
+  assert.deepEqual(byStatus('candidate'), ['c1'])
+  assert.deepEqual(byStatus('queued').sort(), ['c2', 'c3', 'c4'])
+  assert.ok(state.body.steering.text.includes('First candidate.'))
+  for (const text of ['Second candidate.', 'Third candidate.', 'Fourth candidate.']) assert.ok(!state.body.steering.text.includes(text))
+})
+
 // ── Directive trials (queued → candidate → active | retired) ───────────────
 
 const trialTurn = (turn, { prompt = 'Add the next endpoint.', toolErrors = 0, finished = true } = {}) => ({
