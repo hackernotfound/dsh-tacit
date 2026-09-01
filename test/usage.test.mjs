@@ -230,6 +230,17 @@ test('four interleaved bootstrap sinks land in one run with stable attempt ids',
 
 // ── accumulation across runs, types, models and days ────────────────────
 
+test('endRun writes the summary to disk without waiting for the flush timer', () => {
+  const { usage, clock, store } = setup()
+  const runId = usage.beginRun({ type: 'analysis', model: 'deepseek-v4-flash' })
+  usage.attemptSink(runId, { op: 'analysis' })(record(clock))
+  usage.endRun(runId, {})
+
+  const { summary } = store.readUsageSummary()
+  assert.equal(summary.lifetime.attempts, 1)
+  assert.equal(summary.byType.analysis.attempts, 1)
+})
+
 test('lifetime / byType / byModel / days accumulate across runs and days', () => {
   const { usage, clock, store } = setup()
   const first = usage.beginRun({ type: 'analysis', model: 'deepseek-v4-flash' })

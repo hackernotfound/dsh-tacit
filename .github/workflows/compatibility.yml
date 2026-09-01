@@ -9,9 +9,14 @@ permissions:
   contents: read
 
 jobs:
-  latest-dsh:
+  dsh:
+    name: dsh@${{ matrix.tag }}
     runs-on: ubuntu-latest
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: [latest, alpha]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -24,19 +29,19 @@ jobs:
           package-manager-cache: false
       - name: Pack Tacit
         run: npm pack --json > "${RUNNER_TEMP}/dsh-tacit-pack.json"
-      - name: Install into the latest DSH profile
+      - name: Install into the dsh@${{ matrix.tag }} profile
         env:
           DSH_HOME: ${{ runner.temp }}/dsh-tacit-compat-home
         run: |
           compatibility_tarball=$(node -e "const p=require(process.env.RUNNER_TEMP+'/dsh-tacit-pack.json'); process.stdout.write(p[0].filename)")
-          npx --yes @deepseek-ai/dsh@latest --version
-          npx --yes @deepseek-ai/dsh@latest plugin --profile web add "./${compatibility_tarball}"
+          npx --yes @deepseek-ai/dsh@${{ matrix.tag }} --version
+          npx --yes @deepseek-ai/dsh@${{ matrix.tag }} plugin --profile web add "./${compatibility_tarball}"
       - name: Verify the installed plugin loads and uses the harness's own @deepseek-ai packages
         env:
           DSH_HOME: ${{ runner.temp }}/dsh-tacit-compat-home
         run: |
           # The harness links its own @deepseek-ai packages into profiles/node_modules on boot.
-          npx --yes @deepseek-ai/dsh@latest web --port 0 > "${RUNNER_TEMP}/dsh-web.log" 2>&1 &
+          npx --yes @deepseek-ai/dsh@${{ matrix.tag }} web --port 0 > "${RUNNER_TEMP}/dsh-web.log" 2>&1 &
           web_pid=$!
           for _ in $(seq 1 60); do [ -d "${DSH_HOME}/profiles/node_modules/@deepseek-ai" ] && break; sleep 1; done
           node scripts/check-install.mjs "${DSH_HOME}/profiles/web"; status=$?

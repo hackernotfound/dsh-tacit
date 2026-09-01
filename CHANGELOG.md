@@ -14,6 +14,19 @@ line per change; the PR has the detail.
 - `pnpm rehearse` drives real headless turns in a throwaway `DSH_HOME` and
   checks what Tacit learned from them. (#59)
 
+### Changed
+
+- The weekly compatibility check also runs against `@deepseek-ai/dsh@alpha`. (#57)
+
+### Fixed
+
+- Pattern rows whose kinds spell the same thing fold into one row with summed
+  counts. (#57)
+- A profile keeps one directive on trial per scope; extra candidates from an
+  older profile wait in the queue. (#57)
+- A run that ends right before the harness exits still counts in the Usage
+  card; the summary is written when the run ends. (#58)
+
 ## [0.6.0] - 2026-09-01
 
 One pass over the whole UI: the same card, badge, chip and row idioms on every
