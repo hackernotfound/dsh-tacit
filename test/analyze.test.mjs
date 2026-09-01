@@ -11,6 +11,7 @@ import {
   normalizeImprove,
   normalizeReport,
   parseJsonObject,
+  settleTrialSlots,
 } from '../lib/analyze.js'
 import { reportSchema, profileSchema } from '../lib/schema.js'
 
@@ -107,6 +108,36 @@ test('aggregateProfile counts only NEW analyses toward analyzedCount', () => {
   assert.equal(second.analyzedCount, 1)
   assert.equal(second.patterns[0].count, 2)
   assert.equal(second.patterns[0].lastExample, 'w2')
+})
+
+test('aggregateProfile folds stored spellings that normalise to one kind into one row', () => {
+  const merged = aggregateProfile({
+    analyzedCount: 3,
+    patterns: [{ kind: 'missing-context', count: 12, lastExample: 'a' }, { kind: 'missing context', count: 1, lastExample: 'b' }],
+    updatedAt: 0,
+  }, { problems: [] }, 12, { countNew: false })
+  assert.equal(merged.patterns.length, 1)
+  assert.equal(merged.patterns[0].kind, 'missing-context')
+  assert.equal(merged.patterns[0].count, 13)
+  assert.equal(merged.patterns[0].lastExample, 'a')
+})
+
+test('settleTrialSlots keeps the earliest-started candidate per scope and queues the rest, idempotently', () => {
+  const candidate = (id, startedAt, workspace) => ({
+    id, text: id, enabled: true, source: 'distilled', createdAt: 1, status: 'candidate',
+    trial: { turns: 0, messy: 0, corrected: 0, baselineMessyRate: 0, baselineCorrectionRate: 0, startedAt },
+    ...(workspace === undefined ? {} : { workspace }),
+  })
+  const list = [candidate('g4', 4), candidate('g2', 2), candidate('g3', 3), candidate('g1', 1), candidate('w', 9, '/repo')]
+  settleTrialSlots(list)
+  const statuses = Object.fromEntries(list.map((entry) => [entry.id, entry.status]))
+  assert.deepEqual(statuses, { g4: 'queued', g2: 'queued', g3: 'queued', g1: 'candidate', w: 'candidate' })
+  assert.equal(list.find((entry) => entry.id === 'g1').trial.startedAt, 1)
+  assert.equal(list.find((entry) => entry.id === 'w').trial.startedAt, 9)
+  for (const id of ['g4', 'g2', 'g3']) assert.equal(list.find((entry) => entry.id === id).trial, undefined)
+  const snapshot = JSON.stringify(list)
+  settleTrialSlots(list)
+  assert.equal(JSON.stringify(list), snapshot)
 })
 
 test('digestTurn and buildAnalysisUserText include the trajectory facts', () => {
