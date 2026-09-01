@@ -9,7 +9,10 @@ line per change; the PR has the detail.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- A weekly `log-audit` workflow and `pnpm check:ci-logs` scan the repository's
+  own CI logs for credentials, personal paths and addresses. (#61)
 
 ## [0.6.1] - 2026-09-01
 
