@@ -40,7 +40,7 @@ export const RULES = [
     pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
     allow: /users\.noreply\.github\.com|@github\.com|actions@|noreply@|dependabot/,
   },
-  { name: 'home-path', pattern: /(\/Users\/[^/\s]+|\/home\/(?!runner\b)[^/\s]+|C:\\Users\\[^\\\s]+)/ },
+  { name: 'home-path', pattern: /(\/Users\/[^/\s]+|\/home\/(?!(?:runner|dependabot)\b)[^/\s]+|C:\\Users\\[^\\\s]+)/ },
   {
     name: 'credential-file',
     pattern: /\.credentials\.ya?ml|anonymous-user-id|DEEPSEEK_API_KEY\s*[:=]\s*\S{8,}/,

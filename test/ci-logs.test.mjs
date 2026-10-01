@@ -68,6 +68,8 @@ test('the benign shapes from real run logs are left alone', () => {
   assert.deepEqual(rulesFor('GH_TOKEN: ***'), [], 'a masked env var')
   assert.deepEqual(rulesFor('/home/runner/work/_temp/git-credentials-8f3d9a2b-7c1e-4d6f-9a0b-2c4d6e8f0a1b.config'), [],
     'the credential helper file actions/checkout writes')
+  assert.deepEqual(rulesFor('git -C /home/dependabot/dependabot-updater/repo ls-files --stage'), [],
+    'Dependabot clones into its own /home/dependabot checkout')
   assert.deepEqual(rulesFor('Secret source: Actions'), [], 'the checkout secret-source line')
   assert.deepEqual(rulesFor('registry_secrets: []'), [], 'an empty setup-node input')
   assert.deepEqual(rulesFor('CWE-916/InsufficientPasswordHash.ql'), [], 'a CodeQL query name')

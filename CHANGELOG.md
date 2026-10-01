@@ -9,6 +9,10 @@ line per change; the PR has the detail.
 
 ## [Unreleased]
 
+### Fixed
+
+- The log audit ignores Dependabot's `/home/dependabot` checkout, the same way it ignores `/home/runner`.
+
 ### Added
 
 - A weekly `log-audit` workflow and `pnpm check:ci-logs` scan the repository's
