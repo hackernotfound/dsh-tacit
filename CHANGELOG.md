@@ -13,9 +13,8 @@ line per change; the PR has the detail.
 
 - Reject opaque origins and malformed JSON media types on browser routes, and keep dot-only session IDs inside report storage.
 - Require patched Zod 4.6.7 and override vulnerable development copies.
-- Update DSH development peers to 0.2.2-rc.1, React to 19.3.1, and the pinned setup-node action to 7.1.0.
+- Support DSH 0.2 hosts and update development peers to 0.2.2-rc.1, React to 19.3.1, and the pinned setup-node action to 7.1.0.
 - Let the live smoke script use a web session cookie and check removed directives and empty usage ledgers correctly.
-
 - The log audit ignores Dependabot's `/home/dependabot` checkout, the same way it ignores `/home/runner`.
 
 ### Added

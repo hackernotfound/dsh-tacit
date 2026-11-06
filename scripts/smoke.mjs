@@ -182,7 +182,9 @@ check('bootstrap-preview: eligible + skipped >= 0', (preview.data?.eligible ?? -
   'eligible=' + preview.data?.eligible + ' skipped=' + preview.data?.skipped)
 const afterPreview = await post('/usage', { range: '30d' })
 check('bootstrap-preview: no model call (lifetime.attempts unchanged)',
-  afterPreview.data?.lifetime?.attempts === beforePreview.data?.lifetime?.attempts,
+  beforePreview.data?.ok === true && afterPreview.data?.ok === true
+    && typeof beforePreview.data?.lifetime?.attempts === 'number'
+    && afterPreview.data?.lifetime?.attempts === beforePreview.data?.lifetime?.attempts,
   'before=' + beforePreview.data?.lifetime?.attempts + ' after=' + afterPreview.data?.lifetime?.attempts)
 
 const usdKnown = typeof usageReport.data?.last30?.usdKnown === 'number' ? usageReport.data.last30.usdKnown : 0
