@@ -89,6 +89,27 @@
         }
         const [draft, setDraft] = useState('')
         const [scope, setScope] = useState('')
+        const [query, setQuery] = useState('')
+        const [statusFilter, setStatusFilter] = useState('all')
+        const [editing, setEditing] = useState(null)
+        const [copyStatus, setCopyStatus] = useState('')
+        const matches = directives.filter((entry) =>
+          (statusFilter === 'all' || entry.status === statusFilter || (statusFilter === 'disabled' && entry.enabled === false))
+          && (entry.text + ' ' + (entry.workspace || '')).toLowerCase().includes(query.trim().toLowerCase()))
+        const saveEdit = async () => {
+          if (editing === null || editing.saving || editing.text.trim().length === 0) return
+          setEditing({ ...editing, saving: true })
+          const saved = await editDirectives({ action: 'edit', id: editing.id, text: editing.text })
+          setEditing(saved ? null : { ...editing, saving: false })
+        }
+        const copyText = async (text) => {
+          try {
+            await navigator.clipboard.writeText(text)
+            setCopyStatus(t('steer.copied'))
+          } catch {
+            setCopyStatus(t('steer.copyFailed'))
+          }
+        }
         const labelOf = (cwd) => {
           const parts = String(cwd).split(/[\\/]+/).filter((part) => part.length > 0)
           return parts.length > 0 ? parts[parts.length - 1] : String(cwd)
@@ -149,13 +170,26 @@
               reviewOn && entry.status === 'queued' && !(entry.approvedAt > 0)
                 ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-primary tacit-dir-start', onClick: () => editDirectives({ action: 'start-trial', id: entry.id }) }, t('steer.startTrial'))
                 : null),
-            h('div', { className: 'tacit-dir-text' }, String(entry.text)),
+            editing !== null && editing.id === entry.id
+              ? h('div', { className: 'tacit-dir-edit' },
+                h('textarea', { className: 'tacit-input', maxLength: 220, rows: 3,
+                  'aria-label': t('steer.editText'), value: editing.text, disabled: editing.saving,
+                  onChange: (event) => setEditing({ ...editing, text: event.target.value }),
+                }),
+                h('div', { className: 'tacit-panel-hint' }, t('steer.editHint')),
+                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: editing.saving || editing.text.trim().length === 0, onClick: saveEdit }, t('steer.save')),
+                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: editing.saving, onClick: () => setEditing(null) }, t('steer.cancel')))
+              : h('div', { className: 'tacit-dir-text' }, String(entry.text)),
             h('div', { className: 'tacit-dir-actions' },
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: editing !== null,
+                onClick: () => setEditing({ id: entry.id, text: entry.text, saving: false }) }, t('steer.edit')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyText(entry.text) }, t('steer.copy')),
               h('label', { className: 'tacit-dir-enabled' },
                 h('input', {
                   type: 'checkbox',
                   className: 'tacit-check',
                   'data-testid': 'tacit-directive-toggle',
+                  disabled: editing !== null && editing.id === entry.id,
                   checked: entry.enabled !== false,
                   onChange: () => editDirectives({ action: 'toggle', id: entry.id, enabled: entry.enabled === false }),
                 }),
@@ -163,11 +197,12 @@
               h('select', {
                 className: 'tacit-input tacit-select tacit-select-sm',
                 'aria-label': t('steer.moveTo'),
+                disabled: editing !== null && editing.id === entry.id,
                 onChange: (event) => {
                   if (event.target.value !== '-') editDirectives({ action: 'rescope', id: entry.id, workspace: event.target.value })
                 },
               }, ...scopeOptions(typeof entry.workspace === 'string' ? entry.workspace : '')),
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet tacit-dir-remove', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet tacit-dir-remove', disabled: editing !== null && editing.id === entry.id, onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
             h('details', {
               className: 'tacit-dir-receipt',
               'data-testid': 'tacit-receipt',
@@ -182,9 +217,21 @@
         return h('div', { className: 'tacit-panel-section', 'data-testid': 'tacit-steering' },
           h('div', { className: 'tacit-report-title' }, t('steer.title')),
           h('div', { className: 'tacit-panel-hint' }, t('steer.desc')),
+          h('div', { className: 'tacit-dir-add' },
+            h('input', { type: 'search', className: 'tacit-input', 'aria-label': t('steer.search'), placeholder: t('steer.search'),
+              value: query, onChange: (event) => setQuery(event.target.value) }),
+            h('select', { className: 'tacit-input tacit-select', 'aria-label': t('steer.filter'), value: statusFilter,
+              onChange: (event) => setStatusFilter(event.target.value) },
+              ...['all', 'active', 'candidate', 'queued', 'retired', 'disabled'].map((value) =>
+                h('option', { key: value, value }, t('steer.filter.' + value)))),
+            query !== '' || statusFilter !== 'all'
+              ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => { setQuery(''); setStatusFilter('all') } }, t('steer.clearFilters')) : null),
+          h('div', { role: 'status', 'aria-live': 'polite', className: 'tacit-panel-hint' }, copyStatus),
           directives.length === 0
             ? h('div', { className: 'tacit-empty' }, t('steer.empty'))
-            : h('div', { className: 'tacit-dir-list' }, directives.map(directiveCard)),
+            : matches.length === 0
+              ? h('div', { className: 'tacit-empty' }, t('steer.noMatches'))
+              : h('div', { className: 'tacit-dir-list' }, matches.map(directiveCard)),
           h('div', { className: 'tacit-dir-add' },
             h('input', {
               className: 'tacit-input tacit-directive-input',
@@ -217,6 +264,7 @@
           steering !== null && typeof steering === 'object' && typeof steering.text === 'string' && steering.text.length > 0
             ? h('details', { className: 'tacit-preview' },
               h('summary', null, t('steer.preview')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyText(steering.text) }, t('steer.copyGuidance')),
               h('pre', { className: 'tacit-pre' }, steering.text))
             : null)
       }

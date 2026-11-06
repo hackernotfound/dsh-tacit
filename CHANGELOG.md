@@ -9,8 +9,22 @@ line per change; the PR has the detail.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-07
+
+### Upgrading
+
+- Restart `dsh web` after updating. Existing profiles load without a migration.
+
+### Added
+
+- Edit directive text in Settings. Changed wording becomes your rule, preserves its scope and enabled state, and clears the old trial evidence.
+- Search directives by text or workspace and filter by active, trial, queued, retired, or disabled status.
+- Copy a directive or the exact guidance preview, with success and failure feedback.
+
+
 ### Fixed
 
+- Mask credential-shaped text in manually added and edited directives before storing or injecting it.
 - Reject opaque origins and malformed JSON media types on browser routes, and keep dot-only session IDs inside report storage.
 - Require patched Zod 4.6.7 and override vulnerable development copies.
 - Support DSH 0.2 hosts and update development peers to 0.2.2-rc.1, React to 19.3.1, and the pinned setup-node action to 7.1.0.
@@ -257,7 +271,8 @@ First public release. Renamed from `dsh-prompt-coach` to **Tacit**; an existing
 Published as `dsh-prompt-coach`: manual prompt coaching gated behind a learning
 threshold. Superseded.
 
-[Unreleased]: https://github.com/hackernotfound/dsh-tacit/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/hackernotfound/dsh-tacit/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/hackernotfound/dsh-tacit/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/hackernotfound/dsh-tacit/compare/v0.4.0...v0.5.0

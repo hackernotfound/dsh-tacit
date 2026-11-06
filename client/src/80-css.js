@@ -127,6 +127,7 @@
       + '.tacit-dir-enabled{display:inline-flex;align-items:center;gap:5px;cursor:pointer}.tacit-dir-enabled .tacit-check{margin:0}.tacit-dir-remove{margin-left:auto}'
       + '.tacit-select-sm{font-size:11px;padding:2px 6px;width:auto}'
       + '.tacit-dir-receipt summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.tacit-dir-receipt summary:hover{color:var(--dsw-alias-label-primary)}'
+      + '.tacit-dir-edit{display:flex;flex-wrap:wrap;gap:6px}.tacit-dir-edit textarea{width:100%;box-sizing:border-box;resize:vertical}.tacit-dir-edit .tacit-panel-hint{width:100%}.tacit-dir-add input[type=search]{flex:1 1 180px;min-width:0}'
       + '.tacit-dir-add{display:flex;flex-wrap:wrap;align-items:center;gap:6px}'
       + '.tacit-options{display:flex;flex-direction:column;gap:6px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 10px}'
       + '.tacit-option{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;cursor:pointer}.tacit-option .tacit-check{margin-top:2px}'
