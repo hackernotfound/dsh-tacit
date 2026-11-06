@@ -87,6 +87,8 @@
         confirmAction,
         fetchBootstrapPreview,
         fetchReceipt,
+        editDirectives,
+        DirectivesEditor,
         storeFor,
         analyzeTurn,
         coachSelected,

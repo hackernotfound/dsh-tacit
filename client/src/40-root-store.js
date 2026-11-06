@@ -501,12 +501,18 @@
     }
 
     async function editDirectives(payload) {
+      let saved = false
       rootStore.error = null
       try {
         const result = await api('/directives', payload)
         if (result !== null && typeof result === 'object' && result.ok) {
           if (result.profile !== null && typeof result.profile === 'object') rootStore.profile = result.profile
           if (result.steering !== null && typeof result.steering === 'object') rootStore.steering = result.steering
+          saved = true
+          if (payload.action === 'edit') {
+            delete rootStore.receipts[payload.id]
+            await fetchReceipt(payload.id)
+          }
         } else {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
         }
@@ -515,15 +521,20 @@
       }
       fetchUsage()
       notifyRoot()
+      return saved
     }
 
     /** One directive's audit receipt. Re-read on every expand: a trial's counters move while it runs. */
+    const receiptRequests = new Map()
     async function fetchReceipt(id) {
       const key = String(id)
       if (key.length === 0) return
+      const request = {}
+      receiptRequests.set(key, request)
       rootStore.error = null
       try {
         const result = await api('/directive-receipt', { id: key })
+        if (receiptRequests.get(key) !== request) return
         if (result !== null && typeof result === 'object' && result.ok === true
           && result.receipt !== null && typeof result.receipt === 'object') {
           rootStore.receipts[key] = result.receipt
@@ -531,8 +542,10 @@
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
         }
       } catch (error) {
+        if (receiptRequests.get(key) !== request) return
         rootStore.error = errorOf(error)
       }
+      if (receiptRequests.get(key) === request) receiptRequests.delete(key)
       notifyRoot()
     }
 

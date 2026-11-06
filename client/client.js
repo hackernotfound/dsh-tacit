@@ -82,6 +82,25 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.add': '添加你自己的指令',
       'steer.addPlaceholder': '例如：「你觉得呢」只是要意见，不要动手实现。',
       'steer.remove': '删除',
+      'steer.edit': "编辑",
+      'steer.editText': "指令文本",
+      'steer.editHint': "保存修改后，此指令将成为你的规则，并清除之前的试用记录。已打开的对话将在下次组装提示词时使用新内容。",
+      'steer.save': "保存",
+      'steer.cancel': "取消",
+      'steer.copy': "复制文本",
+      'steer.copied': "已复制。",
+      'steer.copyFailed': "无法复制。请选中文本并手动复制。",
+      'steer.copyGuidance': "复制引导文本",
+      'steer.search': "搜索文本或工作区",
+      'steer.filter': "筛选指令",
+      'steer.filter.all': "所有状态",
+      'steer.filter.active': "已生效",
+      'steer.filter.candidate': "试用中",
+      'steer.filter.queued': "排队中",
+      'steer.filter.retired': "已停用",
+      'steer.filter.disabled': "已禁用",
+      'steer.clearFilters': "清除筛选",
+      'steer.noMatches': "没有符合筛选条件的指令。",
       'steer.preview': '实际注入的文本',
       'steer.distilled': '自动提炼',
       'steer.queued': '等待试用',
@@ -371,6 +390,25 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       'steer.add': 'Add your own directive',
       'steer.addPlaceholder': 'e.g. "What do you think" means opinion only — do not build anything.',
       'steer.remove': 'Remove',
+      'steer.edit': "Edit",
+      'steer.editText': "Directive text",
+      'steer.editHint': "Saving changed wording makes this your rule and clears its previous trial evidence. Applies to open conversations on their next prompt assembly.",
+      'steer.save': "Save",
+      'steer.cancel': "Cancel",
+      'steer.copy': "Copy text",
+      'steer.copied': "Copied.",
+      'steer.copyFailed': "Could not copy. Select the text and copy it manually.",
+      'steer.copyGuidance': "Copy guidance",
+      'steer.search': "Search text or workspace",
+      'steer.filter': "Filter directives",
+      'steer.filter.all': "All statuses",
+      'steer.filter.active': "Active",
+      'steer.filter.candidate': "On trial",
+      'steer.filter.queued': "Queued",
+      'steer.filter.retired': "Retired",
+      'steer.filter.disabled': "Disabled",
+      'steer.clearFilters': "Clear filters",
+      'steer.noMatches': "No directives match these filters.",
       'steer.preview': 'Exact text injected',
       'steer.distilled': 'distilled',
       'steer.queued': 'waiting for trial',
@@ -1214,12 +1252,18 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
     }
 
     async function editDirectives(payload) {
+      let saved = false
       rootStore.error = null
       try {
         const result = await api('/directives', payload)
         if (result !== null && typeof result === 'object' && result.ok) {
           if (result.profile !== null && typeof result.profile === 'object') rootStore.profile = result.profile
           if (result.steering !== null && typeof result.steering === 'object') rootStore.steering = result.steering
+          saved = true
+          if (payload.action === 'edit') {
+            delete rootStore.receipts[payload.id]
+            await fetchReceipt(payload.id)
+          }
         } else {
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
         }
@@ -1228,15 +1272,20 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       }
       fetchUsage()
       notifyRoot()
+      return saved
     }
 
     /** One directive's audit receipt. Re-read on every expand: a trial's counters move while it runs. */
+    const receiptRequests = new Map()
     async function fetchReceipt(id) {
       const key = String(id)
       if (key.length === 0) return
+      const request = {}
+      receiptRequests.set(key, request)
       rootStore.error = null
       try {
         const result = await api('/directive-receipt', { id: key })
+        if (receiptRequests.get(key) !== request) return
         if (result !== null && typeof result === 'object' && result.ok === true
           && result.receipt !== null && typeof result.receipt === 'object') {
           rootStore.receipts[key] = result.receipt
@@ -1244,8 +1293,10 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           rootStore.error = { code: result !== null && typeof result === 'object' && typeof result.code === 'string' ? result.code : 'bad-request', detail: '' }
         }
       } catch (error) {
+        if (receiptRequests.get(key) !== request) return
         rootStore.error = errorOf(error)
       }
+      if (receiptRequests.get(key) === request) receiptRequests.delete(key)
       notifyRoot()
     }
 
@@ -2611,6 +2662,27 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         }
         const [draft, setDraft] = useState('')
         const [scope, setScope] = useState('')
+        const [query, setQuery] = useState('')
+        const [statusFilter, setStatusFilter] = useState('all')
+        const [editing, setEditing] = useState(null)
+        const [copyStatus, setCopyStatus] = useState('')
+        const matches = directives.filter((entry) =>
+          (statusFilter === 'all' || entry.status === statusFilter || (statusFilter === 'disabled' && entry.enabled === false))
+          && (entry.text + ' ' + (entry.workspace || '')).toLowerCase().includes(query.trim().toLowerCase()))
+        const saveEdit = async () => {
+          if (editing === null || editing.saving || editing.text.trim().length === 0) return
+          setEditing({ ...editing, saving: true })
+          const saved = await editDirectives({ action: 'edit', id: editing.id, text: editing.text })
+          setEditing(saved ? null : { ...editing, saving: false })
+        }
+        const copyText = async (text) => {
+          try {
+            await navigator.clipboard.writeText(text)
+            setCopyStatus(t('steer.copied'))
+          } catch {
+            setCopyStatus(t('steer.copyFailed'))
+          }
+        }
         const labelOf = (cwd) => {
           const parts = String(cwd).split(/[\\/]+/).filter((part) => part.length > 0)
           return parts.length > 0 ? parts[parts.length - 1] : String(cwd)
@@ -2671,13 +2743,26 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               reviewOn && entry.status === 'queued' && !(entry.approvedAt > 0)
                 ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-primary tacit-dir-start', onClick: () => editDirectives({ action: 'start-trial', id: entry.id }) }, t('steer.startTrial'))
                 : null),
-            h('div', { className: 'tacit-dir-text' }, String(entry.text)),
+            editing !== null && editing.id === entry.id
+              ? h('div', { className: 'tacit-dir-edit' },
+                h('textarea', { className: 'tacit-input', maxLength: 220, rows: 3,
+                  'aria-label': t('steer.editText'), value: editing.text, disabled: editing.saving,
+                  onChange: (event) => setEditing({ ...editing, text: event.target.value }),
+                }),
+                h('div', { className: 'tacit-panel-hint' }, t('steer.editHint')),
+                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: editing.saving || editing.text.trim().length === 0, onClick: saveEdit }, t('steer.save')),
+                h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: editing.saving, onClick: () => setEditing(null) }, t('steer.cancel')))
+              : h('div', { className: 'tacit-dir-text' }, String(entry.text)),
             h('div', { className: 'tacit-dir-actions' },
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', disabled: editing !== null,
+                onClick: () => setEditing({ id: entry.id, text: entry.text, saving: false }) }, t('steer.edit')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyText(entry.text) }, t('steer.copy')),
               h('label', { className: 'tacit-dir-enabled' },
                 h('input', {
                   type: 'checkbox',
                   className: 'tacit-check',
                   'data-testid': 'tacit-directive-toggle',
+                  disabled: editing !== null && editing.id === entry.id,
                   checked: entry.enabled !== false,
                   onChange: () => editDirectives({ action: 'toggle', id: entry.id, enabled: entry.enabled === false }),
                 }),
@@ -2685,11 +2770,12 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
               h('select', {
                 className: 'tacit-input tacit-select tacit-select-sm',
                 'aria-label': t('steer.moveTo'),
+                disabled: editing !== null && editing.id === entry.id,
                 onChange: (event) => {
                   if (event.target.value !== '-') editDirectives({ action: 'rescope', id: entry.id, workspace: event.target.value })
                 },
               }, ...scopeOptions(typeof entry.workspace === 'string' ? entry.workspace : '')),
-              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet tacit-dir-remove', onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm tacit-btn-quiet tacit-dir-remove', disabled: editing !== null && editing.id === entry.id, onClick: () => editDirectives({ action: 'remove', id: entry.id }) }, t('steer.remove'))),
             h('details', {
               className: 'tacit-dir-receipt',
               'data-testid': 'tacit-receipt',
@@ -2704,9 +2790,21 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         return h('div', { className: 'tacit-panel-section', 'data-testid': 'tacit-steering' },
           h('div', { className: 'tacit-report-title' }, t('steer.title')),
           h('div', { className: 'tacit-panel-hint' }, t('steer.desc')),
+          h('div', { className: 'tacit-dir-add' },
+            h('input', { type: 'search', className: 'tacit-input', 'aria-label': t('steer.search'), placeholder: t('steer.search'),
+              value: query, onChange: (event) => setQuery(event.target.value) }),
+            h('select', { className: 'tacit-input tacit-select', 'aria-label': t('steer.filter'), value: statusFilter,
+              onChange: (event) => setStatusFilter(event.target.value) },
+              ...['all', 'active', 'candidate', 'queued', 'retired', 'disabled'].map((value) =>
+                h('option', { key: value, value }, t('steer.filter.' + value)))),
+            query !== '' || statusFilter !== 'all'
+              ? h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => { setQuery(''); setStatusFilter('all') } }, t('steer.clearFilters')) : null),
+          h('div', { role: 'status', 'aria-live': 'polite', className: 'tacit-panel-hint' }, copyStatus),
           directives.length === 0
             ? h('div', { className: 'tacit-empty' }, t('steer.empty'))
-            : h('div', { className: 'tacit-dir-list' }, directives.map(directiveCard)),
+            : matches.length === 0
+              ? h('div', { className: 'tacit-empty' }, t('steer.noMatches'))
+              : h('div', { className: 'tacit-dir-list' }, matches.map(directiveCard)),
           h('div', { className: 'tacit-dir-add' },
             h('input', {
               className: 'tacit-input tacit-directive-input',
@@ -2739,6 +2837,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
           steering !== null && typeof steering === 'object' && typeof steering.text === 'string' && steering.text.length > 0
             ? h('details', { className: 'tacit-preview' },
               h('summary', null, t('steer.preview')),
+              h('button', { type: 'button', className: 'tacit-btn tacit-btn-sm', onClick: () => copyText(steering.text) }, t('steer.copyGuidance')),
               h('pre', { className: 'tacit-pre' }, steering.text))
             : null)
       }
@@ -3694,6 +3793,7 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
       + '.tacit-dir-enabled{display:inline-flex;align-items:center;gap:5px;cursor:pointer}.tacit-dir-enabled .tacit-check{margin:0}.tacit-dir-remove{margin-left:auto}'
       + '.tacit-select-sm{font-size:11px;padding:2px 6px;width:auto}'
       + '.tacit-dir-receipt summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.tacit-dir-receipt summary:hover{color:var(--dsw-alias-label-primary)}'
+      + '.tacit-dir-edit{display:flex;flex-wrap:wrap;gap:6px}.tacit-dir-edit textarea{width:100%;box-sizing:border-box;resize:vertical}.tacit-dir-edit .tacit-panel-hint{width:100%}.tacit-dir-add input[type=search]{flex:1 1 180px;min-width:0}'
       + '.tacit-dir-add{display:flex;flex-wrap:wrap;align-items:center;gap:6px}'
       + '.tacit-options{display:flex;flex-direction:column;gap:6px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 10px}'
       + '.tacit-option{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;cursor:pointer}.tacit-option .tacit-check{margin-top:2px}'
@@ -3814,6 +3914,8 @@ if (typeof window === 'undefined' || window.__ModuleLoader__ === undefined || ty
         confirmAction,
         fetchBootstrapPreview,
         fetchReceipt,
+        editDirectives,
+        DirectivesEditor,
         storeFor,
         analyzeTurn,
         coachSelected,

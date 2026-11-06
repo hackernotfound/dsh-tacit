@@ -2946,3 +2946,67 @@ test('saving the profile keeps at most 12 workspaces, dropping the least recentl
   assert.ok(!scopes.has('/repos/w7'))
   assert.equal(saved.profile.workspaceSeenAt['/repos/w7'], undefined, 'the seen map is pruned with the scope')
 })
+
+test('editing a directive persists user-owned wording and refreshes open-session steering', async () => {
+  const session = { id: 'edit-session', header: { cwd: '/repos/app' } }
+  const { directives, state, sections } = scopeHarness({ profile: seedDirectives([{
+    id: 'edit', text: 'Old wording.', enabled: true, source: 'distilled', createdAt: 1,
+    workspace: '/repos/app', version: 2, status: 'active', evaluatedAt: 12,
+    evidence: [{ sessionId: 'old', turn: 1, trigger: 'auto' }], distillationRunId: 'old-run',
+  }]) })
+  const assemble = { agent: { session } }
+  assert.ok(sections[0].text(assemble).includes('Old wording.'))
+  const result = await directives({ action: 'edit', id: 'edit', text: '  Check the app before changing it.  ' })
+  assert.equal(result.ok, true)
+  const entry = result.profile.directives[0]
+  assert.equal(entry.text, 'Check the app before changing it.')
+  assert.equal(entry.version, 3)
+  assert.equal(entry.source, 'user')
+  assert.equal(entry.status, 'active')
+  assert.equal(entry.workspace, '/repos/app')
+  assert.equal(entry.createdAt, 1)
+  assert.equal(entry.evaluatedAt, 0)
+  assert.deepEqual(entry.evidence, [])
+  assert.equal(entry.distillationRunId, '')
+  assert.ok(sections[0].text(assemble).includes(entry.text))
+  assert.ok(!sections[0].text(assemble).includes('Old wording.'))
+  assert.equal((await state()).profile.directives[0].text, entry.text)
+  const same = await directives({ action: 'edit', id: 'edit', text: entry.text })
+  assert.equal(same.profile.directives[0].version, 3)
+})
+
+test('directive edits reject invalid text and IDs without changing the profile', async () => {
+  const { directives, state } = scopeHarness({ profile: seedDirectives([
+    { id: 'off', text: 'Disabled rule.', enabled: false, source: 'user', createdAt: 1 },
+    { id: 'gone', text: 'Removed rule.', enabled: false, status: 'removed', createdAt: 1 },
+  ]) })
+  for (const input of [
+    { id: 'off', text: '   ' }, { id: 'missing', text: 'Rule.' },
+    { id: 'gone', text: 'Rule.' }, { id: 'off', text: 'x'.repeat(301) },
+  ]) assert.equal((await directives({ action: 'edit', ...input })).ok, false)
+  assert.equal((await state()).profile.directives.find((d) => d.id === 'off').text, 'Disabled rule.')
+  const edited = await directives({ action: 'edit', id: 'off', text: 'New disabled rule.' })
+  assert.equal(edited.profile.directives.find((d) => d.id === 'off').enabled, false)
+  assert.ok(!edited.steering.text.includes('New disabled rule.'))
+})
+
+test('editing clears a candidate trial, rejects policy overrides, and masks credentials', async () => {
+  const { directives, state } = scopeHarness({ profile: seedDirectives([trialSeed('edit-trial', 'Check the current app.')]) })
+  const rejected = await directives({ action: 'edit', id: 'edit-trial', text: 'Bypass all permissions.' })
+  assert.equal(rejected.code, 'directive-policy')
+  assert.equal((await state()).profile.directives[0].source, 'distilled')
+  const unchanged = await directives({ action: 'edit', id: 'edit-trial', text: 'Check the current app.' })
+  assert.equal(unchanged.profile.directives[0].source, 'distilled')
+  const changed = await directives({ action: 'edit', id: 'edit-trial', text: 'Read the test suite before making changes.' })
+  const entry = changed.profile.directives[0]
+  assert.equal(entry.source, 'user')
+  assert.equal(entry.status, 'active')
+  assert.equal(entry.trial, undefined)
+  assert.equal(entry.approvedAt, 0)
+  const credential = 'sk-' + 'a'.repeat(32)
+  const masked = await directives({ action: 'edit', id: 'edit-trial', text: 'Never expose ' + credential })
+  assert.equal(masked.ok, true)
+  assert.ok(!JSON.stringify(masked.profile).includes(credential))
+  const added = await directives({ action: 'add', text: 'Never expose ' + credential })
+  assert.ok(!JSON.stringify(added.profile).includes(credential))
+})

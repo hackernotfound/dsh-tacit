@@ -72,7 +72,7 @@ All `POST`, JSON in / JSON out, on the harness web server (no extra port), body
 | `/api/tacit/improve` | `{sessionId, draft}` | `improved`, `rationale`, `rewriteId`, `patternsUsed` |
 | `/api/tacit/applied` | `{sessionId, rewriteId}` | ok (starts free verification) |
 | `/api/tacit/feedback` | `{rewriteId, verdict: up\|down, reason?}` | profile |
-| `/api/tacit/directives` | `{action: toggle\|add\|rescope\|remove\|start-trial, …}` (`rescope` takes `id` and a `workspace`, `''` for global) | profile + steering |
+| `/api/tacit/directives` | `{action: toggle\|add\|edit\|rescope\|remove\|start-trial, …}` (`edit` takes `id` and `text`, converts changed text to a user rule and invalidates frozen steering; `rescope` takes `id` and a `workspace`, `''` for global) | profile + steering |
 | `/api/tacit/directive-receipt` | `{id}` | that directive's receipt: text, scope, status, source, enabled, `createdAt`/`updatedAt`/`evaluatedAt`/`approvedAt`, `version`, its trial counters and baselines, `retiredReason`, the trigger counts and evidence ids derived from its evidence, and `cost {runId, calls, usd}` read from the ledger (`usd` is `null` when the run is unknown or none of its attempts is priced); never prompt text. `unknown-directive` when no directive has that id |
 | `/api/tacit/stats` | `{window?}` (3–200, default 20) | trend early vs. recent |
 | `/api/tacit/bootstrap` | `{sessionId?, limit?}` (1–50, default 20) | analyzed / skipped / directives; `busy` if one is running |
