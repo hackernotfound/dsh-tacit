@@ -267,6 +267,10 @@ test('routes: cross-site requests are refused before the body is read (forms, fo
   const cases = [
     [{ ...same, 'sec-fetch-site': 'cross-site' }, 'sec-fetch-site'],
     [{ ...same, origin: 'http://evil.example' }, 'origin'],
+    [{ host: same.host, origin: 'null' }, 'origin'],
+    [{ host: same.host, origin: 'not-a-url' }, 'origin'],
+    [{ origin: same.origin }, 'origin'],
+    [{ ...same, 'content-type': 'application/jsonp' }, 'content-type'],
     [{ ...same, 'content-type': 'text/plain' }, 'content-type'],
     [{ host: '127.0.0.1:3080', 'content-type': 'application/x-www-form-urlencoded' }, 'content-type'],
   ]

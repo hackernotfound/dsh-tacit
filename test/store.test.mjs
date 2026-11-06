@@ -438,3 +438,18 @@ test('a rewrite the stat cannot distinguish still invalidates the memo', () => {
     fs.statSync = realStatSync
   }
 })
+
+test('report paths keep dot session ids inside a session directory', () => {
+  const { store, dir } = tempStore()
+  try {
+    for (const sessionId of ['.', '..', '../..', '', 'session-1']) {
+      const file = store.reportFile(sessionId, 1)
+      const relative = path.relative(path.join(dir, 'reports'), file)
+      assert.equal(relative.split(path.sep)[0] === '..', false)
+      assert.equal(path.dirname(relative) === '.', false)
+      assert.equal(path.basename(file), '1.json')
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
