@@ -43,7 +43,8 @@ Optional kick-start: **Settings → Tacit →
 *Learn from my last 20 turns*** (≈ $0.02–0.05, once).
 
 Requires DeepSeek Harness `>= 0.1.1-rc.1`, Node `>= 22`, and a DeepSeek API key
-already configured in the harness (Tacit never reads it).
+already configured in the harness (Tacit never reads it). Current DSH 0.2 releases
+require Node `>= 24.9.0`.
 
 ## What you get
 

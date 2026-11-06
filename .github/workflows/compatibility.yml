@@ -12,7 +12,6 @@ jobs:
   dsh:
     name: dsh@${{ matrix.tag }}
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -23,7 +22,7 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 11.23.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           package-manager-cache: false
@@ -36,14 +35,33 @@ jobs:
           compatibility_tarball=$(node -e "const p=require(process.env.RUNNER_TEMP+'/dsh-tacit-pack.json'); process.stdout.write(p[0].filename)")
           npx --yes @deepseek-ai/dsh@${{ matrix.tag }} --version
           npx --yes @deepseek-ai/dsh@${{ matrix.tag }} plugin --profile web add "./${compatibility_tarball}"
-      - name: Verify the installed plugin loads and uses the harness's own @deepseek-ai packages
+      - name: Smoke-test the packed plugin in the real harness
         env:
           DSH_HOME: ${{ runner.temp }}/dsh-tacit-compat-home
+          TACIT_BASE: http://127.0.0.1:3081
         run: |
-          # The harness links its own @deepseek-ai packages into profiles/node_modules on boot.
-          npx --yes @deepseek-ai/dsh@${{ matrix.tag }} web --port 0 > "${RUNNER_TEMP}/dsh-web.log" 2>&1 &
+          npx --yes @deepseek-ai/dsh@${{ matrix.tag }} web --port 3081 --no-open > "${RUNNER_TEMP}/dsh-web.log" 2>&1 &
           web_pid=$!
-          for _ in $(seq 1 60); do [ -d "${DSH_HOME}/profiles/node_modules/@deepseek-ai" ] && break; sleep 1; done
-          node scripts/check-install.mjs "${DSH_HOME}/profiles/web"; status=$?
-          kill "${web_pid}" 2>/dev/null || true
-          exit "${status}"
+          trap 'kill "$web_pid" 2>/dev/null || true' EXIT
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'
+          import { spawnSync } from 'node:child_process'
+          import { setTimeout as wait } from 'node:timers/promises'
+
+          let url
+          for (let attempt = 0; attempt < 60; attempt += 1) {
+            const log = fs.readFileSync(process.env.RUNNER_TEMP + '/dsh-web.log', 'utf8')
+            url = log.match(/http:\/\/127\.0\.0\.1:3081\/\?token=\S+/)?.[0]
+            if (url) break
+            await wait(1000)
+          }
+          if (!url) throw new Error('The harness did not announce an authenticated web URL')
+          const response = await fetch(url, { redirect: 'manual' })
+          const cookie = response.headers.getSetCookie().map(value => value.split(';')[0]).join('; ')
+          if (!cookie) throw new Error('The harness did not issue a web session cookie')
+          const smoke = spawnSync('node', ['scripts/smoke.mjs'], {
+            env: { ...process.env, TACIT_SMOKE_COOKIE: cookie },
+            stdio: 'inherit',
+          })
+          process.exit(smoke.status ?? 1)
+          NODE

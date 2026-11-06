@@ -11,6 +11,7 @@
  *
  *   pnpm smoke                                 # dsh web on the default http://127.0.0.1:3080
  *   TACIT_BASE=http://127.0.0.1:4000 pnpm smoke  # any other host/port
+ *   TACIT_SMOKE_COOKIE=<cookie> pnpm smoke     # authenticated harness web session
  *   TACIT_SMOKE_SESSION=<id> pnpm smoke         # pin a session instead of the newest one
  */
 
@@ -18,6 +19,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 
 const BASE = process.env.TACIT_BASE || 'http://127.0.0.1:3080'
 const SESSION_ID = process.env.TACIT_SMOKE_SESSION || ''
+const COOKIE = process.env.TACIT_SMOKE_COOKIE || ''
 
 let failures = 0
 function check(name, condition, detail) {
@@ -28,7 +30,7 @@ function check(name, condition, detail) {
 async function post(pathName, payload) {
   const response = await fetch(BASE + '/api/tacit' + pathName, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(COOKIE ? { cookie: COOKIE } : {}) },
     body: JSON.stringify(payload === undefined ? {} : payload),
   })
   let data = null
@@ -44,7 +46,7 @@ async function waitForServer(timeoutMs = 120000) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(BASE + '/')
+      const response = await fetch(BASE + '/', { headers: COOKIE ? { cookie: COOKIE } : {} })
       if (response.ok) return
     } catch {
       // not up yet
@@ -73,12 +75,12 @@ check('stats: ok with early/recent windows', stats.data?.ok === true && typeof s
 // 3. Directives: add → appears in steering text → remove.
 const added = await post('/directives', { action: 'add', text: 'Smoke-test directive: prefer pnpm over npm.' })
 check('directives: add ok', added.data?.ok === true)
-const addedId = (added.data?.profile?.directives ?? []).find((d) => d.text.startsWith('Smoke-test directive'))?.id
+const addedId = (added.data?.profile?.directives ?? []).find((d) => d.status !== 'removed' && d.text.startsWith('Smoke-test directive'))?.id
 check('directives: rendered into the steering text', typeof addedId === 'string' && (added.data?.steering?.text ?? '').includes('prefer pnpm'))
 const toggled = await post('/directives', { action: 'toggle', id: addedId ?? 'x', enabled: false })
 check('directives: toggle off removes it from the steering text', toggled.data?.ok === true && !(toggled.data?.steering?.text ?? '').includes('prefer pnpm'))
 const removed = await post('/directives', { action: 'remove', id: addedId ?? 'x' })
-check('directives: remove ok', removed.data?.ok === true && !(removed.data?.profile?.directives ?? []).some((d) => d.id === addedId))
+check('directives: remove ok', removed.data?.ok === true && !(removed.data?.profile?.directives ?? []).some((d) => d.id === addedId && d.status !== 'removed'))
 const bad = await post('/directives', { action: 'explode' })
 check('directives: bad action → HTTP 400', bad.status === 400)
 
@@ -121,9 +123,11 @@ check('usage: series30 has 30 entries', Array.isArray(usageReport.data?.series30
 check('usage: series7 has 7 entries', Array.isArray(usageReport.data?.series7) && usageReport.data.series7.length === 7,
   'len=' + usageReport.data?.series7?.length)
 const runItems = usageReport.data?.runs?.items ?? []
-check('usage: at least one run on the page', runItems.length >= 1, 'items=' + runItems.length)
-check('usage: lifetime billedCalls >= 1', (usageReport.data?.lifetime?.billedCalls ?? 0) >= 1,
-  'billedCalls=' + usageReport.data?.lifetime?.billedCalls)
+if (improveRanOk) {
+  check('usage: at least one run on the page', runItems.length >= 1, 'items=' + runItems.length)
+  check('usage: lifetime billedCalls >= 1', (usageReport.data?.lifetime?.billedCalls ?? 0) >= 1,
+    'billedCalls=' + usageReport.data?.lifetime?.billedCalls)
+}
 const RUN_STATUSES = ['success', 'partial', 'failed', 'running']
 check('usage: every run item has runId/type/status', runItems.every((r) =>
   typeof r?.runId === 'string' && r.runId.length > 0 && typeof r?.type === 'string' && RUN_STATUSES.includes(r?.status)))
@@ -133,17 +137,21 @@ if (improveRanOk) {
   console.log('  skip  usage run-type check for improve (set TACIT_SMOKE_SESSION=<session id> to produce one)')
 }
 
-const firstRunId = runItems[0]?.runId
-const runDetail = firstRunId !== undefined ? await post('/usage-run', { runId: firstRunId }) : { data: null }
-check('usage-run: ok', runDetail.data?.ok === true, 'runId=' + firstRunId)
-const runAttempts = runDetail.data?.run?.attempts ?? []
-check('usage-run: attempts.length >= 1', runAttempts.length >= 1, 'n=' + runAttempts.length)
-const TOKEN_BUCKETS = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens']
-check('usage-run: every attempt has op/status and usage or is unmetered', runAttempts.every((a) =>
-  typeof a?.op === 'string' && typeof a?.status === 'string'
-  && (a.status === 'unmetered' || (a.usage !== null && typeof a.usage === 'object' && TOKEN_BUCKETS.every((k) => typeof a.usage[k] === 'number')))))
-check('usage-run: priced is null or {usd>=0, source}', runAttempts.every((a) =>
-  a?.priced === null || (typeof a?.priced?.usd === 'number' && a.priced.usd >= 0 && typeof a.priced.source === 'string')))
+if (runItems.length > 0) {
+  const firstRunId = runItems[0]?.runId
+  const runDetail = firstRunId !== undefined ? await post('/usage-run', { runId: firstRunId }) : { data: null }
+  check('usage-run: ok', runDetail.data?.ok === true, 'runId=' + firstRunId)
+  const runAttempts = runDetail.data?.run?.attempts ?? []
+  check('usage-run: attempts.length >= 1', runAttempts.length >= 1, 'n=' + runAttempts.length)
+  const TOKEN_BUCKETS = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens']
+  check('usage-run: every attempt has op/status and usage or is unmetered', runAttempts.every((a) =>
+    typeof a?.op === 'string' && typeof a?.status === 'string'
+    && (a.status === 'unmetered' || (a.usage !== null && typeof a.usage === 'object' && TOKEN_BUCKETS.every((k) => typeof a.usage[k] === 'number')))))
+  check('usage-run: priced is null or {usd>=0, source}', runAttempts.every((a) =>
+    a?.priced === null || (typeof a?.priced?.usd === 'number' && a.priced.usd >= 0 && typeof a.priced.source === 'string')))
+} else {
+  console.log('  skip  usage-run detail (no recorded model calls in this profile)')
+}
 
 const unknownRun = await post('/usage-run', { runId: 'nope' })
 check('usage-run: unknown id → ok:false code:unknown-run', unknownRun.data?.ok === false && unknownRun.data?.code === 'unknown-run')
