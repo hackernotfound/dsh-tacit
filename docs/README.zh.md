@@ -1,6 +1,6 @@
 <h1 align="center">Tacit</h1>
 
-<p align="center"><b>学习你在提示词里没说出口的东西——并替你告诉智能体。</b><br>
+<p align="center"><b>把反复出现的纠正整理成可编辑的智能体指令。</b><br>
 一个 <a href="https://www.npmjs.com/package/@deepseek-ai/dsh">DeepSeek Harness</a> 插件。</p>
 
 <p align="center">
@@ -12,9 +12,10 @@
 
 > 本文由英文版翻译而来，尚未经过母语者校对；以 [README.md](https://github.com/hackernotfound/dsh-tacit/blob/main/README.md) 为准，欢迎提交修正。
 
-你照常写提示词。Tacit 在后台观察每一轮*实际*的走向——重试、工具报错，尤其是
-智能体做错之后你发的那条消息——把你的习惯变成几条指令，让智能体在每个新对话里
-自动遵守。无需点击，每次学习 $0.001–0.003。
+Tacit 从重试、工具报错和你随后发出的纠正中学习，把重复出现的问题整理成后续
+会话可用的短指令。你可以在设置里查看、编辑、关闭或删除这些指令。
+自动学习默认开启。分析会通过你配置的 Harness 服务商调用模型，每次约
+$0.001 到 $0.003。
 
 ```
 你:     "把登录页做好一点"
@@ -22,11 +23,14 @@
 你:     "不对，我是说 apps/web 下的 Next.js 应用"
 
 Tacit:  学到 → "用户常常不说明是哪个应用——先查 apps/web。"
-        注入之后每个对话的系统提示。
-        你再也不用重复说了。
+        指令启用时，会加入后续会话的系统提示。
 ```
 
-## 安装——30 秒
+## 安装或更新
+
+[0.7.0 版本](https://github.com/hackernotfound/dsh-tacit/releases/tag/v0.7.0)
+已发布到 npm。此版本支持 DSH 0.2，新增指令编辑、搜索、状态筛选和复制功能，
+并包含依赖、请求校验和存储路径的安全修复。
 
 ```bash
 npx @deepseek-ai/dsh plugin --profile web add dsh-tacit
@@ -35,8 +39,9 @@ npx @deepseek-ai/dsh plugin --profile web add dsh-tacit
 用 `npx @deepseek-ai/dsh web` 启动（或重启），然后刷新页面。可选的快速起步：**设置 → Tacit → *从我最近 20 轮中学习***
 （约 $0.02–0.05，一次性）。
 
-需要 DeepSeek Harness `>= 0.1.1-rc.1`、Node `>= 22`，以及已在 harness 里配置好的
-DeepSeek API Key（Tacit 从不读取它）。
+支持 DSH 0.1 和 0.2，最低版本为 `0.1.1-rc.2`。Tacit 需要 Node `>= 22`，
+当前 DSH 0.2 需要 Node `>= 24.9.0`。DeepSeek API Key 必须已在 Harness 中配置好；
+Tacit 不读取这个密钥。现有配置无需迁移，更新后需要重启 Harness。
 
 ## 你会得到什么
 
