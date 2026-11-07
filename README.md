@@ -1,6 +1,6 @@
 <h1 align="center">Tacit</h1>
 
-<p align="center"><b>Learns what you leave unsaid in your prompts — and tells the agent for you.</b><br>
+<p align="center"><b>Learns what you leave unsaid in your prompts.</b><br>
 A plugin for <a href="https://www.npmjs.com/package/@deepseek-ai/dsh">DeepSeek Harness</a>.</p>
 
 <p align="center">
@@ -10,10 +10,11 @@ A plugin for <a href="https://www.npmjs.com/package/@deepseek-ai/dsh">DeepSeek H
   <a href="https://github.com/hackernotfound/dsh-tacit/blob/main/docs/README.zh.md">中文</a>
 </p>
 
-You keep writing prompts the way you already do. Tacit watches how each turn
-*actually* went — retries, tool errors, and above all the message you send
-when the agent got it wrong — and turns your habits into a few directives the
-agent follows in every new conversation. No clicks, $0.001–0.003 per lesson.
+Tacit learns from retries, tool errors, and the corrections you send afterwards.
+It turns repeated patterns into short instructions for later conversations.
+You can read, edit, disable or delete those instructions in Settings.
+Automatic learning starts on. Analysis uses your configured Harness provider
+and costs about $0.001 to $0.003 per call.
 
 ```
 you:    "make the login page better"
@@ -21,15 +22,19 @@ agent:  …stumbles…
 you:    "no, I meant the Next.js app under apps/web"
 
 Tacit:  learns → "The user often omits which app they mean — check apps/web first."
-        injects it into every later conversation's system prompt.
-        You never have to say it again.
+        adds it to later conversations while the instruction is enabled.
 ```
 
 <p align="center">
   <img alt="Install Tacit, open its conversation tab, review learning controls, and edit the directive it gives the agent" src="https://raw.githubusercontent.com/hackernotfound/dsh-tacit/main/docs/assets/tacit-demo.gif" width="960">
 </p>
 
-## Install — 30 seconds
+## Install or update
+
+[Version 0.7.0](https://github.com/hackernotfound/dsh-tacit/releases/tag/v0.7.0)
+is published on npm. It supports DSH 0.2, adds directive editing, search, status
+filters and copy controls, and includes dependency updates and security fixes
+for web requests and report storage.
 
 ```bash
 npx @deepseek-ai/dsh plugin --profile web add dsh-tacit
@@ -42,9 +47,10 @@ Start (or restart) with `npx @deepseek-ai/dsh web`, then refresh the page.
 Optional kick-start: **Settings → Tacit →
 *Learn from my last 20 turns*** (≈ $0.02–0.05, once).
 
-Requires DeepSeek Harness `>= 0.1.1-rc.1`, Node `>= 22`, and a DeepSeek API key
-already configured in the harness (Tacit never reads it). Current DSH 0.2 releases
-require Node `>= 24.9.0`.
+Supports DSH 0.1 and 0.2 hosts, starting at `0.1.1-rc.2`. Tacit requires Node
+`>= 22`; current DSH 0.2 releases require Node `>= 24.9.0`. A DeepSeek API key
+must already be configured in the harness. Tacit does not read the key.
+Existing profiles load without a migration. Restart the harness after updating.
 
 ## What you get
 
@@ -90,8 +96,9 @@ the honest list of limitations:
 
 ## Help shape Tacit
 
-Tacit works and I use it every day — but so far it has learned from one
-person's prompts. It gets better with more of them.
+I maintain Tacit and want feedback from people using it on different projects.
+Use it in two conversations, then share an instruction it got right or wrong
+in the [tester discussion](https://github.com/hackernotfound/dsh-tacit/discussions/18).
 
 - **Try it and say what feels wrong.** A directive that misfires, a cost that
   surprised you, a label that reads oddly:
