@@ -6,8 +6,8 @@
 
 | You need | Details |
 | --- | --- |
-| DeepSeek Harness (`dsh`) | version `>= 0.1.1-rc.1` — check with `npx @deepseek-ai/dsh --version` |
-| Node.js | `>= 22` |
+| DeepSeek Harness (`dsh`) | DSH 0.1 or 0.2, starting at `0.1.1-rc.2`. Check with `npx @deepseek-ai/dsh --version`. |
+| Node.js | Tacit needs `>= 22`. Current DSH 0.2 releases need `>= 24.9.0`. |
 | A DeepSeek API key | already configured in the harness (**Settings → Models**). Tacit never reads it: every model call goes through the harness's own model service. |
 
 ## Install

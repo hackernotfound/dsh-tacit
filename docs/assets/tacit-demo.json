@@ -1,0 +1,10 @@
+{
+  "version": "0.7.0",
+  "sha256": {
+    "scripts/build-demo.mjs": "55a43d7b4b4a03b61ca82a3bd029d2f84121f0d541c63b3c25932d8acaeafee9",
+    "docs/assets/tacit-install.svg": "2d671bbb218fc2cacfe596609cbe3a30e2b402debc3996badef1c56cba8b2f7c",
+    "docs/assets/tacit-learn.svg": "8746f75660ce691529613bdfd195fdfc7c87066d6a358a4057b65f07352033bf",
+    "docs/assets/tacit-guidance.svg": "81517b0d6678359a2ff6b5293dce66de2e2edc27efdaf442fc15e5debb0734d3",
+    "docs/assets/tacit-demo.gif": "dc9c75d7a806e02391a4f332794b608572dfd5dbf08944d0e0c86b3a283d3629"
+  }
+}

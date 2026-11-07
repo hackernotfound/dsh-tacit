@@ -26,8 +26,9 @@ Tacit:  learns → "The user often omits which app they mean — check apps/web 
 ```
 
 <p align="center">
-  <img alt="Install Tacit, open its conversation tab, review learning controls, and edit the directive it gives the agent" src="https://raw.githubusercontent.com/hackernotfound/dsh-tacit/main/docs/assets/tacit-demo.gif" width="960">
+  <img alt="Illustrated Tacit 0.7.0 walkthrough: install, learn from a correction, and edit, search or copy instructions" src="https://raw.githubusercontent.com/hackernotfound/dsh-tacit/main/docs/assets/tacit-demo.gif?v=0.7.0" width="960">
 </p>
+<p align="center"><sub>Illustrated walkthrough with an example correction and instruction, not a recorded session.</sub></p>
 
 ## Install or update
 
