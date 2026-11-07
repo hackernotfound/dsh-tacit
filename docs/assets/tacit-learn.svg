@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#f7f9fc"/><stop offset="1" stop-color="#eaf1fb"/></linearGradient></defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <g font-family="Helvetica, Arial, sans-serif">
+    <text x="96" y="72" font-size="30" fill="#246bdb" font-weight="700">Tacit</text>
+    <text x="173" y="72" font-size="30" fill="#172033" font-weight="700">for DeepSeek Harness</text>
+    <rect x="1044" y="40" width="140" height="44" rx="22" fill="#fff" stroke="#dbe3ef"/>
+    <text x="1073" y="69" font-size="20" fill="#4b5d73" font-weight="600">v0.7.0</text>
+    <circle cx="113" cy="133" r="17" fill="#246bdb"/>
+    <text x="108" y="139" font-size="17" fill="#fff" font-weight="700">2</text>
+    <text x="145" y="141" font-size="21" fill="#246bdb" font-weight="700">Learn from corrections</text>
+    <text x="96" y="211" font-size="44" fill="#172033" font-weight="700">Turn a repeated correction into guidance.</text>
+
+    <rect x="96" y="253" width="1088" height="146" rx="16" fill="#fff" stroke="#dbe3ef"/>
+    <text x="124" y="288" font-size="16" fill="#61748c" font-weight="700">YOUR CORRECTION</text>
+    <text x="124" y="333" font-size="30" fill="#172033" font-weight="500">&quot;No, I meant the Next.js app under apps/web.&quot;</text>
+    <text x="124" y="373" font-size="23" fill="#53677f" font-weight="400">Tacit looks for patterns in retries, tool errors and corrections.</text>
+    <path d="M640 411v29m-9-9 9 9 9-9" fill="none" stroke="#246bdb" stroke-width="3"/>
+    <rect x="96" y="456" width="1088" height="119" rx="16" fill="#edf4ff" stroke="#a9c8f5"/>
+    <text x="124" y="490" font-size="16" fill="#246bdb" font-weight="700">EXAMPLE LEARNED INSTRUCTION</text>
+    <text x="124" y="536" font-size="30" fill="#172033" font-weight="500">Check apps/web first when I don't name an app.</text>
+
+    <text x="96" y="626" font-size="21" fill="#42566e" font-weight="400">New instructions start on trial. You can turn them off or delete them.</text>
+    <text x="96" y="674" font-size="17" fill="#61748c" font-weight="400">Illustrated walkthrough · example data</text>
+    <text x="810" y="674" font-size="17" fill="#61748c" font-weight="400">github.com/hackernotfound/dsh-tacit</text>
+  </g>
+</svg>

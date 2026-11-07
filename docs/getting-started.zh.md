@@ -8,8 +8,8 @@
 
 | 你需要 | 说明 |
 | --- | --- |
-| DeepSeek Harness（`dsh`） | 版本 `>= 0.1.1-rc.1`——用 `npx @deepseek-ai/dsh --version` 查看 |
-| Node.js | `>= 22` |
+| DeepSeek Harness（`dsh`） | 支持 DSH 0.1 和 0.2，最低版本为 `0.1.1-rc.2`。用 `npx @deepseek-ai/dsh --version` 查看。 |
+| Node.js | Tacit 需要 `>= 22`，当前 DSH 0.2 需要 `>= 24.9.0`。 |
 | 一个 DeepSeek API Key | 已在 harness 里配置好（**设置 → 模型**）。Tacit 从不读取它：每次模型调用都经过 harness 自己的模型服务。 |
 
 ## 安装
